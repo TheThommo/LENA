@@ -7,7 +7,8 @@ Docs: https://clinicaltrials.gov/data-api/api
 Rate limits: 500 requests per minute (very generous)
 """
 
-import httpx
+import requests
+import asyncio
 from typing import Optional
 from dataclasses import dataclass
 
@@ -55,21 +56,19 @@ async def search_trials(
     if status_filter:
         params["filter.overallStatus"] = status_filter
 
-    # ClinicalTrials.gov sits behind Cloudflare which blocks non-browser
-    # User-Agent strings with 403. Use a standard browser UA to avoid this.
-    headers = {
-        "User-Agent": (
-            "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
-            "AppleWebKit/537.36 (KHTML, like Gecko) "
-            "Chrome/131.0.0.0 Safari/537.36"
-        ),
-        "Accept": "application/json",
-    }
+    # ClinicalTrials.gov Cloudflare protection blocks httpx but allows
+    # the requests library (proven by pytrials). Run synchronous request
+    # in a thread pool so we stay async-compatible.
+    def _do_request():
+        resp = requests.get(
+            f"{BASE_URL}/studies",
+            params=params,
+            timeout=30,
+        )
+        resp.raise_for_status()
+        return resp.json()
 
-    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-        response = await client.get(f"{BASE_URL}/studies", params=params, headers=headers)
-        response.raise_for_status()
-        data = response.json()
+    data = await asyncio.to_thread(_do_request)
 
     trials = []
     for study in data.get("studies", []):
