@@ -5,7 +5,8 @@ Search routes - the core LENA query endpoint.
 from fastapi import APIRouter, Query
 from typing import Optional
 
-from app.core.persona import PersonaType, detect_persona_from_query
+from app.core.persona import PersonaType, detect_persona_from_query, get_persona_config
+from app.services.search_orchestrator import run_search
 
 router = APIRouter(prefix="/search", tags=["search"])
 
@@ -22,25 +23,33 @@ async def search_literature(
 
     This is the main LENA endpoint. It:
     1. Detects or uses the provided persona
-    2. Queries all (or filtered) data sources
-    3. Runs PULSE cross-reference validation
-    4. Returns results with validation status
-
-    MVP: Returns raw results from each source.
-    V2: Will include PULSE validation and LLM synthesis.
+    2. Checks medical advice guardrail
+    3. Queries all (or filtered) data sources in parallel
+    4. Runs PULSE cross-reference validation with keyword overlap scoring
+    5. Returns results with validation status and persona context
     """
-    # Detect persona if not provided
+    # Step 1: Detect persona
     detected_persona = persona or detect_persona_from_query(q)
+    persona_config = get_persona_config(detected_persona)
 
-    # Placeholder response structure
+    # Step 2: Parse source filter
+    source_list = sources.split(",") if sources else None
+
+    # Step 3: Run the full search pipeline (guardrail + parallel queries + PULSE)
+    search_result = await run_search(
+        query=q,
+        max_results_per_source=max_results,
+        sources=source_list,
+    )
+
+    # Step 4: Build response with persona context
     return {
         "query": q,
-        "persona": detected_persona,
-        "pulse_status": "pending",
-        "message": "Search endpoint scaffolded. Wire up in next milestone.",
-        "sources_to_query": (
-            sources.split(",") if sources
-            else ["pubmed", "clinical_trials", "cochrane", "who_iris", "cdc"]
-        ),
-        "max_results_per_source": max_results,
+        "persona": {
+            "detected": detected_persona.value,
+            "display_name": persona_config.display_name,
+            "tone": persona_config.tone,
+            "depth": persona_config.depth,
+        },
+        **search_result,
     }
