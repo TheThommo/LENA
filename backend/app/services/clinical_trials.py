@@ -61,8 +61,13 @@ async def search_trials(
         "CompletionDate", "EnrollmentCount", "BriefSummary",
     ])
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
-        response = await client.get(f"{BASE_URL}/studies", params=params)
+    headers = {
+        "User-Agent": "LENA-Research-Agent/1.0",
+        "Accept": "application/json",
+    }
+
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
+        response = await client.get(f"{BASE_URL}/studies", params=params, headers=headers)
         response.raise_for_status()
         data = response.json()
 

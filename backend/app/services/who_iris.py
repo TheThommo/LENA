@@ -4,8 +4,8 @@ WHO IRIS (Institutional Repository for Information Sharing) Service
 WHO IRIS is built on DSpace and exposes a REST API for searching
 WHO publications, guidelines, technical reports, and policy documents.
 
-Docs: https://apps.who.int/iris/rest
-Base: https://apps.who.int/iris/rest
+Docs: https://iris.who.int/rest
+Base: https://iris.who.int/rest
 
 This is completely free, no API key needed.
 Rate limits are not formally documented but be respectful (1-2 req/sec).
@@ -15,7 +15,7 @@ import httpx
 from typing import Optional
 from dataclasses import dataclass
 
-BASE_URL = "https://apps.who.int/iris/rest"
+BASE_URL = "https://iris.who.int/rest"
 
 
 @dataclass
@@ -56,7 +56,7 @@ async def search_who_iris(
         "User-Agent": "LENA-Research-Agent/1.0",
     }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
         response = await client.get(
             f"{BASE_URL}/items/find-by-metadata-field",
             params=params,
@@ -131,7 +131,7 @@ async def test_connection() -> dict:
             "User-Agent": "LENA-Research-Agent/1.0",
         }
 
-        async with httpx.AsyncClient(timeout=30.0) as client:
+        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
             response = await client.get(
                 f"{BASE_URL}/items",
                 params={"limit": 3, "expand": "metadata"},

@@ -69,7 +69,7 @@ async def search_pubmed(
         retmode="json",
     )
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
         response = await client.get(f"{BASE_URL}/esearch.fcgi", params=params)
         response.raise_for_status()
         data = response.json()
@@ -96,7 +96,7 @@ async def fetch_articles(pmids: list[str]) -> list[PubMedArticle]:
         retmode="xml",
     )
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
         response = await client.get(f"{BASE_URL}/efetch.fcgi", params=params)
         response.raise_for_status()
 
