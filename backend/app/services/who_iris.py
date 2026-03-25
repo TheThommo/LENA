@@ -15,7 +15,8 @@ import httpx
 from typing import Optional
 from dataclasses import dataclass
 
-BASE_URL = "https://iris.who.int/rest"
+# DSpace 7 API (WHO IRIS migrated from /rest to /server/api)
+BASE_URL = "https://iris.who.int/server/api"
 
 
 @dataclass
@@ -38,6 +39,8 @@ async def search_who_iris(
     """
     Search WHO IRIS for publications and guidelines.
 
+    Uses the DSpace 7 discovery endpoint for full-text search.
+
     Args:
         query: Search term
         max_results: Number of results to return
@@ -45,109 +48,105 @@ async def search_who_iris(
     Returns:
         List of WHODocument objects
     """
+    # DSpace 7 discovery/search endpoint
     params = {
         "query": query,
-        "expand": "metadata",
-        "limit": min(max_results, 50),
+        "size": min(max_results, 50),
+        "dsoType": "item",
     }
 
     headers = {
         "Accept": "application/json",
-        "User-Agent": "LENA-Research-Agent/1.0",
+        "User-Agent": "LENA-Research-Agent/1.0 (clinical research platform)",
     }
 
     async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
         response = await client.get(
-            f"{BASE_URL}/items/find-by-metadata-field",
+            f"{BASE_URL}/discover/search/objects",
             params=params,
             headers=headers,
         )
-
-        # WHO IRIS search can also be done via the discover endpoint
-        # If the metadata endpoint doesn't work, fall back to discover
-        if response.status_code != 200:
-            # Fallback: use the simpler search endpoint
-            response = await client.get(
-                f"{BASE_URL}/items",
-                params={"query": query, "limit": min(max_results, 50)},
-                headers=headers,
-            )
-            response.raise_for_status()
-
+        response.raise_for_status()
         data = response.json()
 
     documents = []
 
-    # Handle both list and dict responses
-    items = data if isinstance(data, list) else data.get("items", [])
+    # DSpace 7 search response structure
+    search_results = (
+        data.get("_embedded", {})
+        .get("searchResult", {})
+        .get("_embedded", {})
+        .get("objects", [])
+    )
 
-    for item in items[:max_results]:
-        # Extract metadata
-        metadata = {}
-        for m in item.get("metadata", []):
-            key = m.get("key", "")
-            value = m.get("value", "")
-            if key not in metadata:
-                metadata[key] = value
-            elif isinstance(metadata[key], list):
-                metadata[key].append(value)
-            else:
-                metadata[key] = [metadata[key], value]
+    for obj in search_results[:max_results]:
+        item = obj.get("_embedded", {}).get("indexableObject", {})
+        if not item:
+            continue
 
         iris_id = str(item.get("id", ""))
-        title = metadata.get("dc.title", item.get("name", "No title"))
-        description = metadata.get("dc.description.abstract", "")
-        year_str = metadata.get("dc.date.issued", "")
+
+        # Extract metadata from DSpace 7 format
+        metadata = item.get("metadata", {})
+
+        title = _get_metadata_value(metadata, "dc.title", "No title")
+        description = _get_metadata_value(metadata, "dc.description.abstract", "")
+        year_str = _get_metadata_value(metadata, "dc.date.issued", "")
+        doc_type = _get_metadata_value(metadata, "dc.type", "Unknown")
+        language = _get_metadata_value(metadata, "dc.language.iso", "en")
+
         year = None
         if year_str and len(year_str) >= 4 and year_str[:4].isdigit():
             year = int(year_str[:4])
 
-        # Authors
-        authors_raw = metadata.get("dc.contributor.author", [])
-        if isinstance(authors_raw, str):
-            authors_raw = [authors_raw]
+        # Authors (can have multiple values)
+        authors = _get_metadata_values(metadata, "dc.contributor.author")
+
+        # Build handle URL
+        handle = item.get("handle", "")
+        item_url = f"https://iris.who.int/handle/{handle}" if handle else ""
 
         documents.append(WHODocument(
             iris_id=iris_id,
-            title=title if isinstance(title, str) else str(title),
-            description=description if isinstance(description, str) else "",
-            authors=authors_raw if isinstance(authors_raw, list) else [str(authors_raw)],
+            title=title,
+            description=description,
+            authors=authors,
             year=year,
-            document_type=metadata.get("dc.type", "Unknown"),
-            language=metadata.get("dc.language.iso", "en"),
-            url=f"https://apps.who.int/iris/handle/{item.get('handle', '')}",
-            pdf_url=None,  # Would need a second call to get bitstreams
+            document_type=doc_type,
+            language=language,
+            url=item_url,
+            pdf_url=None,
         ))
 
     return documents
 
 
+def _get_metadata_value(metadata: dict, key: str, default: str = "") -> str:
+    """Extract a single metadata value from DSpace 7 format."""
+    values = metadata.get(key, [])
+    if values and isinstance(values, list) and len(values) > 0:
+        return values[0].get("value", default)
+    return default
+
+
+def _get_metadata_values(metadata: dict, key: str) -> list[str]:
+    """Extract all metadata values for a key from DSpace 7 format."""
+    values = metadata.get(key, [])
+    if isinstance(values, list):
+        return [v.get("value", "") for v in values if v.get("value")]
+    return []
+
+
 async def test_connection() -> dict:
-    """Test the WHO IRIS API connection."""
+    """Test the WHO IRIS API connection using DSpace 7 discovery search."""
     try:
-        # Simple connectivity test: fetch recent items
-        headers = {
-            "Accept": "application/json",
-            "User-Agent": "LENA-Research-Agent/1.0",
-        }
-
-        async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
-            response = await client.get(
-                f"{BASE_URL}/items",
-                params={"limit": 3, "expand": "metadata"},
-                headers=headers,
-            )
-            response.raise_for_status()
-            data = response.json()
-
-        items = data if isinstance(data, list) else data.get("items", [])
-
+        docs = await search_who_iris("malaria prevention", max_results=3)
         return {
             "source": "WHO IRIS",
             "status": "connected",
-            "test_query": "recent items",
-            "results_found": len(items),
-            "sample_title": items[0].get("name", "N/A") if items else "N/A",
+            "test_query": "malaria prevention",
+            "results_found": len(docs),
+            "sample_title": docs[0].title if docs else "N/A",
             "api_key_required": False,
         }
     except Exception as e:

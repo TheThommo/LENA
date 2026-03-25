@@ -49,20 +49,14 @@ async def search_trials(
         "query.term": query,
         "pageSize": min(max_results, 100),
         "format": "json",
+        "countTotal": "true",
     }
 
     if status_filter:
         params["filter.overallStatus"] = status_filter
 
-    # Request specific fields to keep response lean
-    params["fields"] = ",".join([
-        "NCTId", "BriefTitle", "OverallStatus", "Phase",
-        "Condition", "InterventionName", "StartDate",
-        "CompletionDate", "EnrollmentCount", "BriefSummary",
-    ])
-
     headers = {
-        "User-Agent": "LENA-Research-Agent/1.0",
+        "User-Agent": "LENA-Research-Agent/1.0 (clinical research platform; contact: support@lena.health)",
         "Accept": "application/json",
     }
 
