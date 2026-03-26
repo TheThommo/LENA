@@ -1,0 +1,1243 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>LENA - Interactive Prototype</title>
+    <style>
+        body {
+            margin: 0;
+            font-family: system-ui, -apple-system, sans-serif;
+            min-height: 100vh;
+        }
+    </style>
+    
+    <!-- React 18 -->
+    <script crossorigin src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
+    <script crossorigin src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    
+    <!-- Babel for JSX transpilation -->
+    <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
+    
+    <!-- Recharts -->
+    <script src="https://unpkg.com/recharts@2.12.7/umd/Recharts.js"></script>
+    
+    <!-- Lucide React -->
+    <script src="https://unpkg.com/lucide-react@0.383.0/dist/umd/lucide-react.js"></script>
+</head>
+<body>
+    <div id="root"></div>
+    
+    <script type="text/babel">
+        const { useState, useEffect, useRef } = React;
+        const { Search, Send, ChevronDown, ChevronRight, BookOpen, Clock, TrendingUp, User, Settings, Menu, X, Star, ExternalLink, Copy, Shield, ChevronLeft, BarChart3, FileText, MessageSquare, Sparkles, Check, AlertTriangle, Bookmark, Download, Share2, Leaf, Heart, Info, Dumbbell, Upload } = lucideReact;
+        const { PieChart, Pie, Cell, BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer, LineChart, Line, CartesianGrid } = Recharts;
+
+
+// ============================================================
+// LENA Chat Interface - Interactive Prototype
+// ============================================================
+
+const ACCENT = "#1B6B93";
+const ACCENT_LIGHT = "#E8F4F8";
+const ACCENT_DARK = "#145372";
+const WARM_BG = "#FFFBF0";
+const SUCCESS = "#22C55E";
+const WARNING = "#F59E0B";
+const DANGER = "#EF4444";
+
+// --- Mock Data ---
+const PERSONAS = [
+  { id: "medical_student", label: "Medical Student", icon: "🎓" },
+  { id: "clinician", label: "Clinician", icon: "🩺" },
+  { id: "pharmacist", label: "Pharmacist", icon: "💊" },
+  { id: "researcher", label: "Researcher", icon: "🔬" },
+  { id: "lecturer", label: "Lecturer", icon: "📚" },
+  { id: "physiotherapist", label: "Physiotherapist", icon: "🏃" },
+  { id: "patient", label: "Patient", icon: "❤️" },
+  { id: "general", label: "General", icon: "🌐" },
+];
+
+const SUGGESTED_PROMPTS = {
+  general: [
+    "Find recent research on COVID-19 long-term effects",
+    "What does the evidence say about intermittent fasting?",
+    "Compare treatment options for migraine prevention",
+  ],
+  clinician: [
+    "Recent RCTs on GLP-1 agonists for cardiovascular outcomes",
+    "Evidence for early vs delayed surgery in appendicitis",
+    "Drug interactions with metformin in elderly patients",
+  ],
+  researcher: [
+    "Systematic reviews on CRISPR applications in oncology",
+    "Meta-analysis methodology for heterogeneous clinical trials",
+    "Research gaps in rare disease therapeutics",
+  ],
+  medical_student: [
+    "What are the latest guidelines for managing hypertension?",
+    "Compare ACE inhibitors vs ARBs for first-line treatment",
+    "Explain the pathophysiology of Type 2 diabetes",
+  ],
+};
+
+const TRENDING = [
+  { topic: "GLP-1 receptor agonists", count: 47, trend: "up" },
+  { topic: "Long COVID treatment", count: 34, trend: "up" },
+  { topic: "AI in diagnostic imaging", count: 28, trend: "stable" },
+];
+
+const SOURCE_COLORS = {
+  PubMed: "#2563EB",
+  "ClinicalTrials.gov": "#7C3AED",
+  Cochrane: "#EA580C",
+  "WHO IRIS": "#0891B2",
+  CDC: "#059669",
+};
+
+const MOCK_SOURCES_PIE = [
+  { name: "PubMed", value: 12 },
+  { name: "ClinicalTrials.gov", value: 8 },
+  { name: "Cochrane", value: 5 },
+  { name: "WHO IRIS", value: 3 },
+  { name: "CDC", value: 4 },
+];
+
+const MOCK_YEAR_DATA = [
+  { year: "2020", count: 3 },
+  { year: "2021", count: 5 },
+  { year: "2022", count: 8 },
+  { year: "2023", count: 12 },
+  { year: "2024", count: 18 },
+  { year: "2025", count: 14 },
+];
+
+const MOCK_PULSE_TREND = [
+  { search: "1", score: 72 },
+  { search: "2", score: 85 },
+  { search: "3", score: 68 },
+  { search: "4", score: 91 },
+  { search: "5", score: 78 },
+  { search: "6", score: 88 },
+];
+
+const MOCK_RESULTS = [
+  {
+    id: 1,
+    title: "GLP-1 Receptor Agonists and Cardiovascular Outcomes: A Systematic Review and Meta-Analysis",
+    source: "PubMed",
+    year: 2024,
+    authors: ["Chen, L.", "Wang, S.", "Zhang, K."],
+    pulseScore: 92,
+    pulseStatus: "high",
+    summary: "This systematic review analyzed 14 RCTs involving 76,455 participants and found that GLP-1 receptor agonists significantly reduced major adverse cardiovascular events (MACE) by 14% compared to placebo.",
+    url: "#",
+  },
+  {
+    id: 2,
+    title: "Cardiovascular Safety of Semaglutide in Adults with Type 2 Diabetes",
+    source: "ClinicalTrials.gov",
+    year: 2024,
+    authors: ["NCT05803421"],
+    pulseScore: 88,
+    pulseStatus: "high",
+    summary: "Phase 3 trial (n=3,200) evaluating cardiovascular outcomes of weekly semaglutide 2.4mg vs placebo in adults with T2D and established CVD. Primary endpoint: time to first MACE.",
+    url: "#",
+  },
+  {
+    id: 3,
+    title: "Glucagon-like Peptide-1 Receptor Agonists for the Treatment of Type 2 Diabetes Mellitus",
+    source: "Cochrane",
+    year: 2023,
+    authors: ["Mancini, G.B.", "et al."],
+    pulseScore: 95,
+    pulseStatus: "high",
+    summary: "Cochrane systematic review confirming GLP-1 RAs reduce HbA1c by 0.5-1.5% with additional benefits for weight loss and cardiovascular risk reduction.",
+    url: "#",
+  },
+  {
+    id: 4,
+    title: "WHO Guidelines on Second-Line Treatment for Type 2 Diabetes",
+    source: "WHO IRIS",
+    year: 2023,
+    authors: ["World Health Organization"],
+    pulseScore: 71,
+    pulseStatus: "medium",
+    summary: "Updated guidelines recommend GLP-1 RAs as a preferred second-line option for patients with cardiovascular comorbidities, though cost-effectiveness varies by region.",
+    url: "#",
+  },
+  {
+    id: 5,
+    title: "National Diabetes Statistics Report: GLP-1 Prescribing Trends",
+    source: "CDC",
+    year: 2024,
+    authors: ["Centers for Disease Control and Prevention"],
+    pulseScore: 58,
+    pulseStatus: "edge",
+    summary: "CDC data shows GLP-1 RA prescriptions increased 340% between 2020-2024, with significant disparities in access across socioeconomic groups.",
+    url: "#",
+  },
+];
+
+const SEARCH_HISTORY = [
+  { query: "GLP-1 receptor agonists cardiovascular", time: "2 min ago" },
+  { query: "Type 2 diabetes latest guidelines", time: "Yesterday" },
+  { query: "Metformin drug interactions elderly", time: "Mar 23" },
+  { query: "SGLT2 inhibitors renal outcomes", time: "Mar 21" },
+];
+
+const SHARE_RECIPIENTS = [
+  { id: "patient", label: "Patient", icon: "❤️" },
+  { id: "colleague", label: "Colleague / Peer", icon: "🩺" },
+  { id: "student", label: "Student", icon: "🎓" },
+  { id: "supervisor", label: "Supervisor / Teacher", icon: "📚" },
+  { id: "family", label: "Family Member", icon: "👨‍👩‍👧" },
+  { id: "other", label: "Other", icon: "📤" },
+];
+
+const MOCK_ALT_RESULTS = [
+  {
+    id: 101,
+    title: "Magnesium Supplementation and Blood Pressure: A Meta-Analysis of Randomized Controlled Trials",
+    source: "PubMed",
+    year: 2024,
+    authors: ["Zhang, X.", "Li, Y.", "Del Gobbo, L.C."],
+    pulseScore: 84,
+    pulseStatus: "high",
+    summary: "Meta-analysis of 34 RCTs (n=2,028) found magnesium supplementation (mean 368mg/day) significantly reduced systolic BP by 2.00 mmHg and diastolic BP by 1.78 mmHg. Effects were stronger in participants with magnesium deficiency.",
+    url: "#",
+    isAlternative: true,
+  },
+  {
+    id: 102,
+    title: "Nattokinase and Cardiovascular Risk: Systematic Review of Clinical Evidence",
+    source: "Cochrane",
+    year: 2023,
+    authors: ["Kim, J.Y.", "Gum, S.N.", "Paik, J.K."],
+    pulseScore: 67,
+    pulseStatus: "medium",
+    summary: "Systematic review of 11 studies suggests nattokinase may reduce systolic BP by 3-5 mmHg and improve fibrinolytic activity. Evidence quality is moderate; larger RCTs are needed to confirm cardiovascular benefits.",
+    url: "#",
+    isAlternative: true,
+  },
+  {
+    id: 103,
+    title: "Vitamin K2 (Menaquinone-7) and Arterial Stiffness: A Double-Blind RCT",
+    source: "PubMed",
+    year: 2024,
+    authors: ["Knapen, M.H.", "Braam, L.A.", "Drummen, N.E."],
+    pulseScore: 73,
+    pulseStatus: "medium",
+    summary: "Three-year RCT (n=244) found MK-7 supplementation (180mcg/day) significantly improved arterial stiffness and reduced age-related vascular deterioration in healthy postmenopausal women.",
+    url: "#",
+    isAlternative: true,
+  },
+];
+
+const MOCK_CHAT_HISTORY = [
+  { id: "c1", title: "GLP-1 receptor agonists and cardiovascular outcomes", date: "Today", messages: 4, persona: "clinician" },
+  { id: "c2", title: "Natural remedies for blood pressure reduction", date: "Today", messages: 6, persona: "patient" },
+  { id: "c3", title: "Type 2 diabetes latest treatment guidelines", date: "Yesterday", messages: 3, persona: "medical_student" },
+  { id: "c4", title: "Metformin drug interactions in elderly patients", date: "Mar 23", messages: 5, persona: "pharmacist" },
+  { id: "c5", title: "SGLT2 inhibitors renal outcomes meta-analysis", date: "Mar 21", messages: 2, persona: "researcher" },
+  { id: "c6", title: "Exercise prescription for hypertension management", date: "Mar 19", messages: 4, persona: "physiotherapist" },
+  { id: "c7", title: "Omega-3 fatty acids and inflammation markers", date: "Mar 17", messages: 3, persona: "general" },
+];
+
+// --- Components ---
+
+function PulseScoreBadge({ score, status, showInfo }) {
+  const colors = {
+    high: { bg: "#DCFCE7", text: "#166534", border: "#86EFAC" },
+    medium: { bg: "#FEF9C3", text: "#854D0E", border: "#FDE047" },
+    low: { bg: "#FEE2E2", text: "#991B1B", border: "#FCA5A5" },
+    edge: { bg: "#F3E8FF", text: "#6B21A8", border: "#C4B5FD" },
+  };
+  const c = colors[status] || colors.medium;
+  const [showTooltip, setShowTooltip] = useState(false);
+  const labels = { high: "Strong consensus across sources", medium: "Moderate agreement", low: "Limited agreement", edge: "Unique angle, fewer sources agree" };
+  return (
+    <div style={{ position: "relative", display: "inline-flex" }}>
+      <div
+        onMouseEnter={() => setShowTooltip(true)}
+        onMouseLeave={() => setShowTooltip(false)}
+        style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 10px", borderRadius: 20, backgroundColor: c.bg, border: `1px solid ${c.border}`, cursor: "help" }}
+      >
+        <div style={{ width: 8, height: 8, borderRadius: "50%", backgroundColor: c.text }} />
+        <span style={{ fontSize: 12, fontWeight: 600, color: c.text }}>PULSE {score}%</span>
+        <Info size={10} color={c.text} />
+      </div>
+      {showTooltip && (
+        <div style={{ position: "absolute", bottom: "calc(100% + 8px)", left: "50%", transform: "translateX(-50%)", backgroundColor: "#1A1A2E", color: "white", padding: "10px 14px", borderRadius: 8, fontSize: 11, lineHeight: 1.5, width: 260, zIndex: 200, boxShadow: "0 4px 16px rgba(0,0,0,0.2)" }}>
+          <div style={{ fontWeight: 700, marginBottom: 4 }}>PULSE Cross-Reference Score</div>
+          <div style={{ marginBottom: 6 }}>{labels[status]}</div>
+          <div style={{ fontSize: 10, opacity: 0.8 }}>Measures keyword overlap between this source and {score >= 80 ? "3+" : "2+"} other databases using Jaccard similarity. Higher = more sources agree on these findings.</div>
+          <div style={{ position: "absolute", bottom: -4, left: "50%", transform: "translateX(-50%) rotate(45deg)", width: 8, height: 8, backgroundColor: "#1A1A2E" }} />
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ShareModal({ onClose, onShare, resultTitle }) {
+  const [selectedRecipient, setSelectedRecipient] = useState(null);
+  const [email, setEmail] = useState("");
+  const [note, setNote] = useState("");
+  const [shared, setShared] = useState(false);
+
+  const handleShare = () => {
+    if (!selectedRecipient) return;
+    setShared(true);
+    onShare && onShare({ recipient: selectedRecipient, email, note });
+    setTimeout(() => onClose(), 1500);
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}>
+      <div style={{ backgroundColor: "white", borderRadius: 16, padding: 28, maxWidth: 420, width: "90%", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
+        {shared ? (
+          <div style={{ textAlign: "center", padding: "20px 0" }}>
+            <div style={{ width: 48, height: 48, borderRadius: "50%", backgroundColor: "#DCFCE7", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 12px" }}>
+              <Check size={24} color="#166534" />
+            </div>
+            <h3 style={{ fontSize: 18, color: "#1A1A2E", margin: "0 0 4px" }}>Shared successfully!</h3>
+            <p style={{ fontSize: 13, color: "#888" }}>Your research has been shared.</p>
+          </div>
+        ) : (
+          <>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 6 }}>
+              <h3 style={{ margin: 0, fontSize: 17, color: "#1A1A2E", display: "flex", alignItems: "center", gap: 8 }}>
+                <Share2 size={18} color={ACCENT} /> Share Research
+              </h3>
+              <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}><X size={16} color="#999" /></button>
+            </div>
+            {resultTitle && <p style={{ fontSize: 12, color: "#888", margin: "0 0 16px", fontStyle: "italic" }}>"{resultTitle}"</p>}
+
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#666", textTransform: "uppercase", letterSpacing: 0.5 }}>Who are you sharing with?</label>
+            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 6, margin: "8px 0 16px" }}>
+              {SHARE_RECIPIENTS.map(r => (
+                <button key={r.id} onClick={() => setSelectedRecipient(r.id)} style={{
+                  padding: "10px 8px", border: `1.5px solid ${selectedRecipient === r.id ? ACCENT : "#E0E0E0"}`,
+                  borderRadius: 8, backgroundColor: selectedRecipient === r.id ? ACCENT_LIGHT : "white",
+                  cursor: "pointer", textAlign: "center", fontSize: 11, color: selectedRecipient === r.id ? ACCENT : "#555", transition: "all 0.15s"
+                }}>
+                  <div style={{ fontSize: 18, marginBottom: 2 }}>{r.icon}</div>
+                  {r.label}
+                </button>
+              ))}
+            </div>
+
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#666", display: "block", marginBottom: 4 }}>Recipient email (optional)</label>
+            <input value={email} onChange={e => setEmail(e.target.value)} placeholder="their@email.com" style={{ width: "100%", padding: "9px 12px", border: "1px solid #DDD", borderRadius: 8, fontSize: 13, outline: "none", marginBottom: 12, boxSizing: "border-box" }} />
+
+            <label style={{ fontSize: 11, fontWeight: 600, color: "#666", display: "block", marginBottom: 4 }}>Add a note (optional)</label>
+            <textarea value={note} onChange={e => setNote(e.target.value)} placeholder="Found this relevant to your case..." rows={2} style={{ width: "100%", padding: "9px 12px", border: "1px solid #DDD", borderRadius: 8, fontSize: 13, outline: "none", resize: "none", fontFamily: "inherit", marginBottom: 16, boxSizing: "border-box" }} />
+
+            <button onClick={handleShare} disabled={!selectedRecipient} style={{ width: "100%", padding: "11px 0", backgroundColor: selectedRecipient ? ACCENT : "#CCC", color: "white", border: "none", borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: selectedRecipient ? "pointer" : "default" }}>
+              Share Results
+            </button>
+            <p style={{ fontSize: 10, color: "#BBB", textAlign: "center", margin: "8px 0 0" }}>Share data helps LENA understand how research is used across personas</p>
+          </>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AlternativeMedicineToggle({ enabled, onToggle }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+      <button onClick={onToggle} style={{
+        display: "flex", alignItems: "center", gap: 6, padding: "6px 12px",
+        border: `1.5px solid ${enabled ? "#059669" : "#E0E0E0"}`,
+        borderRadius: 20, backgroundColor: enabled ? "#ECFDF5" : "white",
+        cursor: "pointer", fontSize: 12, color: enabled ? "#059669" : "#888", transition: "all 0.2s",
+      }}>
+        <Leaf size={13} color={enabled ? "#059669" : "#BBB"} />
+        <span>Natural & Herbal</span>
+        <div style={{ width: 32, height: 16, borderRadius: 8, backgroundColor: enabled ? "#059669" : "#DDD", position: "relative", transition: "all 0.2s" }}>
+          <div style={{ width: 12, height: 12, borderRadius: "50%", backgroundColor: "white", position: "absolute", top: 2, left: enabled ? 18 : 2, transition: "left 0.2s", boxShadow: "0 1px 2px rgba(0,0,0,0.2)" }} />
+        </div>
+      </button>
+    </div>
+  );
+}
+
+function ThinkingStep({ text, done, active }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "4px 0", opacity: done ? 0.6 : 1 }}>
+      {done ? (
+        <Check size={14} color={SUCCESS} />
+      ) : active ? (
+        <div style={{ width: 14, height: 14, border: `2px solid ${ACCENT}`, borderTopColor: "transparent", borderRadius: "50%", animation: "spin 0.8s linear infinite" }} />
+      ) : (
+        <div style={{ width: 14, height: 14, borderRadius: "50%", border: "2px solid #DDD" }} />
+      )}
+      <span style={{ fontSize: 13, color: done ? "#999" : active ? ACCENT : "#999" }}>{text}</span>
+    </div>
+  );
+}
+
+function ThinkingIndicator() {
+  const [step, setStep] = useState(0);
+  useEffect(() => {
+    const timers = [
+      setTimeout(() => setStep(1), 800),
+      setTimeout(() => setStep(2), 2000),
+      setTimeout(() => setStep(3), 3500),
+      setTimeout(() => setStep(4), 5000),
+    ];
+    return () => timers.forEach(clearTimeout);
+  }, []);
+
+  const steps = [
+    "Understanding your query...",
+    "Searching 40M+ papers across 8 databases...",
+    "Cross-referencing sources with PULSE...",
+    "Synthesizing results...",
+    "Preparing your response...",
+  ];
+
+  return (
+    <div style={{ padding: "16px 20px", maxWidth: 500 }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 12 }}>
+        <div style={{ width: 32, height: 32, borderRadius: "50%", background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DARK})`, display: "flex", alignItems: "center", justifyContent: "center", animation: "pulse 2s ease-in-out infinite" }}>
+          <Sparkles size={16} color="white" />
+        </div>
+        <span style={{ fontSize: 14, fontWeight: 600, color: ACCENT }}>LENA is thinking...</span>
+      </div>
+      {steps.map((s, i) => (
+        <ThinkingStep key={i} text={s} done={i < step} active={i === step} />
+      ))}
+    </div>
+  );
+}
+
+function SourceCard({ result, expanded, onToggle, onShare }) {
+  return (
+    <div style={{ border: "1px solid #E5E7EB", borderRadius: 10, marginBottom: 8, overflow: "hidden", transition: "all 0.2s" }}>
+      <div onClick={onToggle} style={{ display: "flex", alignItems: "center", gap: 12, padding: "12px 16px", cursor: "pointer", backgroundColor: expanded ? "#FAFAFA" : "white" }}>
+        <div style={{ width: 4, height: 36, borderRadius: 2, backgroundColor: SOURCE_COLORS[result.source] || "#999", flexShrink: 0 }} />
+        <div style={{ flex: 1, minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 4, flexWrap: "wrap" }}>
+            <span style={{ fontSize: 11, fontWeight: 600, color: SOURCE_COLORS[result.source], textTransform: "uppercase", letterSpacing: 0.5 }}>{result.source}</span>
+            <span style={{ fontSize: 11, color: "#999" }}>{result.year}</span>
+            {result.isAlternative && (
+              <span style={{ display: "inline-flex", alignItems: "center", gap: 3, fontSize: 10, fontWeight: 600, color: "#059669", backgroundColor: "#ECFDF5", padding: "2px 7px", borderRadius: 10, border: "1px solid #A7F3D0" }}>
+                <Leaf size={9} /> Natural
+              </span>
+            )}
+            <PulseScoreBadge score={result.pulseScore} status={result.pulseStatus} />
+          </div>
+          <p style={{ fontSize: 14, fontWeight: 500, color: "#1A1A2E", margin: 0, lineHeight: 1.4 }}>{result.title}</p>
+        </div>
+        {expanded ? <ChevronDown size={16} color="#999" /> : <ChevronRight size={16} color="#999" />}
+      </div>
+      {expanded && (
+        <div style={{ padding: "0 16px 14px 32px", borderTop: "1px solid #F0F0F0" }}>
+          <p style={{ fontSize: 12, color: "#666", margin: "10px 0 6px", lineHeight: 1.5 }}>{result.summary}</p>
+          <p style={{ fontSize: 11, color: "#999", margin: "0 0 10px" }}>Authors: {result.authors.join(", ")}</p>
+          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+            <button style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: ACCENT, background: "none", border: `1px solid ${ACCENT}`, borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}><ExternalLink size={11} /> View Full</button>
+            <button style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#666", background: "none", border: "1px solid #DDD", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}><Copy size={11} /> Cite</button>
+            <button style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#666", background: "none", border: "1px solid #DDD", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}><Bookmark size={11} /> Save</button>
+            <button onClick={(e) => { e.stopPropagation(); onShare && onShare(result.title); }} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#666", background: "none", border: "1px solid #DDD", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}><Share2 size={11} /> Share</button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
+
+function RegistrationModal({ onSubmit, onClose }) {
+  const [name, setName] = useState("");
+  const [email, setEmail] = useState("");
+  const [consent, setConsent] = useState(false);
+  const [error, setError] = useState("");
+
+  const handleSubmit = () => {
+    if (!name.trim() || name.trim().length < 2) return setError("Please enter your first name");
+    if (!email.trim() || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) return setError("Please enter a valid email address");
+    if (!consent) return setError("Please accept the data usage terms to continue");
+    setError("");
+    onSubmit({ name, email });
+  };
+
+  return (
+    <div style={{ position: "fixed", inset: 0, zIndex: 1000, display: "flex", alignItems: "center", justifyContent: "center", backgroundColor: "rgba(0,0,0,0.4)", backdropFilter: "blur(4px)" }}>
+      <div style={{ backgroundColor: "white", borderRadius: 16, padding: 32, maxWidth: 440, width: "90%", boxShadow: "0 20px 60px rgba(0,0,0,0.15)" }}>
+        <div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 8 }}>
+          <div style={{ width: 36, height: 36, borderRadius: "50%", background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DARK})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+            <Sparkles size={18} color="white" />
+          </div>
+          <h2 style={{ margin: 0, fontSize: 20, color: "#1A1A2E" }}>Continue with LENA</h2>
+        </div>
+        <p style={{ fontSize: 14, color: "#666", margin: "8px 0 24px", lineHeight: 1.5 }}>To keep searching, please tell us a little about yourself. We just need your first name and email.</p>
+
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, color: "#555", display: "block", marginBottom: 4 }}>First Name</label>
+          <input value={name} onChange={e => setName(e.target.value)} placeholder="e.g. Sarah" style={{ width: "100%", padding: "10px 14px", border: "1px solid #DDD", borderRadius: 8, fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+        </div>
+        <div style={{ marginBottom: 16 }}>
+          <label style={{ fontSize: 12, fontWeight: 600, color: "#555", display: "block", marginBottom: 4 }}>Email Address</label>
+          <input value={email} onChange={e => setEmail(e.target.value)} type="email" placeholder="sarah@university.edu" style={{ width: "100%", padding: "10px 14px", border: "1px solid #DDD", borderRadius: 8, fontSize: 14, outline: "none", boxSizing: "border-box" }} />
+        </div>
+        <div style={{ marginBottom: 20 }}>
+          <label style={{ display: "flex", gap: 10, cursor: "pointer", alignItems: "flex-start" }}>
+            <input type="checkbox" checked={consent} onChange={e => setConsent(e.target.checked)} style={{ marginTop: 3, accentColor: ACCENT }} />
+            <span style={{ fontSize: 12, color: "#777", lineHeight: 1.5 }}>
+              I consent to LENA storing my name and email solely for product improvement surveys. My information will not be shared with third parties, sold, or published in any public domain. I can request deletion at any time.
+            </span>
+          </label>
+        </div>
+
+        {error && <p style={{ fontSize: 12, color: DANGER, margin: "0 0 12px" }}>{error}</p>}
+
+        <button onClick={handleSubmit} style={{ width: "100%", padding: "12px 0", backgroundColor: ACCENT, color: "white", border: "none", borderRadius: 10, fontSize: 15, fontWeight: 600, cursor: "pointer" }}>
+          Continue Researching
+        </button>
+        <p style={{ fontSize: 11, color: "#AAA", textAlign: "center", margin: "12px 0 0" }}>
+          We comply with GDPR and CCPA. <a href="#" style={{ color: ACCENT }}>Privacy Policy</a>
+        </p>
+      </div>
+    </div>
+  );
+}
+
+function InsightDetailPopup({ data, onClose }) {
+  if (!data) return null;
+  return (
+    <div style={{ position: "absolute", top: 0, left: 0, right: 0, bottom: 0, backgroundColor: "rgba(255,255,255,0.95)", zIndex: 50, padding: 16, overflowY: "auto" }}>
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 12 }}>
+        <h4 style={{ margin: 0, fontSize: 13, fontWeight: 700, color: "#1A1A2E" }}>{data.title}</h4>
+        <button onClick={onClose} style={{ background: "none", border: "none", cursor: "pointer" }}><X size={14} color="#999" /></button>
+      </div>
+      {data.items.map((item, i) => (
+        <div key={i} style={{ padding: "8px 10px", backgroundColor: i % 2 === 0 ? "#F8FAFC" : "white", borderRadius: 6, marginBottom: 4, fontSize: 12, color: "#444", display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+          <span>{item.label}</span>
+          <span style={{ fontWeight: 700, color: ACCENT }}>{item.value}</span>
+        </div>
+      ))}
+      <p style={{ fontSize: 10, color: "#BBB", margin: "10px 0 0", fontStyle: "italic" }}>Data tracked in real-time from LENA search pipeline</p>
+    </div>
+  );
+}
+
+function ResearchPanel() {
+  const [insightDetail, setInsightDetail] = useState(null);
+
+  const sourceDetail = {
+    title: "Source Distribution Breakdown",
+    items: [
+      { label: "PubMed", value: "12 results (37.5%)" },
+      { label: "ClinicalTrials.gov", value: "8 results (25%)" },
+      { label: "Cochrane Reviews", value: "5 results (15.6%)" },
+      { label: "CDC Open Data", value: "4 results (12.5%)" },
+      { label: "WHO IRIS", value: "3 results (9.4%)" },
+      { label: "Total unique results", value: "32" },
+      { label: "Cross-source matches", value: "14 (43.8%)" },
+    ],
+  };
+
+  const yearDetail = {
+    title: "Publication Year Distribution",
+    items: [
+      { label: "2025 (current year)", value: "14 papers" },
+      { label: "2024", value: "18 papers" },
+      { label: "2023", value: "12 papers" },
+      { label: "2022", value: "8 papers" },
+      { label: "2021", value: "5 papers" },
+      { label: "2020 or earlier", value: "3 papers" },
+      { label: "Median publication year", value: "2024" },
+      { label: "% from last 2 years", value: "53.3%" },
+    ],
+  };
+
+  const pulseDetail = {
+    title: "PULSE Score History",
+    items: [
+      { label: "Search #6: GLP-1 agonists", value: "88% (High)" },
+      { label: "Search #5: SGLT2 inhibitors", value: "78% (Medium)" },
+      { label: "Search #4: Metformin interactions", value: "91% (High)" },
+      { label: "Search #3: Diabetes guidelines", value: "68% (Medium)" },
+      { label: "Search #2: Blood pressure natural", value: "85% (High)" },
+      { label: "Search #1: COVID long-term", value: "72% (Medium)" },
+      { label: "Your average PULSE score", value: "81%" },
+      { label: "Searches with High consensus", value: "3 of 6 (50%)" },
+    ],
+  };
+
+  return (
+    <div style={{ padding: 16, overflowY: "auto", height: "100%", position: "relative" }}>
+      {insightDetail && <InsightDetailPopup data={insightDetail} onClose={() => setInsightDetail(null)} />}
+
+      <h3 style={{ fontSize: 14, fontWeight: 600, color: "#1A1A2E", margin: "0 0 16px", display: "flex", alignItems: "center", gap: 6 }}>
+        <BarChart3 size={16} color={ACCENT} /> Research Insights
+      </h3>
+
+      {/* Source Distribution */}
+      <div style={{ marginBottom: 24, cursor: "pointer" }} onClick={() => setInsightDetail(sourceDetail)}>
+        <h4 style={{ fontSize: 12, fontWeight: 600, color: "#666", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: 0.5, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          Source Distribution
+          <span style={{ fontSize: 9, color: ACCENT, fontWeight: 400, textTransform: "none" }}>Click for detail</span>
+        </h4>
+        <ResponsiveContainer width="100%" height={160}>
+          <PieChart>
+            <Pie data={MOCK_SOURCES_PIE} cx="50%" cy="50%" innerRadius={35} outerRadius={60} paddingAngle={3} dataKey="value">
+              {MOCK_SOURCES_PIE.map((entry, i) => (
+                <Cell key={i} fill={SOURCE_COLORS[entry.name]} />
+              ))}
+            </Pie>
+            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+          </PieChart>
+        </ResponsiveContainer>
+        <div style={{ display: "flex", flexWrap: "wrap", gap: 8, justifyContent: "center" }}>
+          {MOCK_SOURCES_PIE.map(s => (
+            <div key={s.name} style={{ display: "flex", alignItems: "center", gap: 4, fontSize: 10, color: "#666" }}>
+              <div style={{ width: 8, height: 8, borderRadius: 2, backgroundColor: SOURCE_COLORS[s.name] }} />
+              {s.name}
+            </div>
+          ))}
+        </div>
+      </div>
+
+      {/* Publication Year Trends */}
+      <div style={{ marginBottom: 24, cursor: "pointer" }} onClick={() => setInsightDetail(yearDetail)}>
+        <h4 style={{ fontSize: 12, fontWeight: 600, color: "#666", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: 0.5, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          Publication Years
+          <span style={{ fontSize: 9, color: ACCENT, fontWeight: 400, textTransform: "none" }}>Click for detail</span>
+        </h4>
+        <ResponsiveContainer width="100%" height={120}>
+          <BarChart data={MOCK_YEAR_DATA}>
+            <XAxis dataKey="year" tick={{ fontSize: 10 }} />
+            <YAxis tick={{ fontSize: 10 }} width={24} />
+            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+            <Bar dataKey="count" fill={ACCENT} radius={[4, 4, 0, 0]} />
+          </BarChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* PULSE Confidence Trend */}
+      <div style={{ marginBottom: 24, cursor: "pointer" }} onClick={() => setInsightDetail(pulseDetail)}>
+        <h4 style={{ fontSize: 12, fontWeight: 600, color: "#666", margin: "0 0 8px", textTransform: "uppercase", letterSpacing: 0.5, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          PULSE Confidence Trend
+          <span style={{ fontSize: 9, color: ACCENT, fontWeight: 400, textTransform: "none" }}>Click for detail</span>
+        </h4>
+        <ResponsiveContainer width="100%" height={120}>
+          <LineChart data={MOCK_PULSE_TREND}>
+            <CartesianGrid strokeDasharray="3 3" stroke="#F0F0F0" />
+            <XAxis dataKey="search" tick={{ fontSize: 10 }} label={{ value: "Search #", position: "insideBottom", offset: -2, style: { fontSize: 10 } }} />
+            <YAxis tick={{ fontSize: 10 }} domain={[0, 100]} width={28} />
+            <Tooltip contentStyle={{ fontSize: 12, borderRadius: 8 }} />
+            <Line type="monotone" dataKey="score" stroke={ACCENT} strokeWidth={2} dot={{ r: 3, fill: ACCENT }} />
+          </LineChart>
+        </ResponsiveContainer>
+      </div>
+
+      {/* Quick Stats */}
+      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 8 }}>
+        {[
+          { label: "Total Results", value: "32", icon: FileText },
+          { label: "Avg PULSE", value: "81%", icon: Shield },
+          { label: "Sources Used", value: "5/5", icon: BookOpen },
+          { label: "Searches Today", value: "7", icon: Search },
+        ].map(s => (
+          <div key={s.label} style={{ padding: "10px 12px", backgroundColor: "#F8FAFC", borderRadius: 8, textAlign: "center", cursor: "pointer", transition: "all 0.15s" }}
+            onMouseEnter={e => e.currentTarget.style.backgroundColor = ACCENT_LIGHT}
+            onMouseLeave={e => e.currentTarget.style.backgroundColor = "#F8FAFC"}
+          >
+            <s.icon size={14} color={ACCENT} style={{ marginBottom: 4 }} />
+            <div style={{ fontSize: 18, fontWeight: 700, color: "#1A1A2E" }}>{s.value}</div>
+            <div style={{ fontSize: 10, color: "#999" }}>{s.label}</div>
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+// --- Main App ---
+function LENAPrototype() {
+  const [messages, setMessages] = useState([]);
+  const [input, setInput] = useState("");
+  const [showThinking, setShowThinking] = useState(false);
+  const [showModal, setShowModal] = useState(false);
+  const [isRegistered, setIsRegistered] = useState(false);
+  const [queryCount, setQueryCount] = useState(0);
+  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [rightPanelOpen, setRightPanelOpen] = useState(true);
+  const [selectedPersona, setSelectedPersona] = useState("general");
+  const [personaDropdown, setPersonaDropdown] = useState(false);
+  const [expandedCards, setExpandedCards] = useState({});
+  const [activeView, setActiveView] = useState("chat");
+  const [altMedicineEnabled, setAltMedicineEnabled] = useState(false);
+  const [shareModal, setShareModal] = useState(null); // null or { title: "..." }
+  const inputRef = useRef(null);
+  const chatEndRef = useRef(null);
+
+  useEffect(() => {
+    chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  }, [messages, showThinking]);
+
+  const currentPrompts = SUGGESTED_PROMPTS[selectedPersona] || SUGGESTED_PROMPTS.general;
+  const currentPersona = PERSONAS.find(p => p.id === selectedPersona);
+
+  const handleSend = (text) => {
+    const query = text || input.trim();
+    if (!query) return;
+
+    const newCount = queryCount + 1;
+    setQueryCount(newCount);
+
+    // Add user message
+    setMessages(prev => [...prev, { role: "user", content: query }]);
+    setInput("");
+
+    // After first response, check registration
+    if (newCount > 1 && !isRegistered) {
+      setShowModal(true);
+      return;
+    }
+
+    // Show thinking, then mock response
+    const allResults = altMedicineEnabled ? [...MOCK_RESULTS, ...MOCK_ALT_RESULTS] : MOCK_RESULTS;
+    const altNote = altMedicineEnabled ? "\n\nNatural & herbal alternatives are included below, marked with a green leaf indicator. These results are cross-referenced with the same PULSE validation as conventional findings." : "";
+    setShowThinking(true);
+    setTimeout(() => {
+      setShowThinking(false);
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: `Based on analysis across 5 medical databases, here's what the current evidence shows about GLP-1 receptor agonists and cardiovascular outcomes. The PULSE cross-reference engine found strong consensus (81% average) across PubMed, Cochrane, and ClinicalTrials.gov, with supporting data from WHO and CDC.${altNote}`,
+        results: allResults,
+        pulseOverall: 81,
+        followUps: altMedicineEnabled ? [
+          "What natural supplements help lower blood pressure?",
+          "Compare magnesium types for cardiovascular health",
+          "Evidence for nattokinase vs prescription blood thinners",
+        ] : [
+          "What are the side effect profiles of different GLP-1 agonists?",
+          "How do GLP-1 agonists compare to SGLT2 inhibitors for cardiovascular protection?",
+          "What are the cost-effectiveness data for GLP-1 therapy?",
+        ],
+      }]);
+    }, 6000);
+  };
+
+  const handleKeyDown = (e) => {
+    if (e.key === "Enter" && !e.shiftKey) {
+      e.preventDefault();
+      handleSend();
+    }
+  };
+
+  const handleRegistration = (data) => {
+    setIsRegistered(true);
+    setShowModal(false);
+    // Process the pending query
+    setShowThinking(true);
+    setTimeout(() => {
+      setShowThinking(false);
+      setMessages(prev => [...prev, {
+        role: "assistant",
+        content: `Welcome, ${data.name}! Here are your results. Based on analysis across 5 medical databases, the PULSE engine found strong cross-reference consensus on this topic.`,
+        results: MOCK_RESULTS.slice(0, 3),
+        pulseOverall: 85,
+        followUps: [
+          "Show me the most recent clinical trials",
+          "What do the Cochrane reviews say?",
+          "Are there any conflicting findings?",
+        ],
+      }]);
+    }, 5000);
+  };
+
+  const toggleCard = (id) => {
+    setExpandedCards(prev => ({ ...prev, [id]: !prev[id] }));
+  };
+
+  // ---- Render ----
+  return (
+    <div style={{ display: "flex", height: "100vh", fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif", backgroundColor: "#FAFBFC" }}>
+      <style>{`
+        @keyframes spin { to { transform: rotate(360deg); } }
+        @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.8; } }
+        @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+        textarea:focus, input:focus { border-color: ${ACCENT} !important; box-shadow: 0 0 0 2px ${ACCENT}22 !important; }
+        button:hover { opacity: 0.9; }
+        ::-webkit-scrollbar { width: 6px; }
+        ::-webkit-scrollbar-thumb { background: #DDD; border-radius: 3px; }
+      `}</style>
+
+      {/* Registration Modal */}
+      {showModal && <RegistrationModal onSubmit={handleRegistration} onClose={() => setShowModal(false)} />}
+
+      {/* Share Modal */}
+      {shareModal && <ShareModal resultTitle={shareModal.title} onClose={() => setShareModal(null)} onShare={(data) => console.log("Share tracked:", data)} />}
+
+      {/* ===== LEFT SIDEBAR ===== */}
+      {sidebarOpen && (
+        <div style={{ width: 280, borderRight: "1px solid #E8E8E8", backgroundColor: "white", display: "flex", flexDirection: "column", flexShrink: 0 }}>
+          {/* Logo */}
+          <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid #F0F0F0" }}>
+            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 32, height: 32, borderRadius: 8, background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DARK})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <Sparkles size={18} color="white" />
+                </div>
+                <div>
+                  <div style={{ fontSize: 18, fontWeight: 700, color: "#1A1A2E", letterSpacing: -0.5 }}>LENA</div>
+                  <div style={{ fontSize: 9, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Research Agent</div>
+                </div>
+              </div>
+              <button onClick={() => setSidebarOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+                <X size={16} color="#999" />
+              </button>
+            </div>
+          </div>
+
+          {/* New Search */}
+          <div style={{ padding: "12px 16px" }}>
+            <button onClick={() => { setMessages([]); setShowThinking(false); setActiveView("chat"); }} style={{ width: "100%", padding: "10px 0", backgroundColor: ACCENT, color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+              <Search size={14} /> New Search
+            </button>
+          </div>
+
+          {/* Nav */}
+          <div style={{ padding: "0 12px" }}>
+            {[
+              { id: "chat", icon: MessageSquare, label: "Chat" },
+              { id: "research", icon: BarChart3, label: "My Research" },
+              { id: "community", icon: User, label: "Community" },
+              { id: "contribution", icon: Upload, label: "Contribution" },
+              { id: "faq", icon: BookOpen, label: "How It Works" },
+            ].map(nav => (
+              <button key={nav.id} onClick={() => setActiveView(nav.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px", border: "none", borderRadius: 8, backgroundColor: activeView === nav.id ? ACCENT_LIGHT : "transparent", color: activeView === nav.id ? ACCENT : "#555", cursor: "pointer", fontSize: 13, fontWeight: activeView === nav.id ? 600 : 400, marginBottom: 2 }}>
+                <nav.icon size={16} /> {nav.label}
+                {(nav.id === "community" || nav.id === "contribution") && (
+                  <span style={{ marginLeft: "auto", fontSize: 9, backgroundColor: "#FEF3C7", color: "#92400E", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>SOON</span>
+                )}
+              </button>
+            ))}
+          </div>
+
+          {/* Search History */}
+          <div style={{ padding: "16px 16px 8px", flex: 1, overflowY: "auto" }}>
+            <h4 style={{ fontSize: 11, fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: 0.5, margin: "0 0 8px", display: "flex", alignItems: "center", gap: 4 }}>
+              <Clock size={12} /> Recent Searches
+            </h4>
+            {SEARCH_HISTORY.map((item, i) => (
+              <button key={i} onClick={() => handleSend(item.query)} style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 10px", border: "none", borderRadius: 6, backgroundColor: "transparent", cursor: "pointer", marginBottom: 2, fontSize: 12, color: "#555", lineHeight: 1.4 }}>
+                <div style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{item.query}</div>
+                <div style={{ fontSize: 10, color: "#BBB", marginTop: 2 }}>{item.time}</div>
+              </button>
+            ))}
+          </div>
+
+          {/* User / Settings */}
+          <div style={{ padding: "12px 16px", borderTop: "1px solid #F0F0F0" }}>
+            {isRegistered ? (
+              <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+                <div style={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: ACCENT_LIGHT, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                  <User size={14} color={ACCENT} />
+                </div>
+                <div>
+                  <div style={{ fontSize: 12, fontWeight: 600, color: "#333" }}>Sarah</div>
+                  <div style={{ fontSize: 10, color: "#999" }}>Free Tier - 3/10 searches</div>
+                </div>
+                <Settings size={14} color="#999" style={{ marginLeft: "auto", cursor: "pointer" }} />
+              </div>
+            ) : (
+              <div style={{ fontSize: 11, color: "#999", textAlign: "center" }}>Sign in for full access</div>
+            )}
+          </div>
+        </div>
+      )}
+
+      {/* ===== MAIN CHAT AREA ===== */}
+      <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+        {/* Top Bar */}
+        <div style={{ padding: "10px 20px", borderBottom: "1px solid #E8E8E8", backgroundColor: "white", display: "flex", alignItems: "center", gap: 12 }}>
+          {!sidebarOpen && (
+            <button onClick={() => setSidebarOpen(true)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
+              <Menu size={18} color="#555" />
+            </button>
+          )}
+          <div style={{ flex: 1 }} />
+
+          {/* Alternative Medicine Toggle */}
+          <AlternativeMedicineToggle enabled={altMedicineEnabled} onToggle={() => setAltMedicineEnabled(!altMedicineEnabled)} />
+
+          {/* Persona Selector */}
+          <div style={{ position: "relative" }}>
+            <button onClick={() => setPersonaDropdown(!personaDropdown)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "6px 12px", border: "1px solid #E0E0E0", borderRadius: 8, backgroundColor: "white", cursor: "pointer", fontSize: 12, color: "#555" }}>
+              <span>{currentPersona?.icon}</span>
+              <span>{currentPersona?.label}</span>
+              <ChevronDown size={12} />
+            </button>
+            {personaDropdown && (
+              <div style={{ position: "absolute", right: 0, top: "110%", backgroundColor: "white", border: "1px solid #E0E0E0", borderRadius: 10, padding: 6, minWidth: 180, boxShadow: "0 4px 20px rgba(0,0,0,0.1)", zIndex: 100 }}>
+                <div style={{ fontSize: 10, color: "#999", padding: "6px 10px", fontWeight: 600, textTransform: "uppercase" }}>I am a...</div>
+                {PERSONAS.map(p => (
+                  <button key={p.id} onClick={() => { setSelectedPersona(p.id); setPersonaDropdown(false); }} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 10px", border: "none", borderRadius: 6, backgroundColor: p.id === selectedPersona ? ACCENT_LIGHT : "transparent", cursor: "pointer", fontSize: 12, color: p.id === selectedPersona ? ACCENT : "#555" }}>
+                    <span>{p.icon}</span> {p.label}
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+
+          {/* Research Panel Toggle */}
+          <button onClick={() => setRightPanelOpen(!rightPanelOpen)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", border: "1px solid #E0E0E0", borderRadius: 8, backgroundColor: rightPanelOpen ? ACCENT_LIGHT : "white", cursor: "pointer", fontSize: 12, color: rightPanelOpen ? ACCENT : "#555" }}>
+            <BarChart3 size={14} /> Insights
+          </button>
+        </div>
+
+        {/* Chat Messages */}
+        <div style={{ flex: 1, overflowY: "auto", padding: "20px 0" }}>
+          {messages.length === 0 && !showThinking && activeView === "chat" && (
+            <div style={{ maxWidth: 640, margin: "0 auto", padding: "60px 20px 20px", textAlign: "center" }}>
+              <div style={{ width: 56, height: 56, borderRadius: 16, background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DARK})`, display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 16px" }}>
+                <Sparkles size={28} color="white" />
+              </div>
+              <h1 style={{ fontSize: 26, fontWeight: 700, color: "#1A1A2E", margin: "0 0 8px" }}>What would you like to research?</h1>
+              <p style={{ fontSize: 14, color: "#888", margin: "0 0 32px" }}>Search 40+ million medical papers in seconds, cross-referenced by AI for accuracy.</p>
+
+              {/* Suggested Prompts */}
+              <div style={{ textAlign: "left", marginBottom: 32 }}>
+                <h4 style={{ fontSize: 11, fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: 0.5, margin: "0 0 10px", display: "flex", alignItems: "center", gap: 4 }}>
+                  <Sparkles size={12} /> Suggested for {currentPersona?.label}
+                </h4>
+                {currentPrompts.map((prompt, i) => (
+                  <button key={i} onClick={() => handleSend(prompt)} style={{ display: "block", width: "100%", textAlign: "left", padding: "12px 16px", border: "1px solid #E8E8E8", borderRadius: 10, backgroundColor: "white", cursor: "pointer", marginBottom: 8, fontSize: 13, color: "#444", lineHeight: 1.4, transition: "all 0.15s" }}>
+                    <Search size={13} color={ACCENT} style={{ marginRight: 8, verticalAlign: "middle" }} />
+                    {prompt}
+                  </button>
+                ))}
+              </div>
+
+              {/* Trending Searches */}
+              <div style={{ textAlign: "left" }}>
+                <h4 style={{ fontSize: 11, fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: 0.5, margin: "0 0 10px", display: "flex", alignItems: "center", gap: 4 }}>
+                  <TrendingUp size={12} /> Trending This Week
+                </h4>
+                <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+                  {TRENDING.map((t, i) => (
+                    <button key={i} onClick={() => handleSend(t.topic)} style={{ display: "flex", alignItems: "center", gap: 6, padding: "8px 14px", border: "1px solid #E8E8E8", borderRadius: 20, backgroundColor: "white", cursor: "pointer", fontSize: 12, color: "#555" }}>
+                      <TrendingUp size={12} color={t.trend === "up" ? SUCCESS : "#999"} />
+                      {t.topic}
+                      <span style={{ fontSize: 10, color: "#BBB" }}>{t.count}</span>
+                    </button>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* My Research - Chat History */}
+          {activeView === "research" && (
+            <div style={{ maxWidth: 640, margin: "0 auto", padding: "30px 20px" }}>
+              <h2 style={{ fontSize: 20, fontWeight: 700, color: "#1A1A2E", margin: "0 0 4px" }}>My Research</h2>
+              <p style={{ fontSize: 13, color: "#888", margin: "0 0 24px" }}>Your conversation history and saved research sessions</p>
+              {MOCK_CHAT_HISTORY.map(chat => {
+                const persona = PERSONAS.find(p => p.id === chat.persona);
+                return (
+                  <div key={chat.id} onClick={() => setActiveView("chat")} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", border: "1px solid #E8E8E8", borderRadius: 10, marginBottom: 8, cursor: "pointer", backgroundColor: "white", transition: "all 0.15s" }}
+                    onMouseEnter={e => e.currentTarget.style.borderColor = ACCENT}
+                    onMouseLeave={e => e.currentTarget.style.borderColor = "#E8E8E8"}
+                  >
+                    <div style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: ACCENT_LIGHT, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                      {persona?.icon || "🌐"}
+                    </div>
+                    <div style={{ flex: 1, minWidth: 0 }}>
+                      <p style={{ fontSize: 14, fontWeight: 500, color: "#1A1A2E", margin: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{chat.title}</p>
+                      <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
+                        <span style={{ fontSize: 11, color: "#999" }}>{chat.date}</span>
+                        <span style={{ fontSize: 11, color: "#999" }}>{chat.messages} messages</span>
+                        <span style={{ fontSize: 11, color: ACCENT }}>{persona?.label}</span>
+                      </div>
+                    </div>
+                    <ChevronRight size={16} color="#CCC" />
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
+          {/* Community Coming Soon */}
+          {activeView === "community" && (
+            <div style={{ maxWidth: 500, margin: "80px auto", padding: "0 20px", textAlign: "center" }}>
+              <div style={{ width: 64, height: 64, borderRadius: "50%", backgroundColor: "#FEF3C7", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: 28 }}>👥</div>
+              <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1A1A2E", margin: "0 0 8px" }}>Professional Community</h2>
+              <p style={{ fontSize: 14, color: "#888", margin: "0 0 4px" }}>Connect with fellow researchers. Discuss findings. Share insights.</p>
+              <div style={{ display: "inline-block", padding: "4px 12px", backgroundColor: "#FEF3C7", color: "#92400E", borderRadius: 6, fontSize: 12, fontWeight: 600, margin: "12px 0 24px" }}>Coming in LENA V2</div>
+              <div style={{ padding: 20, backgroundColor: "#F8FAFC", borderRadius: 12, textAlign: "left" }}>
+                <p style={{ fontSize: 13, color: "#666", margin: "0 0 12px" }}>Be the first to know when Community launches:</p>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input placeholder="Your email address" style={{ flex: 1, padding: "10px 14px", border: "1px solid #DDD", borderRadius: 8, fontSize: 13, outline: "none" }} />
+                  <button style={{ padding: "10px 20px", backgroundColor: ACCENT, color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>Notify Me</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Contribution Coming Soon */}
+          {activeView === "contribution" && (
+            <div style={{ maxWidth: 560, margin: "60px auto", padding: "0 20px", textAlign: "center" }}>
+              <div style={{ width: 64, height: 64, borderRadius: "50%", backgroundColor: "#EDE9FE", display: "flex", alignItems: "center", justifyContent: "center", margin: "0 auto 20px", fontSize: 28 }}>📄</div>
+              <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1A1A2E", margin: "0 0 8px" }}>Research Contribution</h2>
+              <p style={{ fontSize: 14, color: "#888", margin: "0 0 4px", lineHeight: 1.6 }}>A repository for professionals to submit research papers, clinical findings, and pre-publication work for review and validation.</p>
+              <div style={{ display: "inline-block", padding: "4px 12px", backgroundColor: "#FEF3C7", color: "#92400E", borderRadius: 6, fontSize: 12, fontWeight: 600, margin: "12px 0 24px" }}>Coming in LENA V2</div>
+
+              <div style={{ textAlign: "left", marginBottom: 20 }}>
+                {[
+                  { icon: "📝", title: "Submit Papers", desc: "Upload research papers and clinical findings for pre-publication review" },
+                  { icon: "🔍", title: "Expert Validation", desc: "Credentialed reviewers screen and validate submissions" },
+                  { icon: "📊", title: "Propose to Sources", desc: "Validated papers are proposed to PubMed, Cochrane, and other indexed sources" },
+                  { icon: "🏋️", title: "Fitness & Wellness", desc: "Not just medicine. Submit research on exercise, nutrition, and preventive health" },
+                ].map((item, i) => (
+                  <div key={i} style={{ display: "flex", gap: 12, padding: "14px 16px", backgroundColor: i % 2 === 0 ? "#F8FAFC" : "white", borderRadius: 8, marginBottom: 4 }}>
+                    <span style={{ fontSize: 20 }}>{item.icon}</span>
+                    <div>
+                      <div style={{ fontSize: 13, fontWeight: 600, color: "#1A1A2E" }}>{item.title}</div>
+                      <div style={{ fontSize: 12, color: "#888", marginTop: 2 }}>{item.desc}</div>
+                    </div>
+                  </div>
+                ))}
+              </div>
+
+              <div style={{ padding: 20, backgroundColor: "#F8FAFC", borderRadius: 12, textAlign: "left" }}>
+                <p style={{ fontSize: 13, color: "#666", margin: "0 0 12px" }}>Interested in contributing research? Get early access:</p>
+                <div style={{ display: "flex", gap: 8 }}>
+                  <input placeholder="Your email address" style={{ flex: 1, padding: "10px 14px", border: "1px solid #DDD", borderRadius: 8, fontSize: 13, outline: "none" }} />
+                  <button style={{ padding: "10px 20px", backgroundColor: "#7C3AED", color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>Join Waitlist</button>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* How It Works / FAQ */}
+          {activeView === "faq" && (
+            <div style={{ maxWidth: 680, margin: "0 auto", padding: "30px 20px" }}>
+              <h2 style={{ fontSize: 22, fontWeight: 700, color: "#1A1A2E", margin: "0 0 4px" }}>How LENA Works</h2>
+              <p style={{ fontSize: 13, color: "#888", margin: "0 0 28px" }}>Understanding LENA's research methodology, scoring, and how we validate evidence</p>
+
+              {[
+                {
+                  q: "What is the PULSE Cross-Reference Score?",
+                  a: "PULSE (Published Literature Source Evaluation) measures how much independent medical databases agree on a particular finding. When you search LENA, we query multiple databases simultaneously. PULSE extracts key terms from every result, builds a profile of what each source is saying, identifies terms that appear across 3 or more sources (consensus keywords), then calculates a similarity score for each result against that consensus. A score of 92% means that result's content strongly aligns with what the majority of sources are reporting. A score of 58% means it covers a unique angle that fewer sources discuss, which makes it an 'edge case' worth noting rather than wrong.",
+                  icon: Shield,
+                },
+                {
+                  q: "What do the confidence levels mean?",
+                  a: "High (80%+): Strong consensus across multiple databases. The finding is well-supported by independent sources. Medium (60-79%): Moderate agreement. Most sources align but some variation exists. Edge Case (40-59%): This result covers an angle that other sources aren't focused on. It may be newer research, a different perspective, or a niche topic. Still valuable, just less cross-validated. Low (below 40%): Limited agreement. Treat with extra scrutiny and verify independently.",
+                  icon: BarChart3,
+                },
+                {
+                  q: "Where does LENA get its data?",
+                  a: "LENA simultaneously searches across 40+ million papers, clinical trials, systematic reviews, and health datasets from multiple established medical and scientific databases worldwide. Every result is cross-referenced using our PULSE engine, so you get validated findings in seconds instead of spending hours manually comparing sources. When the Natural & Herbal toggle is enabled, LENA expands to include peer-reviewed research on dietary supplements, natural compounds, and complementary therapies from dedicated scientific databases.",
+                  icon: BookOpen,
+                },
+                {
+                  q: "How does the Natural & Herbal toggle work?",
+                  a: "When enabled, LENA expands its search to include evidence-based research on natural remedies, herbal medicines, dietary supplements, and complementary therapies. These results are sourced from the same caliber of peer-reviewed databases and are cross-referenced using the same PULSE validation as conventional findings. Alternative results are marked with a green leaf badge so you can distinguish them at a glance. LENA presents all evidence with equal rigor regardless of whether it's conventional or alternative.",
+                  icon: Leaf,
+                },
+                {
+                  q: "How does persona detection work?",
+                  a: "LENA detects the type of user you are (medical student, clinician, pharmacist, researcher, lecturer, physiotherapist, patient, or general) based on the language and terminology in your queries. A clinician asking about 'GLP-1 agonist cardiovascular outcomes' gets a different response framing than a patient asking 'what should I know about my diabetes medication.' You can also manually select your persona using the dropdown in the top bar. Your detected persona also influences suggested prompts and follow-up questions.",
+                  icon: User,
+                },
+                {
+                  q: "What happens when I share results?",
+                  a: "The share feature lets you send LENA research to colleagues, students, patients, or anyone who would benefit. You select who you're sharing with (their role), optionally add their email and a note. Shared research arrives as a clean, formatted summary with all citations and PULSE scores intact. This helps LENA understand how research flows between different professional roles, which improves our recommendations over time.",
+                  icon: Share2,
+                },
+                {
+                  q: "Is my data private?",
+                  a: "Your search queries and results are stored securely and never shared with third parties, sold, or published publicly. We use your anonymized search patterns to improve LENA's recommendations and identify trending research topics. You can request deletion of all your data at any time. LENA complies with GDPR and CCPA data protection regulations.",
+                  icon: Shield,
+                },
+                {
+                  q: "Does LENA provide medical advice?",
+                  a: "No. LENA is a research tool that surfaces and cross-references published medical evidence. It does not diagnose conditions, recommend treatments, or replace professional medical consultation. When LENA detects that a query crosses into personal medical advice territory, it will gently redirect you toward consulting a healthcare professional while still providing the research evidence you're looking for.",
+                  icon: Heart,
+                },
+                {
+                  q: "What about fitness and wellness research?",
+                  a: "LENA's scope extends beyond pharmaceuticals and clinical medicine. We index research on exercise science, nutrition, preventive health, sports medicine, rehabilitation, and wellness interventions. Whether you're researching the evidence behind a specific workout protocol or looking for nutritional approaches to managing a condition, LENA treats fitness and wellness research with the same cross-reference rigor as clinical studies.",
+                  icon: Dumbbell,
+                },
+              ].map((item, i) => {
+                const Icon = item.icon;
+                return (
+                  <div key={i} style={{ marginBottom: 12, border: "1px solid #E8E8E8", borderRadius: 10, overflow: "hidden", backgroundColor: "white" }}>
+                    <details style={{ cursor: "pointer" }}>
+                      <summary style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", fontSize: 14, fontWeight: 600, color: "#1A1A2E", listStyle: "none" }}>
+                        <Icon size={16} color={ACCENT} style={{ flexShrink: 0 }} />
+                        <span style={{ flex: 1 }}>{item.q}</span>
+                        <ChevronRight size={14} color="#CCC" />
+                      </summary>
+                      <div style={{ padding: "0 16px 14px 42px", fontSize: 13, color: "#555", lineHeight: 1.65 }}>
+                        {item.a}
+                      </div>
+                    </details>
+                  </div>
+                );
+              })}
+
+              <div style={{ marginTop: 24, padding: 16, backgroundColor: ACCENT_LIGHT, borderRadius: 10, border: `1px solid ${ACCENT}33` }}>
+                <h4 style={{ fontSize: 13, fontWeight: 600, color: ACCENT, margin: "0 0 6px" }}>LENA by the Numbers</h4>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
+                  {[
+                    { num: "40M+", label: "Searchable papers" },
+                    { num: "8+", label: "Scientific databases" },
+                    { num: "< 30s", label: "Average search time" },
+                    { num: "100%", label: "Peer-reviewed sources" },
+                  ].map(s => (
+                    <div key={s.label} style={{ textAlign: "center", padding: "10px 16px", backgroundColor: "white", borderRadius: 8, border: "1px solid #E0E0E0", minWidth: 100 }}>
+                      <div style={{ fontSize: 18, fontWeight: 700, color: ACCENT }}>{s.num}</div>
+                      <div style={{ fontSize: 10, color: "#888", marginTop: 2 }}>{s.label}</div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Messages */}
+          {activeView === "chat" && (
+            <div style={{ maxWidth: 760, margin: "0 auto", padding: "0 20px" }}>
+              {messages.map((msg, i) => (
+                <div key={i} style={{ marginBottom: 24, animation: "fadeIn 0.3s ease-out" }}>
+                  {msg.role === "user" ? (
+                    <div style={{ display: "flex", justifyContent: "flex-end" }}>
+                      <div style={{ maxWidth: "75%", padding: "12px 18px", backgroundColor: ACCENT, color: "white", borderRadius: "18px 18px 4px 18px", fontSize: 14, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                        {msg.content}
+                      </div>
+                    </div>
+                  ) : (
+                    <div>
+                      <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
+                        <div style={{ width: 28, height: 28, borderRadius: "50%", background: `linear-gradient(135deg, ${ACCENT}, ${ACCENT_DARK})`, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                          <Sparkles size={14} color="white" />
+                        </div>
+                        <span style={{ fontSize: 13, fontWeight: 600, color: "#1A1A2E" }}>LENA</span>
+                        {msg.pulseOverall && <PulseScoreBadge score={msg.pulseOverall} status={msg.pulseOverall >= 80 ? "high" : msg.pulseOverall >= 60 ? "medium" : "low"} />}
+                        <button onClick={() => setShareModal({ title: "Full research response" })} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#888", background: "none", border: "1px solid #E0E0E0", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}><Share2 size={12} /> Share All</button>
+                      </div>
+
+                      {/* Summary */}
+                      <p style={{ fontSize: 14, color: "#333", lineHeight: 1.65, margin: "0 0 16px 36px" }}>{msg.content}</p>
+
+                      {/* Source Cards */}
+                      {msg.results && (
+                        <div style={{ marginLeft: 36 }}>
+                          <h4 style={{ fontSize: 11, fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: 0.5, margin: "0 0 8px" }}>Sources ({msg.results.length})</h4>
+                          {msg.results.map(r => (
+                            <SourceCard key={r.id} result={r} expanded={expandedCards[r.id]} onToggle={() => toggleCard(r.id)} onShare={(title) => setShareModal({ title })} />
+                          ))}
+                        </div>
+                      )}
+
+                      {/* Follow-up Prompts */}
+                      {msg.followUps && (
+                        <div style={{ marginLeft: 36, marginTop: 16 }}>
+                          <h4 style={{ fontSize: 11, fontWeight: 600, color: "#999", textTransform: "uppercase", letterSpacing: 0.5, margin: "0 0 8px", display: "flex", alignItems: "center", gap: 4 }}>
+                            <Sparkles size={10} /> Dig Deeper
+                          </h4>
+                          {msg.followUps.map((fu, j) => (
+                            <button key={j} onClick={() => handleSend(fu)} style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 14px", border: "1px solid #E8E8E8", borderRadius: 8, backgroundColor: "white", cursor: "pointer", marginBottom: 4, fontSize: 12, color: ACCENT }}>
+                              {fu}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+
+              {/* Thinking Indicator */}
+              {showThinking && <ThinkingIndicator />}
+              <div ref={chatEndRef} />
+            </div>
+          )}
+        </div>
+
+        {/* ===== INPUT BAR ===== */}
+        {activeView === "chat" && (
+          <div style={{ padding: "12px 20px 16px", borderTop: "1px solid #E8E8E8", backgroundColor: "white" }}>
+            <div style={{ maxWidth: 760, margin: "0 auto" }}>
+              <div style={{ display: "flex", alignItems: "flex-end", gap: 10, border: "1px solid #DDD", borderRadius: 14, padding: "10px 14px", backgroundColor: "#FAFAFA", transition: "all 0.2s" }}>
+                <textarea
+                  ref={inputRef}
+                  value={input}
+                  onChange={e => setInput(e.target.value)}
+                  onKeyDown={handleKeyDown}
+                  placeholder="Ask LENA a research question..."
+                  rows={1}
+                  style={{
+                    flex: 1,
+                    border: "none",
+                    outline: "none",
+                    resize: "none",
+                    fontSize: 14,
+                    lineHeight: 1.5,
+                    backgroundColor: "transparent",
+                    fontFamily: "inherit",
+                    maxHeight: 130,
+                    overflowY: "auto",
+                  }}
+                  onInput={e => {
+                    e.target.style.height = "auto";
+                    e.target.style.height = Math.min(e.target.scrollHeight, 130) + "px";
+                  }}
+                />
+                <button
+                  onClick={() => handleSend()}
+                  disabled={!input.trim()}
+                  style={{
+                    width: 36,
+                    height: 36,
+                    borderRadius: 10,
+                    border: "none",
+                    backgroundColor: input.trim() ? ACCENT : "#E0E0E0",
+                    cursor: input.trim() ? "pointer" : "default",
+                    display: "flex",
+                    alignItems: "center",
+                    justifyContent: "center",
+                    flexShrink: 0,
+                    transition: "background-color 0.2s",
+                  }}
+                >
+                  <Send size={16} color="white" />
+                </button>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
+                <span style={{ fontSize: 10, color: "#BBB" }}>Shift + Enter for new line</span>
+                <span style={{ fontSize: 10, color: "#BBB" }}>LENA searches 40M+ papers across 8+ scientific databases</span>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ===== RIGHT PANEL - Research Insights ===== */}
+      {rightPanelOpen && activeView === "chat" && messages.some(m => m.role === "assistant") && (
+        <div style={{ width: 300, borderLeft: "1px solid #E8E8E8", backgroundColor: "white", flexShrink: 0, overflowY: "auto" }}>
+          <div style={{ padding: "12px 16px", borderBottom: "1px solid #F0F0F0", display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+            <span style={{ fontSize: 13, fontWeight: 600, color: "#1A1A2E" }}>Research Insights</span>
+            <button onClick={() => setRightPanelOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", padding: 2 }}>
+              <X size={14} color="#999" />
+            </button>
+          </div>
+          <ResearchPanel />
+        </div>
+      )}
+    </div>
+  );
+        
+        ReactDOM.createRoot(document.getElementById("root")).render(React.createElement(LENAPrototype));
+    </script>
+</body>
+</html>
