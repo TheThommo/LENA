@@ -122,6 +122,33 @@
     // LENA Chat Interface - Interactive Prototype
     // ============================================================
 
+    // ============================================================
+    // Theme Configurations (White-Label Reskin Demo)
+    // ============================================================
+    const THEMES = {
+      lena: {
+        accent: "#1B6B93",
+        accentLight: "#E8F4F8",
+        accentDark: "#145372",
+        warmBg: "#FFFBF0",
+        brandName: "LENA",
+        brandSub: "Research Agent",
+        footerText: "LENA searches 40M+ papers across 8+ scientific databases",
+        poweredBy: null,
+      },
+      nyu: {
+        accent: "#57068C",
+        accentLight: "#F3E8FC",
+        accentDark: "#330662",
+        warmBg: "#FDFBFF",
+        brandName: "NYU Research",
+        brandSub: "Navigator",
+        footerText: "Search 40M+ papers across 8+ scientific databases",
+        poweredBy: "Powered by PULSE",
+      },
+    };
+
+    // Default theme (will be overridden by state in component)
     const ACCENT = "#1B6B93";
     const ACCENT_LIGHT = "#E8F4F8";
     const ACCENT_DARK = "#145372";
@@ -749,8 +776,15 @@
       const [activeView, setActiveView] = useState("chat");
       const [altMedicineEnabled, setAltMedicineEnabled] = useState(false);
       const [shareModal, setShareModal] = useState(null);
+      const [reskinMode, setReskinMode] = useState(false);
       const inputRef = useRef(null);
       const chatEndRef = useRef(null);
+
+      // Theme-aware colors
+      const theme = reskinMode ? THEMES.nyu : THEMES.lena;
+      const T_ACCENT = theme.accent;
+      const T_ACCENT_LIGHT = theme.accentLight;
+      const T_ACCENT_DARK = theme.accentDark;
 
       useEffect(() => {
         chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -834,7 +868,7 @@
             @keyframes spin { to { transform: rotate(360deg); } }
             @keyframes pulse { 0%, 100% { transform: scale(1); opacity: 1; } 50% { transform: scale(1.05); opacity: 0.8; } }
             @keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-            textarea:focus, input:focus { border-color: ${ACCENT} !important; box-shadow: 0 0 0 2px ${ACCENT}22 !important; }
+            textarea:focus, input:focus { border-color: ${T_ACCENT} !important; box-shadow: 0 0 0 2px ${T_ACCENT}22 !important; }
             button:hover { opacity: 0.9; }
             ::-webkit-scrollbar { width: 6px; }
             ::-webkit-scrollbar-thumb { background: #DDD; border-radius: 3px; }
@@ -849,10 +883,16 @@
               <div style={{ padding: "20px 20px 16px", borderBottom: "1px solid #F0F0F0" }}>
                 <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <LenaAvatar size={32} variant="logo" />
+                    {reskinMode ? (
+                      <div style={{ width: 32, height: 32, borderRadius: 8, background: "#57068C", display: "flex", alignItems: "center", justifyContent: "center" }}>
+                        <span style={{ color: "white", fontWeight: 800, fontSize: 14 }}>N</span>
+                      </div>
+                    ) : (
+                      <LenaAvatar size={32} variant="logo" />
+                    )}
                     <div>
-                      <div style={{ fontSize: 18, fontWeight: 700, color: "#1A1A2E", letterSpacing: -0.5 }}>LENA</div>
-                      <div style={{ fontSize: 9, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>Research Agent</div>
+                      <div style={{ fontSize: theme.brandName.length > 6 ? 15 : 18, fontWeight: 700, color: "#1A1A2E", letterSpacing: -0.5 }}>{theme.brandName}</div>
+                      <div style={{ fontSize: 9, color: "#999", textTransform: "uppercase", letterSpacing: 1 }}>{theme.brandSub}</div>
                     </div>
                   </div>
                   <button onClick={() => setSidebarOpen(false)} style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
@@ -862,7 +902,7 @@
               </div>
 
               <div style={{ padding: "12px 16px" }}>
-                <button onClick={() => { setMessages([]); setShowThinking(false); setActiveView("chat"); }} style={{ width: "100%", padding: "10px 0", backgroundColor: ACCENT, color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
+                <button onClick={() => { setMessages([]); setShowThinking(false); setActiveView("chat"); }} style={{ width: "100%", padding: "10px 0", backgroundColor: T_ACCENT, color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", gap: 6 }}>
                   <Icon name="Search" size={14} /> New Search
                 </button>
               </div>
@@ -875,7 +915,7 @@
                   { id: "contribution", icon: "Upload", label: "Contribution" },
                   { id: "faq", icon: "BookOpen", label: "How It Works" },
                 ].map(nav => (
-                  <button key={nav.id} onClick={() => setActiveView(nav.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px", border: "none", borderRadius: 8, backgroundColor: activeView === nav.id ? ACCENT_LIGHT : "transparent", color: activeView === nav.id ? ACCENT : "#555", cursor: "pointer", fontSize: 13, fontWeight: activeView === nav.id ? 600 : 400, marginBottom: 2 }}>
+                  <button key={nav.id} onClick={() => setActiveView(nav.id)} style={{ display: "flex", alignItems: "center", gap: 10, width: "100%", padding: "10px 12px", border: "none", borderRadius: 8, backgroundColor: activeView === nav.id ? T_ACCENT_LIGHT : "transparent", color: activeView === nav.id ? ACCENT : "#555", cursor: "pointer", fontSize: 13, fontWeight: activeView === nav.id ? 600 : 400, marginBottom: 2 }}>
                     <Icon name={nav.icon} size={16} /> {nav.label}
                     {(nav.id === "community" || nav.id === "contribution") && (
                       <span style={{ marginLeft: "auto", fontSize: 9, backgroundColor: "#FEF3C7", color: "#92400E", padding: "2px 6px", borderRadius: 4, fontWeight: 600 }}>SOON</span>
@@ -899,8 +939,8 @@
               <div style={{ padding: "12px 16px", borderTop: "1px solid #F0F0F0" }}>
                 {isRegistered ? (
                   <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
-                    <div style={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: ACCENT_LIGHT, display: "flex", alignItems: "center", justifyContent: "center" }}>
-                      <Icon name="User" size={14} color={ACCENT} />
+                    <div style={{ width: 28, height: 28, borderRadius: "50%", backgroundColor: T_ACCENT_LIGHT, display: "flex", alignItems: "center", justifyContent: "center" }}>
+                      <Icon name="User" size={14} color={T_ACCENT} />
                     </div>
                     <div>
                       <div style={{ fontSize: 12, fontWeight: 600, color: "#333" }}>Sarah</div>
@@ -924,6 +964,21 @@
               )}
               <div style={{ flex: 1 }} />
 
+              <button
+                onClick={() => setReskinMode(!reskinMode)}
+                style={{
+                  display: "flex", alignItems: "center", gap: 6,
+                  padding: "5px 12px", borderRadius: 8, cursor: "pointer", fontSize: 11, fontWeight: 600,
+                  border: reskinMode ? "2px solid #57068C" : "2px dashed #CCC",
+                  backgroundColor: reskinMode ? "#F3E8FC" : "white",
+                  color: reskinMode ? "#57068C" : "#999",
+                  transition: "all 0.3s ease",
+                }}
+              >
+                <span style={{ fontSize: 13 }}>{reskinMode ? "🟣" : "🔄"}</span>
+                {reskinMode ? "NYU ReSkin Active" : "ReSkin Demo"}
+              </button>
+
               <AlternativeMedicineToggle enabled={altMedicineEnabled} onToggle={() => setAltMedicineEnabled(!altMedicineEnabled)} />
 
               <div style={{ position: "relative" }}>
@@ -936,7 +991,7 @@
                   <div style={{ position: "absolute", right: 0, top: "110%", backgroundColor: "white", border: "1px solid #E0E0E0", borderRadius: 10, padding: 6, minWidth: 180, boxShadow: "0 4px 20px rgba(0,0,0,0.1)", zIndex: 100 }}>
                     <div style={{ fontSize: 10, color: "#999", padding: "6px 10px", fontWeight: 600, textTransform: "uppercase" }}>I am a...</div>
                     {PERSONAS.map(p => (
-                      <button key={p.id} onClick={() => { setSelectedPersona(p.id); setPersonaDropdown(false); }} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 10px", border: "none", borderRadius: 6, backgroundColor: p.id === selectedPersona ? ACCENT_LIGHT : "transparent", cursor: "pointer", fontSize: 12, color: p.id === selectedPersona ? ACCENT : "#555" }}>
+                      <button key={p.id} onClick={() => { setSelectedPersona(p.id); setPersonaDropdown(false); }} style={{ display: "flex", alignItems: "center", gap: 8, width: "100%", padding: "8px 10px", border: "none", borderRadius: 6, backgroundColor: p.id === selectedPersona ? T_ACCENT_LIGHT : "transparent", cursor: "pointer", fontSize: 12, color: p.id === selectedPersona ? ACCENT : "#555" }}>
                         <span>{p.icon}</span> {p.label}
                       </button>
                     ))}
@@ -944,7 +999,7 @@
                 )}
               </div>
 
-              <button onClick={() => setRightPanelOpen(!rightPanelOpen)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", border: "1px solid #E0E0E0", borderRadius: 8, backgroundColor: rightPanelOpen ? ACCENT_LIGHT : "white", cursor: "pointer", fontSize: 12, color: rightPanelOpen ? ACCENT : "#555" }}>
+              <button onClick={() => setRightPanelOpen(!rightPanelOpen)} style={{ display: "flex", alignItems: "center", gap: 4, padding: "6px 10px", border: "1px solid #E0E0E0", borderRadius: 8, backgroundColor: rightPanelOpen ? T_ACCENT_LIGHT : "white", cursor: "pointer", fontSize: 12, color: rightPanelOpen ? ACCENT : "#555" }}>
                 <Icon name="BarChart3" size={14} /> Insights
               </button>
             </div>
@@ -964,7 +1019,7 @@
                     </h4>
                     {currentPrompts.map((prompt, i) => (
                       <button key={i} onClick={() => handleSend(prompt)} style={{ display: "block", width: "100%", textAlign: "left", padding: "12px 16px", border: "1px solid #E8E8E8", borderRadius: 10, backgroundColor: "white", cursor: "pointer", marginBottom: 8, fontSize: 13, color: "#444", lineHeight: 1.4, transition: "all 0.15s" }}>
-                        <Icon name="Search" size={13} color={ACCENT} style={{ marginRight: 8, verticalAlign: "middle" }} />
+                        <Icon name="Search" size={13} color={T_ACCENT} style={{ marginRight: 8, verticalAlign: "middle" }} />
                         {prompt}
                       </button>
                     ))}
@@ -995,10 +1050,10 @@
                     const persona = PERSONAS.find(p => p.id === chat.persona);
                     return (
                       <div key={chat.id} onClick={() => setActiveView("chat")} style={{ display: "flex", alignItems: "center", gap: 14, padding: "14px 16px", border: "1px solid #E8E8E8", borderRadius: 10, marginBottom: 8, cursor: "pointer", backgroundColor: "white", transition: "all 0.15s" }}
-                        onMouseEnter={e => e.currentTarget.style.borderColor = ACCENT}
+                        onMouseEnter={e => e.currentTarget.style.borderColor = T_ACCENT}
                         onMouseLeave={e => e.currentTarget.style.borderColor = "#E8E8E8"}
                       >
-                        <div style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: ACCENT_LIGHT, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
+                        <div style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: T_ACCENT_LIGHT, display: "flex", alignItems: "center", justifyContent: "center", fontSize: 18, flexShrink: 0 }}>
                           {persona?.icon || "🌐"}
                         </div>
                         <div style={{ flex: 1, minWidth: 0 }}>
@@ -1006,7 +1061,7 @@
                           <div style={{ display: "flex", gap: 12, marginTop: 4 }}>
                             <span style={{ fontSize: 11, color: "#999" }}>{chat.date}</span>
                             <span style={{ fontSize: 11, color: "#999" }}>{chat.messages} messages</span>
-                            <span style={{ fontSize: 11, color: ACCENT }}>{persona?.label}</span>
+                            <span style={{ fontSize: 11, color: T_ACCENT }}>{persona?.label}</span>
                           </div>
                         </div>
                         <Icon name="ChevronRight" size={16} color="#CCC" />
@@ -1026,7 +1081,7 @@
                     <p style={{ fontSize: 13, color: "#666", margin: "0 0 12px" }}>Be the first to know when Community launches:</p>
                     <div style={{ display: "flex", gap: 8 }}>
                       <input placeholder="Your email address" style={{ flex: 1, padding: "10px 14px", border: "1px solid #DDD", borderRadius: 8, fontSize: 13, outline: "none" }} />
-                      <button style={{ padding: "10px 20px", backgroundColor: ACCENT, color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>Notify Me</button>
+                      <button style={{ padding: "10px 20px", backgroundColor: T_ACCENT, color: "white", border: "none", borderRadius: 8, fontSize: 13, fontWeight: 600, cursor: "pointer", whiteSpace: "nowrap" }}>Notify Me</button>
                     </div>
                   </div>
                 </div>
@@ -1085,7 +1140,7 @@
                     <div key={i} style={{ marginBottom: 12, border: "1px solid #E8E8E8", borderRadius: 10, overflow: "hidden", backgroundColor: "white" }}>
                       <details style={{ cursor: "pointer" }}>
                         <summary style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", fontSize: 14, fontWeight: 600, color: "#1A1A2E", listStyle: "none" }}>
-                          <Icon name={item.icon} size={16} color={ACCENT} style={{ flexShrink: 0 }} />
+                          <Icon name={item.icon} size={16} color={T_ACCENT} style={{ flexShrink: 0 }} />
                           <span style={{ flex: 1 }}>{item.q}</span>
                           <Icon name="ChevronRight" size={14} color="#CCC" />
                         </summary>
@@ -1096,8 +1151,8 @@
                     </div>
                   ))}
 
-                  <div style={{ marginTop: 24, padding: 16, backgroundColor: ACCENT_LIGHT, borderRadius: 10, border: `1px solid ${ACCENT}33` }}>
-                    <h4 style={{ fontSize: 13, fontWeight: 600, color: ACCENT, margin: "0 0 6px" }}>LENA by the Numbers</h4>
+                  <div style={{ marginTop: 24, padding: 16, backgroundColor: T_ACCENT_LIGHT, borderRadius: 10, border: `1px solid ${ACCENT}33` }}>
+                    <h4 style={{ fontSize: 13, fontWeight: 600, color: T_ACCENT, margin: "0 0 6px" }}>{reskinMode ? "Research at a Glance" : "LENA by the Numbers"}</h4>
                     <div style={{ display: "flex", flexWrap: "wrap", gap: 12 }}>
                       {[
                         { num: "40M+", label: "Searchable papers" },
@@ -1106,7 +1161,7 @@
                         { num: "100%", label: "Peer-reviewed sources" },
                       ].map(s => (
                         <div key={s.label} style={{ textAlign: "center", padding: "10px 16px", backgroundColor: "white", borderRadius: 8, border: "1px solid #E0E0E0", minWidth: 100 }}>
-                          <div style={{ fontSize: 18, fontWeight: 700, color: ACCENT }}>{s.num}</div>
+                          <div style={{ fontSize: 18, fontWeight: 700, color: T_ACCENT }}>{s.num}</div>
                           <div style={{ fontSize: 10, color: "#888", marginTop: 2 }}>{s.label}</div>
                         </div>
                       ))}
@@ -1121,7 +1176,7 @@
                     <div key={i} style={{ marginBottom: 24, animation: "fadeIn 0.3s ease-out" }}>
                       {msg.role === "user" ? (
                         <div style={{ display: "flex", justifyContent: "flex-end" }}>
-                          <div style={{ maxWidth: "75%", padding: "12px 18px", backgroundColor: ACCENT, color: "white", borderRadius: "18px 18px 4px 18px", fontSize: 14, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
+                          <div style={{ maxWidth: "75%", padding: "12px 18px", backgroundColor: T_ACCENT, color: "white", borderRadius: "18px 18px 4px 18px", fontSize: 14, lineHeight: 1.5, whiteSpace: "pre-wrap", wordBreak: "break-word" }}>
                             {msg.content}
                           </div>
                         </div>
@@ -1129,7 +1184,7 @@
                         <div>
                           <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 10 }}>
                             <LenaAvatar size={28} />
-                            <span style={{ fontSize: 13, fontWeight: 600, color: "#1A1A2E" }}>LENA</span>
+                            <span style={{ fontSize: 13, fontWeight: 600, color: "#1A1A2E" }}>{reskinMode ? "NYU Research" : "LENA"}</span>
                             {msg.pulseOverall && <PulseScoreBadge score={msg.pulseOverall} status={msg.pulseOverall >= 80 ? "high" : msg.pulseOverall >= 60 ? "medium" : "low"} />}
                             <button onClick={() => setShareModal({ title: "Full research response" })} style={{ marginLeft: "auto", display: "flex", alignItems: "center", gap: 4, fontSize: 11, color: "#888", background: "none", border: "1px solid #E0E0E0", borderRadius: 6, padding: "4px 10px", cursor: "pointer" }}><Icon name="Share2" size={12} /> Share All</button>
                           </div>
@@ -1151,7 +1206,7 @@
                                 <Icon name="Sparkles" size={10} /> Dig Deeper
                               </h4>
                               {msg.followUps.map((fu, j) => (
-                                <button key={j} onClick={() => handleSend(fu)} style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 14px", border: "1px solid #E8E8E8", borderRadius: 8, backgroundColor: "white", cursor: "pointer", marginBottom: 4, fontSize: 12, color: ACCENT }}>
+                                <button key={j} onClick={() => handleSend(fu)} style={{ display: "block", width: "100%", textAlign: "left", padding: "8px 14px", border: "1px solid #E8E8E8", borderRadius: 8, backgroundColor: "white", cursor: "pointer", marginBottom: 4, fontSize: 12, color: T_ACCENT }}>
                                   {fu}
                                 </button>
                               ))}
@@ -1177,7 +1232,7 @@
                       value={input}
                       onChange={e => setInput(e.target.value)}
                       onKeyDown={handleKeyDown}
-                      placeholder="Ask LENA a research question..."
+                      placeholder={reskinMode ? "Search medical research..." : "Ask LENA a research question..."}
                       rows={1}
                       style={{
                         flex: 1,
@@ -1204,7 +1259,7 @@
                         height: 36,
                         borderRadius: 10,
                         border: "none",
-                        backgroundColor: input.trim() ? ACCENT : "#E0E0E0",
+                        backgroundColor: input.trim() ? T_ACCENT : "#E0E0E0",
                         cursor: input.trim() ? "pointer" : "default",
                         display: "flex",
                         alignItems: "center",
@@ -1218,7 +1273,7 @@
                   </div>
                   <div style={{ display: "flex", justifyContent: "space-between", marginTop: 6 }}>
                     <span style={{ fontSize: 10, color: "#BBB" }}>Shift + Enter for new line</span>
-                    <span style={{ fontSize: 10, color: "#BBB" }}>LENA searches 40M+ papers across 8+ scientific databases</span>
+                    <span style={{ fontSize: 10, color: "#BBB" }}>{theme.footerText}{theme.poweredBy && (" · " + theme.poweredBy)}</span>
                   </div>
                 </div>
               </div>
