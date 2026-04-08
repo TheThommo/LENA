@@ -11,10 +11,11 @@ from supabase import create_client, Client
 from app.core.config import settings
 
 _client: Optional[Client] = None
+_admin_client: Optional[Client] = None
 
 
 def get_supabase_client() -> Client:
-    """Get or create the Supabase client."""
+    """Get or create the Supabase client (anon key, respects RLS)."""
     global _client
     if _client is None:
         if not settings.supabase_url or not settings.supabase_anon_key:
@@ -27,6 +28,22 @@ def get_supabase_client() -> Client:
             settings.supabase_anon_key,
         )
     return _client
+
+
+def get_supabase_admin_client() -> Client:
+    """Get or create the Supabase admin client (service role key, bypasses RLS)."""
+    global _admin_client
+    if _admin_client is None:
+        if not settings.supabase_url or not settings.supabase_service_role_key:
+            raise ValueError(
+                "Supabase URL and service role key must be set in environment variables. "
+                "Check your .env file."
+            )
+        _admin_client = create_client(
+            settings.supabase_url,
+            settings.supabase_service_role_key,
+        )
+    return _admin_client
 
 
 async def test_connection() -> dict:

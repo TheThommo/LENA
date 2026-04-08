@@ -16,6 +16,11 @@ No API key required, but an app token increases rate limits.
 import httpx
 from typing import Optional
 from dataclasses import dataclass
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+from app.core.logging import get_logger
+
+logger = get_logger("lena.sources")
 
 # CDC Open Data (Socrata-based)
 CDC_DATA_URL = "https://data.cdc.gov/resource"
@@ -40,6 +45,11 @@ class CDCDataset:
     url: str
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=8),
+    retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError)),
+)
 async def search_cdc_data(
     query: str,
     dataset_id: Optional[str] = None,
@@ -84,6 +94,7 @@ async def search_cdc_data(
 
     # Catalog search returns a different format
     if not dataset_id:
+        logger.debug(f"CDC catalog search for '{query}' returned results")
         results = []
         for result in data.get("results", []):
             resource = result.get("resource", {})
@@ -97,6 +108,7 @@ async def search_cdc_data(
             })
         return results
 
+    logger.debug(f"CDC dataset search returned {len(data) if isinstance(data, list) else 0} rows")
     return data if isinstance(data, list) else []
 
 

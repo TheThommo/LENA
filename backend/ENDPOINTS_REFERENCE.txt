@@ -1,0 +1,222 @@
+LENA BI Dashboard API - Complete Endpoints Reference
+=================================================================
+
+All endpoints require: Authorization: Bearer <jwt_token>
+
+PLATFORM DASHBOARD ENDPOINTS (platform_admin role only)
+=================================================================
+
+1. GET /api/dashboard/platform/overview
+   - Top-level summary statistics
+   - Metrics: users, searches, sessions, response_time, mrr
+   - Query params: start_date, end_date (optional)
+
+2. GET /api/dashboard/platform/traffic
+   - Traffic breakdown by source (UTM + referrer)
+   - Returns: list of sources with counts and percentages
+   - Query params: start_date, end_date (optional)
+
+3. GET /api/dashboard/platform/geo
+   - Geographic distribution of visitors
+   - Returns: country and city breakdown (top 100)
+   - Query params: start_date, end_date (optional)
+
+4. GET /api/dashboard/platform/topics
+   - Top 20 trending search topics
+   - Returns: topic list with frequencies
+   - Query params: start_date, end_date (optional)
+
+5. GET /api/dashboard/platform/funnel
+   - Conversion funnel metrics (8 stages)
+   - Returns: stage-by-stage conversion rates
+   - Query params: start_date, end_date (optional)
+
+6. GET /api/dashboard/platform/users
+   - User registration growth over time
+   - Returns: daily data with cumulative totals
+   - Query params: start_date, end_date (optional)
+
+7. GET /api/dashboard/platform/searches
+   - Search activity trends over time
+   - Returns: daily search counts and per-user averages
+   - Query params: start_date, end_date (optional)
+
+8. GET /api/dashboard/platform/revenue
+   - Revenue and subscription metrics
+   - Returns: MRR, active subs, plan distribution
+   - Note: No date range filtering (current snapshot)
+
+9. GET /api/dashboard/platform/tenants
+   - Per-tenant comparison (platform-only endpoint)
+   - Returns: list of all tenants with usage metrics
+   - Query params: start_date, end_date (optional)
+
+10. GET /api/dashboard/platform/queries
+    - Most popular search queries across platform
+    - Returns: top queries by frequency
+    - Query params: start_date, end_date, limit (1-100, default 20)
+
+11. GET /api/dashboard/platform/personas
+    - User breakdown by persona type
+    - Returns: persona distribution with percentages
+    - Query params: start_date, end_date (optional)
+
+12. GET /api/dashboard/platform/pulse-accuracy
+    - PULSE validation accuracy metrics
+    - Returns: results breakdown by validation status
+    - Query params: start_date, end_date (optional)
+
+TENANT DASHBOARD ENDPOINTS (tenant_admin or platform_admin role)
+=================================================================
+
+1. GET /api/dashboard/tenant/overview
+   - Tenant-scoped overview statistics
+   - Tenant admins see their own data
+   - Platform admins see their own or override with X-Tenant-ID header
+   - Query params: start_date, end_date (optional)
+
+2. GET /api/dashboard/tenant/traffic
+   - Tenant-scoped traffic sources
+   - Query params: start_date, end_date (optional)
+
+3. GET /api/dashboard/tenant/geo
+   - Tenant-scoped geographic distribution
+   - Query params: start_date, end_date (optional)
+
+4. GET /api/dashboard/tenant/topics
+   - Tenant-scoped trending topics
+   - Query params: start_date, end_date (optional)
+
+5. GET /api/dashboard/tenant/funnel
+   - Tenant-scoped conversion funnel
+   - Query params: start_date, end_date (optional)
+
+6. GET /api/dashboard/tenant/users
+   - Tenant-scoped user growth
+   - Query params: start_date, end_date (optional)
+
+7. GET /api/dashboard/tenant/searches
+   - Tenant-scoped search activity
+   - Query params: start_date, end_date (optional)
+
+8. GET /api/dashboard/tenant/queries
+   - Tenant-scoped popular queries
+   - Query params: start_date, end_date, limit (1-100, default 20)
+
+9. GET /api/dashboard/tenant/personas
+   - Tenant-scoped persona distribution
+   - Query params: start_date, end_date (optional)
+
+10. GET /api/dashboard/tenant/pulse-accuracy
+    - Tenant-scoped PULSE accuracy
+    - Query params: start_date, end_date (optional)
+
+EXPORT ENDPOINT (any authenticated role)
+=================================================================
+
+1. GET /api/dashboard/export
+   - Export any dashboard metric in JSON or CSV format
+   - Required query params:
+     - report_type: overview | traffic | geo | topics | funnel | users | searches
+   - Optional query params:
+     - format: json (default) | csv
+     - start_date, end_date: date range (YYYY-MM-DD)
+     - X-Tenant-ID header: (platform admins only) specify tenant
+   
+   Returns:
+   - format=json: JSON object with dashboard data
+   - format=csv: CSV file (Content-Disposition: attachment)
+
+QUERY PARAMETER FORMATS
+=================================================================
+
+Date Parameters (optional on all endpoints except /revenue):
+  - Format: YYYY-MM-DD (ISO 8601)
+  - Examples: 2024-03-01, 2024-04-15
+  - If omitted: defaults to last 30 days
+  - If end_date omitted: defaults to today
+
+Limit Parameter (on /queries endpoints):
+  - Type: integer
+  - Range: 1-100
+  - Default: 20
+  - Example: ?limit=50
+
+Header Parameters:
+  - Authorization: Bearer <jwt_token> (required on all)
+  - X-Tenant-ID: <tenant_uuid> (platform admins only, optional)
+
+STATUS CODES
+=================================================================
+
+200 OK - Request successful
+401 Unauthorized - Missing or invalid JWT token
+403 Forbidden - Insufficient permissions
+  - platform endpoint without platform_admin role
+  - tenant admin trying to access another tenant
+  - platform admin without proper role
+400 Bad Request - Invalid query parameters or format
+  - invalid report_type on export
+  - invalid date format
+  - invalid limit value
+
+EXAMPLE REQUESTS
+=================================================================
+
+Platform Overview (last 30 days):
+  GET /api/dashboard/platform/overview
+  Authorization: Bearer <token>
+
+Platform Overview (custom date range):
+  GET /api/dashboard/platform/overview?start_date=2024-03-01&end_date=2024-04-01
+  Authorization: Bearer <token>
+
+Tenant Overview (as tenant_admin):
+  GET /api/dashboard/tenant/overview
+  Authorization: Bearer <token>
+
+Tenant Overview (as platform_admin viewing another tenant):
+  GET /api/dashboard/tenant/overview
+  Authorization: Bearer <token>
+  X-Tenant-ID: nyu-uuid-here
+
+Export Searches as CSV:
+  GET /api/dashboard/export?report_type=searches&format=csv
+  Authorization: Bearer <token>
+
+Export Geo data as JSON:
+  GET /api/dashboard/export?report_type=geo&format=json
+  Authorization: Bearer <token>
+
+Top 50 Queries:
+  GET /api/dashboard/platform/queries?limit=50
+  Authorization: Bearer <token>
+
+AUTHENTICATION
+=================================================================
+
+JWT Token Requirements:
+  {
+    "user_id": "uuid",
+    "tenant_id": "uuid",
+    "role": "platform_admin" | "tenant_admin" | "practitioner" | "researcher" | "public_user",
+    "exp": timestamp,
+    "iat": timestamp
+  }
+
+Generate token with: app.core.auth.create_access_token(user_id, tenant_id, role)
+
+TOTAL ENDPOINT COUNT
+=================================================================
+
+Platform endpoints: 11
+Tenant endpoints: 10
+Export endpoint: 1
+TOTAL: 22 endpoints
+
+All endpoints:
+- Return JSON unless format=csv specified
+- Support optional date range filtering (except /revenue)
+- Require authentication
+- Implement role-based access control
+- Use async/await pattern

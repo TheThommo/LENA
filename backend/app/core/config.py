@@ -6,6 +6,7 @@ Loads environment variables and provides app-wide settings.
 from pydantic_settings import BaseSettings
 from pydantic import field_validator
 from typing import Optional
+import os
 
 
 # Placeholder strings that should be treated as "not set"
@@ -26,8 +27,9 @@ class Settings(BaseSettings):
     # App
     app_env: str = "development"
     app_debug: bool = True
-    app_port: int = 8000
-    cors_origins: str = "http://localhost:3000"
+    app_port: int = int(os.getenv("PORT", 8000))
+    cors_origins: str = "http://localhost:3000,localhost:3000"
+    railway_environment: Optional[str] = None
 
     # OpenAI
     openai_api_key: Optional[str] = None
@@ -41,6 +43,14 @@ class Settings(BaseSettings):
     ncbi_api_key: Optional[str] = None
     ncbi_email: Optional[str] = None
 
+    # Authentication & JWT
+    jwt_secret_key: str = "change-me-in-production"
+    jwt_algorithm: str = "HS256"
+    jwt_expiration_minutes: int = 1440  # 24 hours
+
+    # Freemium
+    free_search_limit: int = 2
+
     # Rate limiting
     rate_limit_per_minute: int = 60
 
@@ -52,6 +62,16 @@ class Settings(BaseSettings):
     @classmethod
     def strip_placeholders(cls, v):
         return _clean_placeholder(v)
+
+    @property
+    def is_production(self) -> bool:
+        """Check if running in production."""
+        return self.app_env.lower() == "production"
+
+    @property
+    def on_railway(self) -> bool:
+        """Check if running on Railway infrastructure."""
+        return os.getenv("RAILWAY_ENVIRONMENT") is not None
 
     class Config:
         env_file = ".env"

@@ -92,7 +92,7 @@ lena/
 
 ## Stack
 
-- Frontend: Next.js + Tailwind (Vercel)
+- Frontend: Next.js + Tailwind (Railway)
 - Backend: Python + FastAPI (Railway)
 - Database: Supabase + pgvector
 - LLM: OpenAI API (gpt-4o-mini)

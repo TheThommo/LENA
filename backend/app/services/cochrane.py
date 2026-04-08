@@ -16,8 +16,12 @@ This avoids needing a paid Wiley API key while still getting Cochrane content.
 import httpx
 from typing import Optional
 from dataclasses import dataclass
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
 from app.core.config import settings
+from app.core.logging import get_logger
+
+logger = get_logger("lena.sources")
 
 BASE_URL = "https://eutils.ncbi.nlm.nih.gov/entrez/eutils"
 COCHRANE_JOURNAL = "Cochrane Database Syst Rev"
@@ -46,6 +50,11 @@ def _build_params(**kwargs) -> dict:
     return params
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=8),
+    retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError)),
+)
 async def search_cochrane(
     query: str,
     max_results: int = 10,
@@ -78,9 +87,16 @@ async def search_cochrane(
         response.raise_for_status()
         data = response.json()
 
-    return data.get("esearchresult", {}).get("idlist", [])
+    pmids = data.get("esearchresult", {}).get("idlist", [])
+    logger.debug(f"Cochrane search for '{query}' returned {len(pmids)} results")
+    return pmids
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=8),
+    retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError)),
+)
 async def fetch_cochrane_reviews(pmids: list[str]) -> list[CochraneReview]:
     """
     Fetch Cochrane review details from PubMed.
@@ -108,6 +124,7 @@ async def fetch_cochrane_reviews(pmids: list[str]) -> list[CochraneReview]:
         response.raise_for_status()
 
     root = etree.fromstring(response.content)
+    logger.debug(f"Fetched {len(pmids)} Cochrane reviews")
     reviews = []
 
     for article_elem in root.findall(".//PubmedArticle"):

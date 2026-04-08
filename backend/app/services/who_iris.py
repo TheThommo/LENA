@@ -14,6 +14,11 @@ Rate limits are not formally documented but be respectful (1-2 req/sec).
 import httpx
 from typing import Optional
 from dataclasses import dataclass
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
+
+from app.core.logging import get_logger
+
+logger = get_logger("lena.sources")
 
 # DSpace 7 API (WHO IRIS migrated from /rest to /server/api)
 BASE_URL = "https://iris.who.int/server/api"
@@ -32,6 +37,11 @@ class WHODocument:
     pdf_url: Optional[str]
 
 
+@retry(
+    stop=stop_after_attempt(3),
+    wait=wait_exponential(multiplier=1, min=1, max=8),
+    retry=retry_if_exception_type((httpx.TimeoutException, httpx.ConnectError, httpx.HTTPStatusError)),
+)
 async def search_who_iris(
     query: str,
     max_results: int = 10,
@@ -69,6 +79,7 @@ async def search_who_iris(
         response.raise_for_status()
         data = response.json()
 
+    logger.debug(f"WHO IRIS search for '{query}' returned results")
     documents = []
 
     # DSpace 7 search response structure

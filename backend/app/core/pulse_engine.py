@@ -10,10 +10,13 @@ compares results, and flags when one source diverges from consensus.
 """
 
 import re
+import logging
 from collections import Counter
 from dataclasses import dataclass, field
 from typing import Optional
 from enum import Enum
+
+logger = logging.getLogger("lena.pulse")
 
 
 class ValidationStatus(str, Enum):
@@ -57,6 +60,7 @@ class SourceResult:
     year: Optional[int] = None
     relevance_score: float = 0.0
     keywords: list[str] = field(default_factory=list)
+    is_retracted: bool = False
 
 
 @dataclass
@@ -87,7 +91,17 @@ class PULSEReport:
     def confidence_ratio(self) -> float:
         if self.source_count == 0:
             return 0.0
-        return self.agreement_count / self.source_count
+
+        # Base confidence = agreement_count / source_count
+        base_confidence = self.agreement_count / self.source_count
+
+        # RULE 3: Conflicting evidence (edge cases exist) lowers confidence
+        if self.edge_cases:
+            # Penalty factor based on edge case count
+            penalty = len(self.edge_cases) / max(1, len(self.validated_results) + len(self.edge_cases))
+            base_confidence = base_confidence * (1.0 - (penalty * 0.25))
+
+        return base_confidence
 
     def to_dict(self) -> dict:
         """Serialise the report to a dictionary for API responses."""
@@ -249,8 +263,26 @@ async def run_pulse_validation(
     for source_name, results in results_by_source.items():
         # Score individual results by how many of their keywords match consensus
         for r in results:
+            # Skip retracted papers entirely
+            if r.is_retracted:
+                logger.debug(f"Excluding retracted paper: {r.title[:50]}")
+                continue
+
             if consensus_keywords and r.keywords:
-                r.relevance_score = len(set(r.keywords) & consensus_keywords) / len(consensus_keywords)
+                # Calculate base relevance score
+                base_score = len(set(r.keywords) & consensus_keywords) / len(consensus_keywords)
+
+                # RULE 1: Single-source cap at 0.60
+                if len(results_by_source) == 1:
+                    base_score = min(base_score, 0.60)
+
+                # RULE 2: Systematic reviews (Cochrane) weighted 1.25x
+                if source_name == "cochrane":
+                    base_score = min(base_score * 1.25, 1.0)
+
+                r.relevance_score = base_score
+            else:
+                r.relevance_score = 0.0
 
         if source_name in consensus_sources:
             report.validated_results.extend(results)

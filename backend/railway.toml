@@ -1,0 +1,17 @@
+# Railway deployment configuration for LENA FastAPI backend
+
+[build]
+# Use Docker build
+builder = "dockerfile"
+
+[deploy]
+# Restart policy
+restartPolicyType = "on-failure"
+restartPolicyMaxRetries = 5
+
+# Health check configuration
+healthchecks.web.path = "/api/health"
+healthchecks.web.port = 8000
+
+# Start command - Railway will inject PORT env var
+startCommand = "uvicorn app.main:app --host 0.0.0.0 --port $PORT"

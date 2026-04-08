@@ -5,6 +5,7 @@ Health check and connection test routes.
 import asyncio
 from fastapi import APIRouter
 
+from app.core.config import settings
 from app.services import pubmed, clinical_trials, cochrane, who_iris, cdc, openai_service
 from app.db.supabase import test_connection as test_supabase
 
@@ -14,7 +15,12 @@ router = APIRouter(prefix="/health", tags=["health"])
 @router.get("/")
 async def health_check():
     """Basic health check."""
-    return {"status": "healthy", "service": "LENA API"}
+    return {
+        "status": "healthy",
+        "service": "LENA API",
+        "environment": settings.app_env,
+        "railway": settings.on_railway,
+    }
 
 
 @router.get("/connections")

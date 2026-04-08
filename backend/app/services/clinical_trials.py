@@ -11,7 +11,11 @@ import requests
 import asyncio
 from typing import Optional
 from dataclasses import dataclass
+from tenacity import retry, stop_after_attempt, wait_exponential, retry_if_exception_type
 
+from app.core.logging import get_logger
+
+logger = get_logger("lena.sources")
 BASE_URL = "https://clinicaltrials.gov/api/v2"
 
 
@@ -59,6 +63,11 @@ async def search_trials(
     # ClinicalTrials.gov Cloudflare protection blocks httpx but allows
     # the requests library (proven by pytrials). Run synchronous request
     # in a thread pool so we stay async-compatible.
+    @retry(
+        stop=stop_after_attempt(3),
+        wait=wait_exponential(multiplier=1, min=1, max=8),
+        retry=retry_if_exception_type((requests.Timeout, requests.ConnectionError, requests.HTTPError)),
+    )
     def _do_request():
         resp = requests.get(
             f"{BASE_URL}/studies",
@@ -69,6 +78,7 @@ async def search_trials(
         return resp.json()
 
     data = await asyncio.to_thread(_do_request)
+    logger.debug(f"ClinicalTrials.gov search for '{query}' returned {len(data.get('studies', []))} results")
 
     trials = []
     for study in data.get("studies", []):
