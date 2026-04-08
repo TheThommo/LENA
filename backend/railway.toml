@@ -11,7 +11,5 @@ restartPolicyMaxRetries = 5
 
 # Health check configuration
 healthchecks.web.path = "/api/health"
-healthchecks.web.port = 8000
 
-# Start command - Railway will inject PORT env var
-startCommand = "uvicorn app.main:app --host 0.0.0.0 --port $PORT"
+# No startCommand needed - Dockerfile CMD handles PORT expansion via shell form
