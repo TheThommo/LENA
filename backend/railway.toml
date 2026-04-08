@@ -6,7 +6,7 @@ builder = "dockerfile"
 
 [deploy]
 # Restart policy
-restartPolicyType = "on-failure"
+restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 5
 
 # Health check configuration
