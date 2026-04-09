@@ -38,6 +38,10 @@ def detect_tenant(request: Request) -> str:
         # Remove port if present
         hostname = host.split(":")[0].lower()
 
+        # Railway URLs (*.up.railway.app) are not tenant subdomains
+        if "railway.app" in hostname:
+            return "lena"
+
         # Check if it's a subdomain (not the root domain)
         parts = hostname.split(".")
         if len(parts) >= 3:

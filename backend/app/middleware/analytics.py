@@ -77,30 +77,14 @@ class AnalyticsMiddleware(BaseHTTPMiddleware):
         # In a real app, this would check for existing session cookies
         session_id = str(uuid.uuid4())
 
-        # For now, use a hardcoded default tenant
-        # In production, this would be extracted from subdomain, auth token, or query param
-        tenant_id = "default_tenant"
-
-        # Store analytics context in request.state
+            # Store analytics context in request.state
+        # Tenant is resolved by the route handler, not middleware
         request.state.session_id = session_id
-        request.state.tenant_id = tenant_id
         request.state.ip_address = ip_address
         request.state.geo_data = geo_data
         request.state.referrer_data = referrer_data
         request.state.utm_data = utm_data
         request.state.request_started_at = datetime.utcnow()
-
-        # Schedule session logging (fire-and-forget, non-blocking)
-        schedule_analytics_task(
-            log_session_start(
-                session_id=session_id,
-                ip=ip_address,
-                geo_data=geo_data,
-                referrer_data=referrer_data,
-                utm_data=utm_data,
-                tenant_id=tenant_id,
-            )
-        )
 
         # Continue processing the request
         response = await call_next(request)

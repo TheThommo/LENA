@@ -40,24 +40,17 @@ async def log_session_start(
     try:
         client = get_supabase_client()
 
-        # Build payload
+        # Build payload (must match sessions table columns)
         payload = {
-            "id": session_id,
-            "tenant_id": tenant_id,
             "ip_address": ip,
             "geo_city": geo_data.get("city") if geo_data else None,
             "geo_country": geo_data.get("country") if geo_data else None,
             "geo_lat": geo_data.get("lat") if geo_data else None,
             "geo_lon": geo_data.get("lon") if geo_data else None,
             "referrer": referrer_data.get("raw"),
-            "referrer_domain": referrer_data.get("domain"),
-            "referrer_category": referrer_data.get("category"),
             "utm_source": utm_data.get("utm_source"),
             "utm_medium": utm_data.get("utm_medium"),
             "utm_campaign": utm_data.get("utm_campaign"),
-            "utm_term": utm_data.get("utm_term"),
-            "utm_content": utm_data.get("utm_content"),
-            "started_at": datetime.utcnow().isoformat(),
         }
 
         result = client.table("sessions").insert(payload).execute()
