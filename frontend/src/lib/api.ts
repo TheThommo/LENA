@@ -184,6 +184,7 @@ export async function searchLiterature(
     maxResults?: number;
     includeAltMedicine?: boolean;
     sessionId?: string;
+    sessionToken?: string;
     tenantId?: string;
   }
 ): Promise<SearchResponse> {
@@ -194,10 +195,16 @@ export async function searchLiterature(
   if (options?.includeAltMedicine !== undefined) {
     params.set('include_alt_medicine', String(options.includeAltMedicine));
   }
-  if (options?.sessionId) params.set('session_id', options.sessionId);
   if (options?.tenantId) params.set('tenant_id', options.tenantId);
 
-  const response = await fetch(`${API_BASE}/search?${params}`);
+  const headers: Record<string, string> = {};
+  if (options?.sessionToken) {
+    headers['Authorization'] = `Bearer ${options.sessionToken}`;
+  } else if (options?.sessionId) {
+    headers['X-Session-ID'] = options.sessionId;
+  }
+
+  const response = await fetch(`${API_BASE}/search?${params}`, { headers });
   if (!response.ok) throw new Error(`Search failed: ${response.statusText}`);
   return response.json();
 }

@@ -3,21 +3,21 @@
 @tailwind utilities;
 
 :root {
-  /* Brand Colors (RGB) */
-  --brand-primary: 0 116 197;
-  --brand-primary-light: 186 224 253;
-  --brand-primary-dark: 1 93 160;
-  --brand-accent: 12 147 231;
-  --brand-surface: 240 247 255;
+  /* Brand Colors (RGB) - LENA Teal */
+  --brand-primary: 27 107 147;
+  --brand-primary-light: 232 244 248;
+  --brand-primary-dark: 20 83 114;
+  --brand-accent: 27 107 147;
+  --brand-surface: 255 251 240;
 
   /* Text Colors */
-  --brand-text: 15 23 42;
+  --brand-text: 26 26 46;
   --brand-text-secondary: 100 116 139;
   --brand-text-muted: 148 163 184;
 
   /* UI Colors */
   --brand-border: 226 232 240;
-  --brand-bg: 248 250 252;
+  --brand-bg: 255 251 240;
   --brand-bg-white: 255 255 255;
 
   /* Status Colors */
@@ -73,4 +73,28 @@ body {
 
 .text-danger {
   @apply text-[rgb(var(--brand-danger))];
+}
+
+/* Animations */
+@keyframes spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+@keyframes pulse-glow {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.7; }
+}
+
+@keyframes fade-in {
+  from { opacity: 0; transform: translateY(8px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-fade-in {
+  animation: fade-in 0.3s ease-out;
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s ease-in-out infinite;
 }

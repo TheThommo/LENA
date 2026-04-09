@@ -107,11 +107,21 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
 
     try {
       if (session.sessionId) {
-        await fetch(`${API_BASE}/session/${session.sessionId}/disclaimer`, {
+        const response = await fetch(`${API_BASE}/session/${session.sessionId}/disclaimer`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ accepted: true }),
         });
+        if (response.ok) {
+          const data = await response.json();
+          // Store the authorized session token for search requests
+          if (data.session_token) {
+            setSession(prev => ({
+              ...prev,
+              sessionToken: data.session_token,
+            }));
+          }
+        }
       }
     } catch (error) {
       console.error('Error accepting disclaimer:', error);

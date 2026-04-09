@@ -41,14 +41,14 @@ export default function ModalOverlay({
     <div className="fixed inset-0 z-50 flex items-center justify-center">
       {/* Backdrop */}
       <div
-        className="absolute inset-0 bg-black/50 backdrop-blur-sm transition-opacity duration-300"
+        className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300"
         onClick={handleBackdropClick}
         aria-hidden="true"
       />
 
       {/* Modal Card */}
-      <div className="relative z-10 w-full max-w-md mx-4 animate-fadeIn">
-        <div className="bg-white rounded-lg shadow-lg">
+      <div className="relative z-10 w-full max-w-md mx-4 animate-fade-in">
+        <div className="bg-white rounded-2xl shadow-2xl">
           {children}
         </div>
       </div>
