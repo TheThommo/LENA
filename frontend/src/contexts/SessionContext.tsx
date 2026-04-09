@@ -58,57 +58,82 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   const captureName = async (name: string) => {
-    try {
-      const response = await fetch(`${API_BASE}/session/capture-name`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: session.sessionId, name }),
-      });
-      if (!response.ok) throw new Error('Failed to capture name');
+    // Always update local state first so the funnel progresses
+    setSession(prev => ({
+      ...prev,
+      name,
+      funnelStage: 'name_captured',
+    }));
 
-      setSession(prev => ({
-        ...prev,
-        name,
-        funnelStage: 'name_captured',
-      }));
+    try {
+      // Auto-start session if we don't have one yet
+      let sid = session.sessionId;
+      if (!sid) {
+        const startRes = await fetch(`${API_BASE}/session/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (startRes.ok) {
+          const data = await startRes.json();
+          sid = data.session_id;
+          setSession(prev => ({
+            ...prev,
+            sessionId: data.session_id,
+            sessionToken: data.session_token,
+          }));
+        }
+      }
+
+      // Send name to backend if we have a session
+      if (sid) {
+        await fetch(`${API_BASE}/session/${sid}/name`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ name }),
+        });
+      }
     } catch (error) {
       console.error('Error capturing name:', error);
     }
   };
 
   const acceptDisclaimer = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/session/accept-disclaimer`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: session.sessionId }),
-      });
-      if (!response.ok) throw new Error('Failed to accept disclaimer');
+    // Always update local state first so the funnel progresses
+    setSession(prev => ({
+      ...prev,
+      disclaimerAccepted: true,
+      funnelStage: 'disclaimer_accepted',
+    }));
 
-      setSession(prev => ({
-        ...prev,
-        disclaimerAccepted: true,
-        funnelStage: 'disclaimer_accepted',
-      }));
+    try {
+      if (session.sessionId) {
+        await fetch(`${API_BASE}/session/${session.sessionId}/disclaimer`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ accepted: true }),
+        });
+      }
     } catch (error) {
       console.error('Error accepting disclaimer:', error);
     }
   };
 
   const captureEmail = async (email: string) => {
-    try {
-      const response = await fetch(`${API_BASE}/session/capture-email`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: session.sessionId, email }),
-      });
-      if (!response.ok) throw new Error('Failed to capture email');
+    // Always update local state first so the funnel progresses
+    setSession(prev => ({
+      ...prev,
+      email,
+      funnelStage: 'email_captured',
+    }));
 
-      setSession(prev => ({
-        ...prev,
-        email,
-        funnelStage: 'email_captured',
-      }));
+    try {
+      if (session.sessionId) {
+        await fetch(`${API_BASE}/session/${session.sessionId}/email`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ email }),
+        });
+      }
     } catch (error) {
       console.error('Error capturing email:', error);
     }
