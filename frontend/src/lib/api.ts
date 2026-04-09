@@ -94,7 +94,7 @@ export async function startSession(): Promise<SessionStartResponse> {
 }
 
 export async function captureName(sessionId: string, name: string): Promise<any> {
-  const response = await fetch(`${API_BASE}/session/${sessionId}/capture-name`, {
+  const response = await fetch(`${API_BASE}/session/${sessionId}/name`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
@@ -104,15 +104,17 @@ export async function captureName(sessionId: string, name: string): Promise<any>
 }
 
 export async function acceptDisclaimer(sessionId: string): Promise<any> {
-  const response = await fetch(`${API_BASE}/session/${sessionId}/accept-disclaimer`, {
+  const response = await fetch(`${API_BASE}/session/${sessionId}/disclaimer`, {
     method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ accepted: true }),
   });
   if (!response.ok) throw new Error(`Failed to accept disclaimer: ${response.statusText}`);
   return response.json();
 }
 
 export async function captureEmail(sessionId: string, email: string): Promise<any> {
-  const response = await fetch(`${API_BASE}/session/${sessionId}/capture-email`, {
+  const response = await fetch(`${API_BASE}/session/${sessionId}/email`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),
