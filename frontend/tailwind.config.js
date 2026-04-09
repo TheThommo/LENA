@@ -19,6 +19,13 @@ module.exports = {
           900: '#0b426e',
           950: '#072a49',
         },
+        brand: {
+          DEFAULT: 'rgb(var(--brand-primary) / <alpha-value>)',
+          light: 'rgb(var(--brand-primary-light) / <alpha-value>)',
+          dark: 'rgb(var(--brand-primary-dark) / <alpha-value>)',
+          accent: 'rgb(var(--brand-accent) / <alpha-value>)',
+          surface: 'rgb(var(--brand-surface) / <alpha-value>)',
+        },
       },
       fontFamily: {
         sans: ['Inter', 'system-ui', 'sans-serif'],

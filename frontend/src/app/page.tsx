@@ -1,69 +1,135 @@
 'use client';
 
 import { useState } from 'react';
+import { useRouter } from 'next/navigation';
+import SearchBar, { SearchBarOptions } from '@/components/search/SearchBar';
+import PulseReport from '@/components/search/PulseReport';
+import ResultsList from '@/components/search/ResultsList';
+import SearchStats from '@/components/search/SearchStats';
+import FunnelManager from '@/components/funnel/FunnelManager';
+import { useSession } from '@/contexts/SessionContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { useTenant } from '@/contexts/TenantContext';
+import { searchLiterature, SearchResponse } from '@/lib/api';
 
 export default function Home() {
-  const [query, setQuery] = useState('');
+  const router = useRouter();
+  const { session, captureName, acceptDisclaimer, captureEmail, incrementSearch } = useSession();
+  const { isAuthenticated } = useAuth();
+  const { tenant } = useTenant();
+  const [response, setResponse] = useState<SearchResponse | null>(null);
   const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [hasSearched, setHasSearched] = useState(false);
 
-  const handleSearch = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!query.trim()) return;
+  const handleSearch = async (options: SearchBarOptions) => {
     setLoading(true);
-    // TODO: Wire up to backend API
-    console.log('Searching:', query);
-    setLoading(false);
+    setError(null);
+
+    try {
+      const result = await searchLiterature(options.query, {
+        sources: options.sources,
+        includeAltMedicine: options.includeAltMedicine,
+        maxResults: 50,
+        sessionId: session.sessionId || undefined,
+        tenantId: tenant.id,
+      });
+      setResponse(result);
+      setHasSearched(true);
+      incrementSearch();
+    } catch (err) {
+      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
+      setError(errorMessage);
+      setResponse(null);
+    } finally {
+      setLoading(false);
+    }
   };
 
+  const showHeroLayout = !hasSearched;
+
+  // Funnel overlay (renders modals based on session state)
+  const funnelOverlay = (
+    <FunnelManager
+      sessionState={{
+        name: session.name || undefined,
+        email: session.email || undefined,
+        disclaimerAccepted: session.disclaimerAccepted,
+        searchCount: session.searchCount,
+        isRegistered: isAuthenticated,
+        brandName: tenant.brandName,
+      }}
+      onNameSubmit={(name) => captureName(name)}
+      onDisclaimerAccept={(_timestamp: string) => acceptDisclaimer()}
+      onEmailSubmit={(email) => captureEmail(email)}
+      onEmailSkip={() => {}}
+      onRegister={() => router.push(`/register?session_id=${session.sessionId || ''}`)}
+      onLogin={() => router.push('/login')}
+    />
+  );
+
+  if (showHeroLayout) {
+    return (
+      <main className="min-h-screen flex flex-col items-center justify-center px-4 py-12">
+        {funnelOverlay}
+        <div className="max-w-2xl w-full">
+          {/* Logo / Title */}
+          <div className="text-center mb-12">
+            <h1 className="text-5xl font-bold text-lena-700 mb-2">{tenant.brandName}</h1>
+            <p className="text-lg text-slate-500">
+              {tenant.tagline}
+            </p>
+          </div>
+
+          {/* Search Bar - Full Featured */}
+          <SearchBar onSearch={handleSearch} isLoading={loading} />
+        </div>
+      </main>
+    );
+  }
+
   return (
-    <main className="min-h-screen flex flex-col items-center justify-center px-4">
-      <div className="max-w-2xl w-full text-center">
-        {/* Logo / Title */}
-        <h1 className="text-5xl font-bold text-lena-700 mb-2">LENA</h1>
-        <p className="text-lg text-slate-500 mb-8">
-          Literature and Evidence Navigation Agent
-        </p>
+    <main className="min-h-screen bg-white">
+      {funnelOverlay}
+      {/* Header with Logo */}
+      <header className="sticky top-0 z-50 bg-white border-b border-slate-200 shadow-sm">
+        <div className="max-w-6xl mx-auto px-4 py-4">
+          <h1 className="text-2xl font-bold text-lena-700">{tenant.brandName}</h1>
+        </div>
+      </header>
 
-        {/* Search Bar */}
-        <form onSubmit={handleSearch} className="relative">
-          <input
-            type="text"
-            value={query}
-            onChange={(e) => setQuery(e.target.value)}
-            placeholder="Ask LENA a clinical research question..."
-            className="w-full px-6 py-4 text-lg rounded-2xl border-2 border-slate-200
-                       focus:border-lena-400 focus:outline-none focus:ring-2 focus:ring-lena-100
-                       shadow-sm transition-all duration-200"
-          />
-          <button
-            type="submit"
-            disabled={loading || !query.trim()}
-            className="absolute right-3 top-1/2 -translate-y-1/2 px-6 py-2
-                       bg-lena-600 text-white rounded-xl font-medium
-                       hover:bg-lena-700 disabled:opacity-50 disabled:cursor-not-allowed
-                       transition-colors duration-200"
-          >
-            {loading ? 'Searching...' : 'Search'}
-          </button>
-        </form>
-
-        {/* Source Badges */}
-        <div className="flex flex-wrap justify-center gap-2 mt-6">
-          {['PubMed', 'ClinicalTrials.gov', 'Cochrane', 'WHO', 'CDC'].map((source) => (
-            <span
-              key={source}
-              className="px-3 py-1 text-xs font-medium text-lena-700 bg-lena-50
-                         rounded-full border border-lena-100"
-            >
-              {source}
-            </span>
-          ))}
+      {/* Search and Results Container */}
+      <div className="max-w-6xl mx-auto px-4 py-8">
+        {/* Search Bar - Compact */}
+        <div className="mb-8">
+          <SearchBar onSearch={handleSearch} isLoading={loading} compact={true} />
         </div>
 
-        {/* Tagline */}
-        <p className="mt-8 text-sm text-slate-400">
-          Cross-referenced. Validated. Evidence-based.
-        </p>
+        {/* Results Section */}
+        {response && !loading && (
+          <div className="space-y-8">
+            {/* Search Stats */}
+            <SearchStats response={response} />
+
+            {/* PULSE Report */}
+            <PulseReport report={response.pulse_report} />
+
+            {/* Results List */}
+            <ResultsList response={response} isLoading={loading} error={error} />
+          </div>
+        )}
+
+        {/* Loading State */}
+        {loading && (
+          <div className="space-y-8">
+            <ResultsList response={null} isLoading={true} error={null} />
+          </div>
+        )}
+
+        {/* Error State */}
+        {error && !loading && (
+          <ResultsList response={null} isLoading={false} error={error} />
+        )}
       </div>
     </main>
   );

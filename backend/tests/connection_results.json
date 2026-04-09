@@ -1,0 +1,57 @@
+{
+  "pubmed": {
+    "source": "PubMed/NCBI",
+    "status": "connected",
+    "test_query": "COVID-19 treatment",
+    "results_found": 3,
+    "sample_title": "Recent Developments on Therapeutic and Diagnostic Approaches for COVID-19.",
+    "api_key_configured": false
+  },
+  "clinical_trials": {
+    "source": "ClinicalTrials.gov",
+    "status": "connected",
+    "test_query": "diabetes type 2",
+    "results_found": 3,
+    "sample_title": "Preventing Diabetes in the Deep South: Extending Partnerships and Adapting Interventions to Reach Rural Communities at High Risk.",
+    "sample_status": "COMPLETED",
+    "api_key_required": false
+  },
+  "cochrane": {
+    "source": "Cochrane (via PubMed)",
+    "status": "connected",
+    "test_query": "hypertension treatment",
+    "results_found": 3,
+    "sample_title": "Screening for type 2 diabetes mellitus.",
+    "access_method": "PubMed E-Utilities (free)",
+    "api_key_required": false
+  },
+  "who_iris": {
+    "source": "WHO IRIS",
+    "status": "connected",
+    "test_query": "malaria prevention",
+    "results_found": 3,
+    "sample_title": "Malaria prevention and control",
+    "api_key_required": false
+  },
+  "cdc": {
+    "source": "CDC Open Data",
+    "status": "connected",
+    "test_query": "diabetes",
+    "results_found": 3,
+    "sample_name": "AH Provisional Diabetes Death Counts for 2020",
+    "api_key_required": false,
+    "note": "Uses Socrata Open Data API"
+  },
+  "openai": {
+    "source": "OpenAI",
+    "status": "error",
+    "error": "The api_key client option must be set either by passing api_key to the client or by setting the OPENAI_API_KEY environment variable",
+    "api_key_configured": false
+  },
+  "supabase": {
+    "source": "Supabase",
+    "status": "error",
+    "error": "Supabase URL and anon key must be set in environment variables. Check your .env file.",
+    "url_configured": false
+  }
+}
