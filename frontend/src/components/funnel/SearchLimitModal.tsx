@@ -24,10 +24,10 @@ export default function SearchLimitModal({
   return (
     <ModalOverlay isOpen={isOpen} blocking={true}>
       <div className="p-8">
-        <h1 className="text-2xl font-semibold text-gray-900 mb-2">
+        <h1 className="text-2xl font-semibold text-slate-900 mb-2">
           You've explored your free searches
         </h1>
-        <p className="text-gray-600 mb-8">
+        <p className="text-slate-600 mb-8">
           Sign up to unlock unlimited access to LENA's cross-referenced research
         </p>
 
@@ -45,13 +45,13 @@ export default function SearchLimitModal({
           Sign In
         </button>
 
-        <div className="mt-8 pt-8 border-t border-gray-200">
-          <p className="text-xs text-gray-500 uppercase tracking-wider mb-4">
+        <div className="mt-8 pt-8 border-t border-slate-200">
+          <p className="text-xs text-slate-500 uppercase tracking-wider mb-4">
             What you'll get access to
           </p>
           <ul className="space-y-2">
             {FEATURES.map((feature) => (
-              <li key={feature} className="flex items-center text-gray-700 text-sm">
+              <li key={feature} className="flex items-center text-slate-700 text-sm">
                 <div className="w-1.5 h-1.5 bg-lena-600 rounded-full mr-3" />
                 {feature}
               </li>

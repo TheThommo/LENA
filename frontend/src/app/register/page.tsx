@@ -64,8 +64,8 @@ function RegisterForm() {
       <div className="w-full max-w-md">
         <div className="bg-white rounded-xl shadow-md p-8">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Create Account</h1>
-            <p className="text-gray-600">Sign up to start using LENA</p>
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">Create Account</h1>
+            <p className="text-slate-600">Sign up to start using LENA</p>
           </div>
 
           {error && (
@@ -105,7 +105,7 @@ function RegisterForm() {
                 required
                 disabled={isLoading}
               />
-              <p className="text-xs text-gray-500 mt-2">
+              <p className="text-xs text-slate-500 mt-2">
                 Minimum 8 characters required
               </p>
             </div>
@@ -122,7 +122,7 @@ function RegisterForm() {
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-gray-600 text-sm">
+            <p className="text-slate-600 text-sm">
               Already have an account?{' '}
               <Link
                 href="/login"

@@ -39,8 +39,8 @@ export default function LoginPage() {
       <div className="w-full max-w-md">
         <div className="bg-white rounded-xl shadow-md p-8">
           <div className="mb-8">
-            <h1 className="text-3xl font-bold text-gray-900 mb-2">Sign In</h1>
-            <p className="text-gray-600">Enter your credentials to access LENA</p>
+            <h1 className="text-3xl font-bold text-slate-900 mb-2">Sign In</h1>
+            <p className="text-slate-600">Enter your credentials to access LENA</p>
           </div>
 
           {error && (
@@ -82,7 +82,7 @@ export default function LoginPage() {
           </form>
 
           <div className="mt-6 text-center">
-            <p className="text-gray-600 text-sm">
+            <p className="text-slate-600 text-sm">
               Don't have an account?{' '}
               <Link
                 href="/register"
