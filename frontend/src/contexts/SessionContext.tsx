@@ -4,11 +4,25 @@ import React, { createContext, useContext, useState } from 'react';
 
 export type FunnelStage = 'landing' | 'name_captured' | 'disclaimer_accepted' | 'searching' | 'email_captured' | 'registered';
 
+export type PersonaId = 'medical_student' | 'clinician' | 'pharmacist' | 'researcher' | 'lecturer' | 'physiotherapist' | 'patient' | 'general';
+
+export const PERSONAS: { id: PersonaId; label: string; icon: string }[] = [
+  { id: 'medical_student', label: 'Medical Student', icon: '🎓' },
+  { id: 'clinician', label: 'Clinician', icon: '🩺' },
+  { id: 'pharmacist', label: 'Pharmacist', icon: '💊' },
+  { id: 'researcher', label: 'Researcher', icon: '🔬' },
+  { id: 'lecturer', label: 'Lecturer', icon: '📚' },
+  { id: 'physiotherapist', label: 'Physiotherapist', icon: '🏃' },
+  { id: 'patient', label: 'Patient', icon: '❤️' },
+  { id: 'general', label: 'General', icon: '🌐' },
+];
+
 export interface SessionState {
   sessionId: string | null;
   sessionToken: string | null;
   name: string | null;
   email: string | null;
+  persona: PersonaId;
   disclaimerAccepted: boolean;
   searchCount: number;
   funnelStage: FunnelStage;
@@ -21,6 +35,7 @@ interface SessionContextType {
   acceptDisclaimer: () => Promise<void>;
   captureEmail: (email: string) => Promise<void>;
   incrementSearch: () => Promise<void>;
+  setPersona: (persona: PersonaId) => void;
 }
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
@@ -33,6 +48,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     sessionToken: null,
     name: null,
     email: null,
+    persona: 'general',
     disclaimerAccepted: false,
     searchCount: 0,
     funnelStage: 'landing',
@@ -149,6 +165,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const setPersona = (persona: PersonaId) => {
+    setSession(prev => ({ ...prev, persona }));
+  };
+
   const incrementSearch = async () => {
     try {
       const response = await fetch(`${API_BASE}/session/increment-search`, {
@@ -177,6 +197,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         acceptDisclaimer,
         captureEmail,
         incrementSearch,
+        setPersona,
       }}
     >
       {children}

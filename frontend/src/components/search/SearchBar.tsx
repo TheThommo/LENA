@@ -1,17 +1,20 @@
 'use client';
 
 import { useState } from 'react';
+import { PersonaId } from '@/contexts/SessionContext';
 
 export interface SearchBarOptions {
   query: string;
   sources: string[];
   includeAltMedicine: boolean;
+  persona?: PersonaId;
 }
 
 interface SearchBarProps {
   onSearch: (options: SearchBarOptions) => void;
   isLoading: boolean;
   compact?: boolean;
+  persona?: PersonaId;
 }
 
 const SOURCES = [
@@ -22,13 +25,50 @@ const SOURCES = [
   { id: 'cdc', label: 'CDC', color: 'bg-emerald-50 border-emerald-200 text-emerald-700', activeColor: 'bg-emerald-100' },
 ];
 
-const SUGGESTED_PROMPTS = [
-  'What does the evidence say about intermittent fasting?',
-  'Compare treatment options for migraine prevention',
-  'Recent research on gut microbiome and mental health',
-];
+const SUGGESTED_PROMPTS: Record<string, string[]> = {
+  medical_student: [
+    'Pathophysiology of Type 2 diabetes mellitus',
+    'Compare ACE inhibitors vs ARBs for hypertension',
+    'Evidence-based approach to chest pain differential diagnosis',
+  ],
+  clinician: [
+    'Latest guidelines for atrial fibrillation management',
+    'Compare SSRIs vs SNRIs efficacy for major depression',
+    'Evidence for early mobilisation in ICU patients',
+  ],
+  pharmacist: [
+    'Drug interactions with direct oral anticoagulants',
+    'Pharmacokinetics of monoclonal antibody therapies',
+    'Evidence for biosimilar interchangeability',
+  ],
+  researcher: [
+    'Systematic review methodology for clinical interventions',
+    'Meta-analysis of CRISPR gene therapy outcomes',
+    'Recent advances in mRNA vaccine technology',
+  ],
+  lecturer: [
+    'Teaching evidence-based medicine to undergraduates',
+    'Systematic review of simulation-based medical education',
+    'Assessment methods in clinical competency evaluation',
+  ],
+  physiotherapist: [
+    'Evidence for manual therapy in chronic low back pain',
+    'Exercise prescription for osteoarthritis of the knee',
+    'Effectiveness of dry needling for myofascial pain',
+  ],
+  patient: [
+    'What does the evidence say about intermittent fasting?',
+    'Natural remedies for anxiety - what works?',
+    'How effective are probiotics for gut health?',
+  ],
+  general: [
+    'What does the evidence say about intermittent fasting?',
+    'Compare treatment options for migraine prevention',
+    'Recent research on gut microbiome and mental health',
+  ],
+};
 
-export default function SearchBar({ onSearch, isLoading, compact = false }: SearchBarProps) {
+export default function SearchBar({ onSearch, isLoading, compact = false, persona = 'general' }: SearchBarProps) {
   const [query, setQuery] = useState('');
   const [selectedSources, setSelectedSources] = useState<string[]>([
     'pubmed',
@@ -46,6 +86,7 @@ export default function SearchBar({ onSearch, isLoading, compact = false }: Sear
       query: query.trim(),
       sources: selectedSources,
       includeAltMedicine,
+      persona,
     });
   };
 
@@ -122,7 +163,7 @@ export default function SearchBar({ onSearch, isLoading, compact = false }: Sear
         {/* Suggested Prompts */}
         {!query && (
           <div className="flex flex-wrap gap-2">
-            {SUGGESTED_PROMPTS.map((prompt) => (
+            {(SUGGESTED_PROMPTS[persona] || SUGGESTED_PROMPTS.general).map((prompt) => (
               <button
                 key={prompt}
                 type="button"

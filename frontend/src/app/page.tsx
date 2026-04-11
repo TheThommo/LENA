@@ -11,6 +11,7 @@ import FunnelManager from '@/components/funnel/FunnelManager';
 import { useSession } from '@/contexts/SessionContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
+import PersonaSelector from '@/components/PersonaSelector';
 import { searchLiterature, SearchResponse } from '@/lib/api';
 
 export default function Home() {
@@ -35,6 +36,7 @@ export default function Home() {
         sessionId: session.sessionId || undefined,
         sessionToken: session.sessionToken || undefined,
         tenantId: tenant.id,
+        persona: session.persona,
       });
       setResponse(result);
       setHasSearched(true);
@@ -88,8 +90,13 @@ export default function Home() {
             </p>
           </div>
 
+          {/* Persona Selector */}
+          <div className="flex justify-center mb-4">
+            <PersonaSelector />
+          </div>
+
           {/* Search Bar - Full Featured */}
-          <SearchBar onSearch={handleSearch} isLoading={loading} />
+          <SearchBar onSearch={handleSearch} isLoading={loading} persona={session.persona} />
 
           {/* Trust Indicators */}
           <div className="mt-10 flex flex-wrap items-center justify-center gap-6 text-sm text-slate-400">
@@ -130,11 +137,14 @@ export default function Home() {
             </svg>
           </div>
           <h1 className="text-xl font-bold text-lena-700">{tenant.brandName}</h1>
-          {session.name && (
-            <span className="ml-auto text-sm text-slate-400">
-              Welcome back, {session.name}
-            </span>
-          )}
+          <div className="ml-auto flex items-center gap-3">
+            <PersonaSelector />
+            {session.name && (
+              <span className="text-sm text-slate-400">
+                {session.name}
+              </span>
+            )}
+          </div>
         </div>
       </header>
 
@@ -142,7 +152,7 @@ export default function Home() {
       <div className="max-w-6xl mx-auto px-4 py-6">
         {/* Search Bar - Compact */}
         <div className="mb-6">
-          <SearchBar onSearch={handleSearch} isLoading={loading} compact={true} />
+          <SearchBar onSearch={handleSearch} isLoading={loading} compact={true} persona={session.persona} />
         </div>
 
         {/* Loading State - Thinking Indicator */}
