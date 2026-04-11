@@ -15,7 +15,7 @@ class SessionBase(BaseModel):
     """Base fields for session operations."""
     ip_address: str = Field(..., max_length=45)
     geo_city: Optional[str] = Field(None, max_length=100)
-    geo_country: Optional[str] = Field(None, max_length=2)
+    geo_country: Optional[str] = Field(None, max_length=100)
     geo_lat: Optional[float] = None
     geo_lon: Optional[float] = None
     referrer: Optional[str] = Field(None, max_length=500)
@@ -38,7 +38,7 @@ class SessionCreate(SessionBase):
 class SessionUpdate(BaseModel):
     """Partial session update (all fields optional)."""
     geo_city: Optional[str] = Field(None, max_length=100)
-    geo_country: Optional[str] = Field(None, max_length=2)
+    geo_country: Optional[str] = Field(None, max_length=100)
     geo_lat: Optional[float] = None
     geo_lon: Optional[float] = None
     utm_source: Optional[str] = Field(None, max_length=100)
