@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState } from 'react';
+import React, { createContext, useContext, useState, useRef } from 'react';
 
 export type FunnelStage = 'landing' | 'name_captured' | 'disclaimer_accepted' | 'searching' | 'email_captured' | 'registered';
 
@@ -54,6 +54,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     funnelStage: 'landing',
   });
 
+  // Ref to always hold the latest sessionId, avoiding stale closures
+  const sessionIdRef = useRef<string | null>(null);
+
   const startSession = async () => {
     try {
       const response = await fetch(`${API_BASE}/session/start`, {
@@ -63,6 +66,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
       if (!response.ok) throw new Error('Failed to start session');
 
       const data = await response.json();
+      sessionIdRef.current = data.session_id;
       setSession(prev => ({
         ...prev,
         sessionId: data.session_id,
@@ -74,7 +78,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   const captureName = async (name: string) => {
-    // Always update local state first so the funnel progresses
     setSession(prev => ({
       ...prev,
       name,
@@ -82,8 +85,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }));
 
     try {
-      // Auto-start session if we don't have one yet
-      let sid = session.sessionId;
+      let sid = sessionIdRef.current;
       if (!sid) {
         const startRes = await fetch(`${API_BASE}/session/start`, {
           method: 'POST',
@@ -92,6 +94,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         if (startRes.ok) {
           const data = await startRes.json();
           sid = data.session_id;
+          sessionIdRef.current = sid;
           setSession(prev => ({
             ...prev,
             sessionId: data.session_id,
@@ -100,7 +103,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         }
       }
 
-      // Send name to backend if we have a session
       if (sid) {
         await fetch(`${API_BASE}/session/${sid}/name`, {
           method: 'POST',
@@ -114,7 +116,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   const acceptDisclaimer = async () => {
-    // Always update local state first so the funnel progresses
     setSession(prev => ({
       ...prev,
       disclaimerAccepted: true,
@@ -122,15 +123,15 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }));
 
     try {
-      if (session.sessionId) {
-        const response = await fetch(`${API_BASE}/session/${session.sessionId}/disclaimer`, {
+      const sid = sessionIdRef.current;
+      if (sid) {
+        const response = await fetch(`${API_BASE}/session/${sid}/disclaimer`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ accepted: true }),
         });
         if (response.ok) {
           const data = await response.json();
-          // Store the authorized session token for search requests
           if (data.session_token) {
             setSession(prev => ({
               ...prev,
@@ -145,7 +146,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   const captureEmail = async (email: string) => {
-    // Always update local state first so the funnel progresses
     setSession(prev => ({
       ...prev,
       email,
@@ -153,8 +153,9 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }));
 
     try {
-      if (session.sessionId) {
-        await fetch(`${API_BASE}/session/${session.sessionId}/email`, {
+      const sid = sessionIdRef.current;
+      if (sid) {
+        await fetch(`${API_BASE}/session/${sid}/email`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ email }),
@@ -170,22 +171,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   const incrementSearch = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/session/increment-search`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ session_id: session.sessionId }),
-      });
-      if (!response.ok) throw new Error('Failed to increment search count');
-
-      setSession(prev => ({
-        ...prev,
-        searchCount: prev.searchCount + 1,
-        funnelStage: prev.searchCount >= 1 ? 'searching' : prev.funnelStage,
-      }));
-    } catch (error) {
-      console.error('Error incrementing search:', error);
-    }
+    // Increment locally — SearchGateMiddleware handles server-side counting
+    setSession(prev => ({
+      ...prev,
+      searchCount: prev.searchCount + 1,
+      funnelStage: prev.searchCount >= 1 ? 'searching' : prev.funnelStage,
+    }));
   };
 
   return (
