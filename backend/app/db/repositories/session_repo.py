@@ -108,7 +108,7 @@ class SessionRepository:
         """Update a session."""
         try:
             client = get_supabase_client()
-            update_data = session_update.model_dump(exclude_unset=True)
+            update_data = session_update.model_dump(exclude_unset=True, mode='json')
             response = (
                 client.table("sessions")
                 .update(update_data)
