@@ -46,7 +46,7 @@ export default function InsightsPanel({ responses, isOpen, onClose }: InsightsPa
     responses.forEach((r) => {
       if (r.pulse_report?.validated_results) {
         r.pulse_report.validated_results.forEach((vr) => {
-          const year = (vr as Record<string, unknown>).year as number | undefined;
+          const year = vr.year;
           if (year && year >= 2020 && year <= 2025) {
             yearDistribution[year] = (yearDistribution[year] || 0) + 1;
           }
