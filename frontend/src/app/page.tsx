@@ -164,11 +164,13 @@ export default function Home() {
 
   // Auto-open research panel on first result
   const responseCount = messages.filter(m => m.response).length;
+  const panelOpenRef = useRef(panelOpen);
+  panelOpenRef.current = panelOpen;
   useEffect(() => {
-    if (responseCount === 1 && !panelOpen) {
+    if (responseCount === 1 && !panelOpenRef.current) {
       setPanelOpen(true);
     }
-  }, [responseCount]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [responseCount]);
 
   // Funnel overlay
   const funnelOverlay = (

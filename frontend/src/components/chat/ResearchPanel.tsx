@@ -446,7 +446,7 @@ export default function ResearchPanel({ messages, persona, onClose }: ResearchPa
   const generateReport = useCallback(() => {
     const now = new Date();
     const personaLabel = formatPersona(persona);
-    const { responses, userQueries, citations, avgConfidence, bestEvidence, gaps, sourceAgreements, contradictions, uniqueSourcesList, yearRange } = analysis;
+    const { responses, userQueries, citations, avgConfidence, bestEvidence, gaps, contradictions, uniqueSourcesList, yearRange } = analysis;
 
     const line = (char: string, len: number) => char.repeat(len);
     const W = 55;
@@ -731,7 +731,7 @@ export default function ResearchPanel({ messages, persona, onClose }: ResearchPa
 
   // --- Section: Source Agreement Matrix ---
   const renderAgreement = () => {
-    const { sourceAgreements, contradictions, divergences, responses } = analysis;
+    const { sourceAgreements, contradictions, responses } = analysis;
 
     if (sourceAgreements.length === 0) {
       return (
