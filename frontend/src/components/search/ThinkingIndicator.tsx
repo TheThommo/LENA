@@ -27,9 +27,9 @@ export default function ThinkingIndicator() {
     <div className="bg-white rounded-xl border border-slate-200 p-6 max-w-lg shadow-sm">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
-        <div className="w-8 h-8 rounded-full bg-gradient-to-br from-lena-500 to-lena-700 flex items-center justify-center animate-pulse-glow">
-          <svg className="w-4 h-4 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z" />
+        <div className="w-8 h-8 rounded-full flex items-center justify-center animate-pulse-glow" style={{ background: 'linear-gradient(135deg, #1B6B93, #145372)' }}>
+          <svg width="16" height="16" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+            <path d="M12 2C12 2 14.5 8.5 15.5 9.5C16.5 10.5 22 12 22 12C22 12 16.5 13.5 15.5 14.5C14.5 15.5 12 22 12 22C12 22 9.5 15.5 8.5 14.5C7.5 13.5 2 12 2 12C2 12 7.5 10.5 8.5 9.5C9.5 8.5 12 2 12 2Z" />
           </svg>
         </div>
         <span className="text-sm font-semibold text-lena-600">LENA is thinking...</span>

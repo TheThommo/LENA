@@ -5,13 +5,15 @@ import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/Sidebar';
 import WelcomeView from '@/components/chat/WelcomeView';
 import ChatMessage from '@/components/chat/ChatMessage';
-import InsightsPanel from '@/components/chat/InsightsPanel';
+import ResearchPanel from '@/components/chat/ResearchPanel';
 import ShareModal from '@/components/chat/ShareModal';
 import ThinkingIndicator from '@/components/search/ThinkingIndicator';
 import FunnelManager from '@/components/funnel/FunnelManager';
 import PersonaSelector from '@/components/PersonaSelector';
 import ComingSoon, { COMMUNITY_CONFIG, CONTRIBUTION_CONFIG } from '@/components/views/ComingSoon';
 import HowItWorks from '@/components/views/HowItWorks';
+import MyDocuments from '@/components/views/MyDocuments';
+import MyBrain from '@/components/views/MyBrain';
 import { useSession } from '@/contexts/SessionContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
@@ -44,7 +46,7 @@ export default function Home() {
 
   // UI state
   const [activeView, setActiveView] = useState('chat');
-  const [insightsOpen, setInsightsOpen] = useState(false);
+  const [panelOpen, setPanelOpen] = useState(false);
   const [shareModal, setShareModal] = useState<{ isOpen: boolean; title?: string }>({ isOpen: false });
   const [altMedicineEnabled, setAltMedicineEnabled] = useState(true);
   const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
@@ -160,8 +162,13 @@ export default function Home() {
     inputRef.current?.focus();
   };
 
-  // Get all search responses for insights
-  const allResponses = messages.filter(m => m.response).map(m => m.response!);
+  // Auto-open research panel on first result
+  const responseCount = messages.filter(m => m.response).length;
+  useEffect(() => {
+    if (responseCount === 1 && !panelOpen) {
+      setPanelOpen(true);
+    }
+  }, [responseCount]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Funnel overlay
   const funnelOverlay = (
@@ -194,6 +201,10 @@ export default function Home() {
         return <HowItWorks />;
       case 'research':
         return renderMyResearch();
+      case 'documents':
+        return <MyDocuments />;
+      case 'brain':
+        return <MyBrain />;
       default:
         return renderChat();
     }
@@ -352,16 +363,6 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-3">
-            {/* ReSkin Demo Toggle */}
-            <button className="flex items-center gap-2 px-3 py-1.5 border border-slate-200 rounded-full text-xs text-slate-500 hover:border-lena-300 transition-colors">
-              <div className="w-4 h-4 rounded-full bg-gradient-to-br from-lena-500 to-lena-700 flex items-center justify-center">
-                <svg className="w-2.5 h-2.5 text-white" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-                </svg>
-              </div>
-              ReSkin Demo
-            </button>
-
             {/* Natural & Herbal Toggle */}
             <button
               onClick={() => setAltMedicineEnabled(!altMedicineEnabled)}
@@ -383,22 +384,20 @@ export default function Home() {
             {/* Persona Selector */}
             <PersonaSelector />
 
-            {/* Insights Toggle */}
-            {allResponses.length > 0 && (
-              <button
-                onClick={() => setInsightsOpen(!insightsOpen)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-full text-xs font-medium transition-all ${
-                  insightsOpen
-                    ? 'border-lena-400 bg-lena-50 text-lena-700'
-                    : 'border-slate-200 text-slate-500 hover:border-lena-300'
-                }`}
-              >
-                <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-                Insights
-              </button>
-            )}
+            {/* Research Panel Toggle */}
+            <button
+              onClick={() => setPanelOpen(!panelOpen)}
+              className={`flex items-center gap-1.5 px-3 py-1.5 border rounded-full text-xs font-medium transition-all ${
+                panelOpen
+                  ? 'border-lena-400 bg-lena-50 text-lena-700'
+                  : 'border-slate-200 text-slate-500 hover:border-lena-300'
+              }`}
+            >
+              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+              </svg>
+              Research Summary
+            </button>
           </div>
         </header>
 
@@ -408,13 +407,13 @@ export default function Home() {
             {renderContent()}
           </div>
 
-          {/* Right Insights Panel */}
-          {insightsOpen && activeView === 'chat' && (
-            <div className="w-[300px] flex-shrink-0 border-l border-slate-200 bg-white">
-              <InsightsPanel
-                responses={allResponses}
-                isOpen={insightsOpen}
-                onClose={() => setInsightsOpen(false)}
+          {/* Right Research Panel */}
+          {panelOpen && activeView === 'chat' && (
+            <div className="w-[320px] flex-shrink-0 border-l border-slate-200 bg-white">
+              <ResearchPanel
+                messages={messages.map(m => ({ type: m.type, content: m.content, response: m.response, timestamp: m.timestamp }))}
+                persona={session.persona}
+                onClose={() => setPanelOpen(false)}
               />
             </div>
           )}

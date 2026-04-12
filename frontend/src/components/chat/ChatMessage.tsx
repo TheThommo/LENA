@@ -213,9 +213,9 @@ export default function ChatMessage({
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2.5">
           {/* LENA avatar */}
-          <div className="w-8 h-8 rounded-full bg-gradient-to-br from-[#1B6B93] to-[#2DD4BF] flex items-center justify-center flex-shrink-0">
-            <svg className="w-4 h-4 text-white" fill="currentColor" viewBox="0 0 24 24">
-              <path d="M12 2L9.19 8.63 2 9.24l5.46 4.73L5.82 21 12 17.27 18.18 21l-1.64-7.03L22 9.24l-7.19-.61L12 2z" />
+          <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #1B6B93, #145372)' }}>
+            <svg width="14" height="14" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2C12 2 14.5 8.5 15.5 9.5C16.5 10.5 22 12 22 12C22 12 16.5 13.5 15.5 14.5C14.5 15.5 12 22 12 22C12 22 9.5 15.5 8.5 14.5C7.5 13.5 2 12 2 12C2 12 7.5 10.5 8.5 9.5C9.5 8.5 12 2 12 2Z" />
             </svg>
           </div>
           <span className="text-sm font-semibold text-slate-700">LENA</span>
