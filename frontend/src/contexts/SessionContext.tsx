@@ -132,7 +132,25 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }));
 
     try {
-      const sid = sessionIdRef.current;
+      // Ensure session exists (captureName may still be in-flight)
+      let sid = sessionIdRef.current;
+      if (!sid) {
+        const startRes = await fetch(`${API_BASE}/session/start`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+        });
+        if (startRes.ok) {
+          const data = await startRes.json();
+          sid = data.session_id;
+          sessionIdRef.current = sid;
+          setSession(prev => ({
+            ...prev,
+            sessionId: data.session_id,
+            sessionToken: data.session_token,
+          }));
+        }
+      }
+
       if (sid) {
         const response = await fetch(`${API_BASE}/session/${sid}/disclaimer`, {
           method: 'POST',
