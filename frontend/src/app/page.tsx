@@ -27,14 +27,16 @@ interface Message {
   timestamp: Date;
 }
 
-interface RecentSearch {
-  query: string;
+interface RecentSession {
+  id: string;
+  firstQuery: string;
+  queries: string[];
   time: string;
 }
 
 export default function Home() {
   const router = useRouter();
-  const { session, captureName, acceptDisclaimer, captureEmail, incrementSearch } = useSession();
+  const { session, captureName, acceptDisclaimer, captureEmail, skipEmail, incrementSearch } = useSession();
   const { isAuthenticated, user } = useAuth();
   const { tenant } = useTenant();
 
@@ -49,18 +51,19 @@ export default function Home() {
   const [panelOpen, setPanelOpen] = useState(false);
   const [shareModal, setShareModal] = useState<{ isOpen: boolean; title?: string }>({ isOpen: false });
   const [altMedicineEnabled, setAltMedicineEnabled] = useState(true);
-  const [recentSearches, setRecentSearches] = useState<RecentSearch[]>([]);
+  const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const currentSessionIdRef = useRef<string>(Date.now().toString());
 
-  // Load recent searches from localStorage
+  // Load recent sessions from localStorage
   useEffect(() => {
     try {
-      const stored = localStorage.getItem('lena_recent_searches');
-      if (stored) setRecentSearches(JSON.parse(stored));
+      const stored = localStorage.getItem('lena_recent_sessions');
+      if (stored) setRecentSessions(JSON.parse(stored));
     } catch {}
   }, []);
 
@@ -77,11 +80,27 @@ export default function Home() {
     el.style.height = Math.min(el.scrollHeight, 130) + 'px';
   }, []);
 
-  // Save recent search
+  // Save recent search — grouped by session
   const addRecentSearch = useCallback((query: string) => {
-    setRecentSearches(prev => {
-      const updated = [{ query, time: 'Just now' }, ...prev.filter(s => s.query !== query)].slice(0, 6);
-      localStorage.setItem('lena_recent_searches', JSON.stringify(updated));
+    const sid = currentSessionIdRef.current;
+    setRecentSessions(prev => {
+      const existing = prev.find(s => s.id === sid);
+      let updated: RecentSession[];
+      if (existing) {
+        // Append query to existing session, move to top
+        updated = [
+          { ...existing, queries: [...existing.queries, query], time: 'Just now' },
+          ...prev.filter(s => s.id !== sid),
+        ];
+      } else {
+        // New session
+        updated = [
+          { id: sid, firstQuery: query, queries: [query], time: 'Just now' },
+          ...prev,
+        ];
+      }
+      updated = updated.slice(0, 8);
+      localStorage.setItem('lena_recent_sessions', JSON.stringify(updated));
       return updated;
     });
   }, []);
@@ -154,11 +173,12 @@ export default function Home() {
     }
   };
 
-  // New search
+  // New search — starts a fresh conversation session
   const handleNewSearch = () => {
     setMessages([]);
     setError(null);
     setActiveView('chat');
+    currentSessionIdRef.current = Date.now().toString();
     inputRef.current?.focus();
   };
 
@@ -186,7 +206,7 @@ export default function Home() {
       onNameSubmit={(name) => captureName(name)}
       onDisclaimerAccept={() => acceptDisclaimer()}
       onEmailSubmit={(data) => captureEmail(data)}
-      onEmailSkip={() => {}}
+      onEmailSkip={() => skipEmail()}
       onRegister={() => router.push(`/register?session_id=${session.sessionId || ''}`)}
       onLogin={() => router.push('/login')}
     />
@@ -342,7 +362,7 @@ export default function Home() {
           activeView={activeView}
           onViewChange={(v) => setActiveView(v)}
           onNewSearch={handleNewSearch}
-          recentSearches={recentSearches}
+          recentSessions={recentSessions}
           onSearchClick={(q) => { setActiveView('chat'); handleSend(q); }}
           userName={session.name || user?.name}
           isAuthenticated={isAuthenticated}

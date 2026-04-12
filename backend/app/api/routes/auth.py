@@ -344,7 +344,7 @@ async def forgot_password(body: ForgotPasswordRequest) -> ForgotPasswordResponse
     }).eq("id", str(user.id)).execute()
 
     # Build reset URL and send email
-    reset_url = f"{settings.app_url}/reset-password.html?token={raw_token}"
+    reset_url = f"{settings.app_url}/reset-password?token={raw_token}"
     await send_password_reset_email(body.email, reset_url)
 
     return ForgotPasswordResponse(message=generic_msg)

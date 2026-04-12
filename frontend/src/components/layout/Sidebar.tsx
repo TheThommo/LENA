@@ -4,11 +4,18 @@ import React from 'react';
 import Image from 'next/image';
 import { branding } from '@/config/branding';
 
+interface RecentSession {
+  id: string;
+  firstQuery: string;
+  queries: string[];
+  time: string;
+}
+
 interface SidebarProps {
   activeView: string;
   onViewChange: (view: string) => void;
   onNewSearch: () => void;
-  recentSearches: { query: string; time: string }[];
+  recentSessions: RecentSession[];
   onSearchClick: (query: string) => void;
   userName?: string;
   isAuthenticated?: boolean;
@@ -29,7 +36,7 @@ export function Sidebar({
   activeView,
   onViewChange,
   onNewSearch,
-  recentSearches,
+  recentSessions,
   onSearchClick,
   userName,
   isAuthenticated,
@@ -92,27 +99,29 @@ export function Sidebar({
           })}
         </ul>
 
-        {/* Recent Searches */}
-        {recentSearches.length > 0 && (
+        {/* Recent Sessions */}
+        {recentSessions.length > 0 && (
           <div className="mt-6 px-2">
             <div className="flex items-center gap-2 mb-3">
               <ClockIcon className="w-3.5 h-3.5 text-gray-400" />
               <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
-                Recent Searches
+                Recent Sessions
               </h3>
             </div>
             <ul className="space-y-1">
-              {recentSearches.map((search, idx) => (
-                <li key={idx}>
+              {recentSessions.map((sess) => (
+                <li key={sess.id}>
                   <button
-                    onClick={() => onSearchClick(search.query)}
+                    onClick={() => onSearchClick(sess.firstQuery)}
                     className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 transition-colors group"
                   >
                     <p className="text-sm text-gray-700 truncate group-hover:text-lena-500 transition-colors">
-                      {search.query}
+                      {sess.firstQuery}
                     </p>
                     <p className="text-[11px] text-gray-400 mt-0.5">
-                      {search.time}
+                      {sess.queries.length > 1
+                        ? `${sess.queries.length} queries \u00B7 ${sess.time}`
+                        : sess.time}
                     </p>
                   </button>
                 </li>

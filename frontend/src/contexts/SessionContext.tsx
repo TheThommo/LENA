@@ -43,6 +43,7 @@ interface SessionContextType {
   captureName: (name: string) => Promise<void>;
   acceptDisclaimer: () => Promise<void>;
   captureEmail: (data: EmailCapturePayload) => Promise<void>;
+  skipEmail: () => void;
   incrementSearch: () => Promise<void>;
   setPersona: (persona: PersonaId) => void;
 }
@@ -179,6 +180,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const skipEmail = () => {
+    setSession(prev => ({ ...prev, email: '_skipped', funnelStage: 'email_captured' }));
+  };
+
   const setPersona = (persona: PersonaId) => {
     setSession(prev => ({ ...prev, persona }));
   };
@@ -199,6 +204,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         captureName,
         acceptDisclaimer,
         captureEmail,
+        skipEmail,
         incrementSearch,
         setPersona,
       }}
