@@ -867,8 +867,8 @@ async def get_leads(
         start_date, end_date = _get_date_range(start_date, end_date)
 
         sessions_query = client.table("sessions").select(
-            "id, name, email, geo_country, geo_city, utm_source, referrer, "
-            "search_count, started_at, disclaimer_accepted_at"
+            "id, name, email, institution, phone, geo_country, geo_city, utm_source, referrer, "
+            "search_count, started_at, disclaimer_accepted_at, data_consent_accepted_at"
         )
         sessions_query = sessions_query.not_.is_("email", "null")
         if tenant_id:
@@ -891,12 +891,15 @@ async def get_leads(
                 "email": email,
                 "domain": domain,
                 "is_corporate": is_corporate,
+                "institution": s.get("institution"),
+                "phone": s.get("phone"),
                 "country": s.get("geo_country"),
                 "city": s.get("geo_city"),
                 "source": s.get("utm_source") or s.get("referrer") or "Direct",
                 "search_count": s.get("search_count", 0),
                 "started_at": s.get("started_at"),
                 "disclaimer_accepted": s.get("disclaimer_accepted_at") is not None,
+                "data_consent": s.get("data_consent_accepted_at") is not None,
             })
 
         total = len(leads)

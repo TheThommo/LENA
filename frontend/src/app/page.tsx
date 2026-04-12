@@ -185,7 +185,7 @@ export default function Home() {
       }}
       onNameSubmit={(name) => captureName(name)}
       onDisclaimerAccept={() => acceptDisclaimer()}
-      onEmailSubmit={(email) => captureEmail(email)}
+      onEmailSubmit={(data) => captureEmail(data)}
       onEmailSkip={() => {}}
       onRegister={() => router.push(`/register?session_id=${session.sessionId || ''}`)}
       onLogin={() => router.push('/login')}
@@ -346,6 +346,7 @@ export default function Home() {
           onSearchClick={(q) => { setActiveView('chat'); handleSend(q); }}
           userName={session.name || user?.name}
           isAuthenticated={isAuthenticated}
+          onSignIn={() => router.push('/login')}
         />
       </div>
 

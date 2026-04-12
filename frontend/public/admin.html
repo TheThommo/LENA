@@ -502,7 +502,7 @@ body {
     </div>
     <div class="panel-body no-pad">
       <table class="data-table" id="leadsTable">
-        <thead><tr><th>Name</th><th>Email</th><th>Domain</th><th>Type</th><th>Source</th><th>Location</th><th>Searches</th><th>Date</th></tr></thead>
+        <thead><tr><th>Name</th><th>Email</th><th>Institution</th><th>Domain</th><th>Type</th><th>Phone</th><th>Location</th><th>Source</th><th>Searches</th><th>Consent</th><th>Date</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -549,6 +549,10 @@ let lastSyncTime = null;
 let chartInstances = {};
 let leadsCache = [];
 let currentFilter = 'all';
+let loginAttempts = 0;
+let lockoutUntil = 0;
+const SESSION_TIMEOUT_MS = 30 * 60 * 1000; // 30 min auto-logout
+let sessionTimer = null;
 
 // ── Auth ─────────────────────────────────────────────────────────
 function getStoredAuth() {
@@ -584,12 +588,29 @@ async function doLogin(email, password) {
 
 function logout() {
   clearAuth();
+  if (sessionTimer) clearTimeout(sessionTimer);
+  ['click', 'keydown', 'scroll'].forEach(evt =>
+    document.removeEventListener(evt, resetSessionTimer)
+  );
   document.getElementById('loginOverlay').classList.remove('hidden');
+}
+
+function resetSessionTimer() {
+  if (sessionTimer) clearTimeout(sessionTimer);
+  sessionTimer = setTimeout(() => {
+    logout();
+    showToast('Session expired — please sign in again');
+  }, SESSION_TIMEOUT_MS);
 }
 
 function showDashboard(email) {
   document.getElementById('loginOverlay').classList.add('hidden');
   document.getElementById('adminEmail').textContent = email;
+  resetSessionTimer();
+  // Reset timer on any user interaction
+  ['click', 'keydown', 'scroll'].forEach(evt =>
+    document.addEventListener(evt, resetSessionTimer, { passive: true })
+  );
   loadAllData();
 }
 
@@ -613,22 +634,37 @@ document.addEventListener('DOMContentLoaded', () => {
     showDashboard(stored.email);
   }
 
-  // Login form
+  // Login form with brute-force protection
   document.getElementById('loginForm').addEventListener('submit', async (e) => {
     e.preventDefault();
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
     const btn = document.getElementById('loginBtn');
     const errorEl = document.getElementById('loginError');
+
+    // Check lockout
+    if (Date.now() < lockoutUntil) {
+      const secs = Math.ceil((lockoutUntil - Date.now()) / 1000);
+      errorEl.textContent = `Too many attempts. Try again in ${secs}s`;
+      return;
+    }
+
     btn.disabled = true;
     errorEl.textContent = '';
     try {
       const data = await doLogin(email, password);
       authToken = data.access_token;
+      loginAttempts = 0;
       storeAuth(authToken, email);
       showDashboard(email);
     } catch (err) {
-      errorEl.textContent = err.message;
+      loginAttempts++;
+      if (loginAttempts >= 5) {
+        lockoutUntil = Date.now() + 60000; // 60s lockout after 5 failures
+        errorEl.textContent = 'Too many failed attempts. Locked for 60 seconds.';
+      } else {
+        errorEl.textContent = err.message;
+      }
     } finally {
       btn.disabled = false;
     }
@@ -1053,7 +1089,7 @@ function filterLeads(type) {
 
 function renderLeadsTable(leads) {
   const tbody = document.querySelector('#leadsTable tbody');
-  if (!leads.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><p>No leads captured yet</p></td></tr>'; return; }
+  if (!leads.length) { tbody.innerHTML = '<tr><td colspan="11" class="empty-state"><p>No leads captured yet</p></td></tr>'; return; }
   tbody.innerHTML = leads.map(l => {
     const isHot = l.is_corporate && l.search_count >= 2;
     const typeBadge = isHot
@@ -1061,15 +1097,21 @@ function renderLeadsTable(leads) {
       : l.is_corporate
         ? '<span class="badge badge-corporate">Corporate</span>'
         : '<span class="badge badge-generic">Generic</span>';
+    const consentBadge = l.data_consent
+      ? '<span class="badge badge-corporate">Yes</span>'
+      : '<span class="badge badge-generic">No</span>';
     const dateStr = l.started_at ? new Date(l.started_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '--';
     return `<tr>
       <td style="color:var(--text-primary)">${escHtml(l.name || 'Anonymous')}</td>
       <td>${escHtml(l.email)}</td>
+      <td>${escHtml(l.institution || '--')}</td>
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted)">${escHtml(l.domain)}</td>
       <td>${typeBadge}</td>
-      <td>${escHtml(l.source)}</td>
+      <td style="font-size:12px">${escHtml(l.phone || '--')}</td>
       <td>${escHtml((l.city || '') + (l.city && l.country ? ', ' : '') + (l.country || ''))}</td>
+      <td>${escHtml(l.source)}</td>
       <td style="font-family:'DM Mono',monospace;text-align:center">${l.search_count}</td>
+      <td>${consentBadge}</td>
       <td style="font-family:'DM Mono',monospace;color:var(--text-muted);font-size:12px">${dateStr}</td>
     </tr>`;
   }).join('');

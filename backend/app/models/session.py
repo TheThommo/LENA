@@ -25,6 +25,9 @@ class SessionBase(BaseModel):
     # Funnel tracking for anonymous sessions
     name: Optional[str] = Field(None, max_length=255)
     email: Optional[str] = Field(None, max_length=255)
+    institution: Optional[str] = Field(None, max_length=255)
+    phone: Optional[str] = Field(None, max_length=50)
+    data_consent_accepted_at: Optional[datetime] = None
     disclaimer_accepted_at: Optional[datetime] = None
     search_count: int = 0
 
@@ -46,6 +49,9 @@ class SessionUpdate(BaseModel):
     utm_campaign: Optional[str] = Field(None, max_length=100)
     name: Optional[str] = Field(None, max_length=255)
     email: Optional[str] = Field(None, max_length=255)
+    institution: Optional[str] = Field(None, max_length=255)
+    phone: Optional[str] = Field(None, max_length=50)
+    data_consent_accepted_at: Optional[datetime] = None
     disclaimer_accepted_at: Optional[datetime] = None
     search_count: Optional[int] = None
     ended_at: Optional[datetime] = None

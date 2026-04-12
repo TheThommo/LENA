@@ -10,6 +10,7 @@ interface SidebarProps {
   onSearchClick: (query: string) => void;
   userName?: string;
   isAuthenticated?: boolean;
+  onSignIn?: () => void;
 }
 
 const navItems = [
@@ -30,6 +31,7 @@ export function Sidebar({
   onSearchClick,
   userName,
   isAuthenticated,
+  onSignIn,
 }: SidebarProps) {
   return (
     <aside className="flex flex-col w-[280px] h-full bg-white border-r border-gray-200 shrink-0">
@@ -142,7 +144,10 @@ export function Sidebar({
             </button>
           </div>
         ) : (
-          <button className="text-sm text-lena-500 hover:text-lena-700 font-medium transition-colors">
+          <button
+            onClick={onSignIn}
+            className="text-sm text-lena-500 hover:text-lena-700 font-medium transition-colors"
+          >
             Sign in for full access
           </button>
         )}

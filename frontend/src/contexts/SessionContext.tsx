@@ -28,12 +28,21 @@ export interface SessionState {
   funnelStage: FunnelStage;
 }
 
+export interface EmailCapturePayload {
+  email: string;
+  institution?: string;
+  phone?: string;
+  city?: string;
+  country?: string;
+  dataConsentAccepted: boolean;
+}
+
 interface SessionContextType {
   session: SessionState;
   startSession: () => Promise<void>;
   captureName: (name: string) => Promise<void>;
   acceptDisclaimer: () => Promise<void>;
-  captureEmail: (email: string) => Promise<void>;
+  captureEmail: (data: EmailCapturePayload) => Promise<void>;
   incrementSearch: () => Promise<void>;
   setPersona: (persona: PersonaId) => void;
 }
@@ -145,10 +154,10 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
-  const captureEmail = async (email: string) => {
+  const captureEmail = async (data: EmailCapturePayload) => {
     setSession(prev => ({
       ...prev,
-      email,
+      email: data.email,
       funnelStage: 'email_captured',
     }));
 
@@ -158,7 +167,14 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         await fetch(`${API_BASE}/session/${sid}/email`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ email }),
+          body: JSON.stringify({
+            email: data.email,
+            institution: data.institution,
+            phone: data.phone,
+            city: data.city,
+            country: data.country,
+            data_consent_accepted: data.dataConsentAccepted,
+          }),
         });
       }
     } catch (error) {

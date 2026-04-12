@@ -3,7 +3,7 @@
 import React from 'react';
 import NameCaptureModal from './NameCaptureModal';
 import DisclaimerModal from './DisclaimerModal';
-import EmailCaptureModal from './EmailCaptureModal';
+import EmailCaptureModal, { type EmailCaptureData } from './EmailCaptureModal';
 import SearchLimitModal from './SearchLimitModal';
 
 interface SessionState {
@@ -20,7 +20,7 @@ interface FunnelManagerProps {
   sessionState: SessionState;
   onNameSubmit: (name: string) => void;
   onDisclaimerAccept: (timestamp: string) => void;
-  onEmailSubmit: (email: string) => void;
+  onEmailSubmit: (data: EmailCaptureData) => void;
   onEmailSkip: () => void;
   onRegister: () => void;
   onLogin: () => void;

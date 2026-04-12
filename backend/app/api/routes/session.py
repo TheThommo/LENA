@@ -50,8 +50,13 @@ class DisclaimerAcceptanceResponse(BaseModel):
 
 
 class EmailCaptureRequest(BaseModel):
-    """Request to capture visitor email."""
+    """Request to capture visitor email and optional CRM data."""
     email: EmailStr
+    institution: str | None = Field(None, max_length=255)
+    phone: str | None = Field(None, max_length=50)
+    city: str | None = Field(None, max_length=100)
+    country: str | None = Field(None, max_length=100)
+    data_consent_accepted: bool = Field(False)
 
 
 class FunnelStageResponse(BaseModel):
@@ -275,8 +280,21 @@ async def capture_email(
             detail="Session not found",
         )
 
-    # Update email
-    session_update = SessionUpdate(email=body.email)
+    # Build update with email + optional CRM fields
+    update_fields: dict = {"email": body.email}
+    if body.institution:
+        update_fields["institution"] = body.institution
+    if body.phone:
+        update_fields["phone"] = body.phone
+    # User-provided city/country override GeoIP if provided
+    if body.city:
+        update_fields["geo_city"] = body.city
+    if body.country:
+        update_fields["geo_country"] = body.country
+    if body.data_consent_accepted:
+        update_fields["data_consent_accepted_at"] = datetime.utcnow()
+
+    session_update = SessionUpdate(**update_fields)
     updated_session = await SessionRepository.update(session_id, session_update)
     if not updated_session:
         raise HTTPException(
@@ -289,7 +307,11 @@ async def capture_email(
         session_id=str(session_id),
         tenant_id=str(session.tenant_id),
         stage="email_captured",
-        metadata={"email": body.email},
+        metadata={
+            "email": body.email,
+            "institution": body.institution,
+            "data_consent": body.data_consent_accepted,
+        },
     )
 
     return SessionStatus(
