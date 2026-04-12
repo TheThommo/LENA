@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     # Email (Resend)
     resend_api_key: Optional[str] = None
     admin_email: str = "mark.e.s.thompson@gmail.com"
-    app_url: str = "https://lena-production-health.up.railway.app"
+    app_url: str = "https://lena-app.up.railway.app"
 
     # Rate limiting
     rate_limit_per_minute: int = 60
