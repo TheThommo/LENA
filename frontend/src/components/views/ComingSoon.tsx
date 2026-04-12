@@ -20,7 +20,7 @@ export default function ComingSoon({ title, description, features, badgeText = '
         <p className="text-slate-500 mb-8 leading-relaxed">{description}</p>
 
         {features && features.length > 0 && (
-          <div className="grid grid-cols-2 gap-4 mb-8">
+          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 mb-8">
             {features.map((f, i) => (
               <div key={i} className="border border-slate-200 rounded-xl p-4 text-left bg-white">
                 <span className="text-2xl mb-2 block">{f.icon}</span>

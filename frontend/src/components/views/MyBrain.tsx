@@ -167,7 +167,7 @@ export default function MyBrain() {
           {/* Specialty & Role */}
           <section className="bg-white border border-slate-200 rounded-xl p-5">
             <h3 className="text-sm font-semibold text-slate-800 mb-4">Professional Background</h3>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
               <div>
                 <label className="block text-xs font-medium text-slate-600 mb-1.5">Specialty</label>
                 <select
@@ -318,7 +318,7 @@ export default function MyBrain() {
           <section className="bg-white border border-slate-200 rounded-xl p-5">
             <h3 className="text-sm font-semibold text-slate-800 mb-1">Communication Style</h3>
             <p className="text-xs text-slate-400 mb-3">How should LENA present findings to you?</p>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
               {COMMUNICATION_STYLES.map(style => {
                 const isSelected = profile.communicationStyle === style.key;
                 return (

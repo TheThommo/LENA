@@ -42,6 +42,7 @@ const SOURCE_META: Record<string, { color: string; label: string }> = {
   cochrane:        { color: '#EA580C', label: 'Cochrane' },
   who_iris:        { color: '#0891B2', label: 'WHO IRIS' },
   cdc:             { color: '#059669', label: 'CDC' },
+  openalex:        { color: '#DC2626', label: 'OpenAlex' },
 };
 
 const EVIDENCE_LEVEL_MAP: Record<string, EvidenceLevel> = {
@@ -50,6 +51,7 @@ const EVIDENCE_LEVEL_MAP: Record<string, EvidenceLevel> = {
   clinical_trials: 'II',
   cdc:             'II',
   pubmed:          'III',
+  openalex:        'III',
 };
 
 const EVIDENCE_LEVEL_LABELS: Record<EvidenceLevel, string> = {

@@ -58,12 +58,12 @@ export default function MyDocuments() {
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-6">
           <div>
             <h2 className="text-xl font-bold text-slate-900 mb-1">My Documents</h2>
             <p className="text-sm text-slate-500">Saved research sessions and evidence briefs</p>
           </div>
-          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5">
+          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5 self-start sm:self-auto">
             {[
               { key: 'all' as const, label: 'All' },
               { key: 'high' as const, label: 'High Evidence' },
@@ -145,7 +145,7 @@ export default function MyDocuments() {
                   {/* Delete button */}
                   <button
                     onClick={() => deleteDocument(doc.id)}
-                    className="p-1.5 text-slate-300 hover:text-red-500 transition-colors rounded-md hover:bg-red-50 opacity-0 group-hover:opacity-100"
+                    className="p-1.5 text-slate-300 hover:text-red-500 transition-colors rounded-md hover:bg-red-50 sm:opacity-0 sm:group-hover:opacity-100"
                     aria-label="Delete document"
                   >
                     <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
