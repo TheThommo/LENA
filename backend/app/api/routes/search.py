@@ -15,7 +15,7 @@ from app.services.funnel_tracker import track_funnel_stage
 
 logger = get_logger("lena.search")
 
-router = APIRouter(prefix="/search", tags=["search"])
+router = APIRouter(prefix="/search", tags=["search"], redirect_slashes=False)
 
 
 @router.get("/")
