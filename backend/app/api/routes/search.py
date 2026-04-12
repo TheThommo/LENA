@@ -15,10 +15,10 @@ from app.services.funnel_tracker import track_funnel_stage
 
 logger = get_logger("lena.search")
 
-router = APIRouter(prefix="/search", tags=["search"], redirect_slashes=False)
+router = APIRouter(prefix="/search", tags=["search"])
 
 
-@router.get("/")
+@router.get("")
 async def search_literature(
     q: str = Query(..., description="Search query"),
     persona: Optional[PersonaType] = Query(None, description="User persona override"),
