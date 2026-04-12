@@ -28,23 +28,51 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(null);
-  const [token, setToken] = useState<string | null>(null);
+  const [user, setUser] = useState<User | null>(() => {
+    if (typeof window === 'undefined') return null;
+    try {
+      const stored = localStorage.getItem('lena_user');
+      return stored ? JSON.parse(stored) : null;
+    } catch { return null; }
+  });
+  const [token, setToken] = useState<string | null>(() => {
+    if (typeof window === 'undefined') return null;
+    return localStorage.getItem('lena_token');
+  });
   const [isLoading, setIsLoading] = useState(true);
+
+  // Persist token and user to localStorage whenever they change
+  useEffect(() => {
+    if (token) {
+      localStorage.setItem('lena_token', token);
+    } else {
+      localStorage.removeItem('lena_token');
+    }
+  }, [token]);
+
+  useEffect(() => {
+    if (user) {
+      localStorage.setItem('lena_user', JSON.stringify(user));
+    } else {
+      localStorage.removeItem('lena_user');
+    }
+  }, [user]);
 
   useEffect(() => {
     refreshUser();
   }, []);
 
   const refreshUser = async () => {
-    if (!token) {
+    // Use token from state or fall back to localStorage (for initial mount)
+    const activeToken = token || (typeof window !== 'undefined' ? localStorage.getItem('lena_token') : null);
+    if (!activeToken) {
       setIsLoading(false);
       return;
     }
 
     try {
       const response = await fetch(`${API_BASE}/auth/me`, {
-        headers: { Authorization: `Bearer ${token}` },
+        headers: { Authorization: `Bearer ${activeToken}` },
       });
 
       if (!response.ok) {
@@ -110,6 +138,8 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const logout = () => {
     setToken(null);
     setUser(null);
+    localStorage.removeItem('lena_token');
+    localStorage.removeItem('lena_user');
   };
 
   return (

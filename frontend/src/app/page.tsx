@@ -119,8 +119,8 @@ export default function Home() {
         persona: session.persona,
       });
 
-      // Generate natural language summary
-      const summary = generateSummary(result);
+      // Prefer LLM-generated summary from backend, fall back to local generation
+      const summary = result.llm_summary || generateSummary(result);
 
       const assistantMsg: Message = {
         id: `assistant-${Date.now()}`,

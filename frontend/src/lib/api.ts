@@ -78,6 +78,7 @@ export interface SearchResponse {
   include_alt_medicine: boolean;
   response_time_ms: number;
   pulse_report: PulseReport;
+  llm_summary?: string | null;
 }
 
 export interface HealthStatus {

@@ -44,6 +44,11 @@ export default function FunnelManager({
 }: FunnelManagerProps) {
   // Determine which funnel stage to show
   const getCurrentStage = (): FunnelStage => {
+    // Authenticated / registered users skip the entire funnel
+    if (sessionState.isRegistered) {
+      return 'none';
+    }
+
     // Name must be captured first
     if (!sessionState.name) {
       return 'name';
@@ -60,7 +65,7 @@ export default function FunnelManager({
     }
 
     // After 2 searches and not registered, show search limit gate
-    if (sessionState.searchCount >= 2 && !sessionState.isRegistered) {
+    if (sessionState.searchCount >= 2) {
       return 'search-limit';
     }
 

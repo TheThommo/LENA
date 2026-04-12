@@ -6,6 +6,7 @@ CRUD operations for users and user-tenant relationships.
 
 from uuid import UUID
 from typing import Optional, List
+from datetime import datetime, timezone
 from app.db.supabase import get_supabase_client, get_supabase_admin_client
 from app.models import (
     User,
@@ -21,21 +22,22 @@ class UserRepository:
     """Repository for user operations."""
 
     @staticmethod
-    async def create(user_create: UserCreate) -> Optional[User]:
-        """Create a new user."""
+    async def create(user_create: UserCreate, password_hash: Optional[str] = None) -> Optional[User]:
+        """Create a new user, optionally storing a bcrypt password hash."""
         try:
             client = get_supabase_admin_client()
+            insert_data = {
+                "email": user_create.email,
+                "name": user_create.name,
+                "tenant_id": str(user_create.tenant_id),
+                "role": user_create.role.value,
+                "persona_type": user_create.persona_type.value,
+            }
+            if password_hash:
+                insert_data["password_hash"] = password_hash
             response = (
                 client.table("users")
-                .insert(
-                    {
-                        "email": user_create.email,
-                        "name": user_create.name,
-                        "tenant_id": str(user_create.tenant_id),
-                        "role": user_create.role.value,
-                        "persona_type": user_create.persona_type.value,
-                    }
-                )
+                .insert(insert_data)
                 .execute()
             )
             if response.data and len(response.data) > 0:
@@ -142,7 +144,7 @@ class UserRepository:
             client = get_supabase_admin_client()
             response = (
                 client.table("users")
-                .update({"last_login_at": "now()"})
+                .update({"last_login_at": datetime.now(timezone.utc).isoformat()})
                 .eq("id", str(user_id))
                 .execute()
             )

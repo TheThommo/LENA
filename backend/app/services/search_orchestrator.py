@@ -13,6 +13,7 @@ from typing import Optional
 from app.core.pulse_engine import SourceResult, run_pulse_validation, PULSEReport
 from app.core.guardrails import check_for_advice_request, get_warm_redirect
 from app.core.logging import get_logger
+from app.core.config import settings
 from app.services import pubmed, clinical_trials, cochrane, who_iris, cdc
 from app.services.topic_classifier import classify_query_topic
 from app.services.result_cache import get_cached_result, cache_result
@@ -178,11 +179,71 @@ async def search_all_sources(
     return results_by_source, errors
 
 
+async def _generate_llm_summary(
+    query: str,
+    pulse_report: PULSEReport,
+    persona_type: str = "general",
+) -> Optional[str]:
+    """
+    Use OpenAI to generate an intelligent, persona-aware summary from the
+    search results.  Returns None gracefully if the key is not configured or
+    the call fails so we never block the user.
+    """
+    if not settings.openai_api_key:
+        logger.debug("OpenAI key not set – skipping LLM summary")
+        return None
+
+    try:
+        from app.services.openai_service import generate_response
+        from app.core.persona import PersonaType
+
+        # Build evidence context from validated results + edge cases
+        evidence_lines: list[str] = []
+        for idx, r in enumerate(pulse_report.validated_results[:12], 1):
+            line = f"[{idx}] ({r.source_name}) {r.title}"
+            if r.summary:
+                # Trim very long abstracts to keep token count sane
+                snippet = r.summary[:400] + ("…" if len(r.summary) > 400 else "")
+                line += f"\n    {snippet}"
+            if r.doi:
+                line += f"\n    DOI: {r.doi}"
+            evidence_lines.append(line)
+
+        if pulse_report.edge_cases:
+            evidence_lines.append("\n--- Edge Cases (single-source only) ---")
+            for idx, r in enumerate(pulse_report.edge_cases[:4], len(evidence_lines)):
+                line = f"[{idx}] ({r.source_name}) {r.title}"
+                if r.summary:
+                    snippet = r.summary[:300] + ("…" if len(r.summary) > 300 else "")
+                    line += f"\n    {snippet}"
+                evidence_lines.append(line)
+
+        context = "\n\n".join(evidence_lines)
+
+        # Map string to PersonaType enum
+        try:
+            persona_enum = PersonaType(persona_type)
+        except ValueError:
+            persona_enum = PersonaType.GENERAL
+
+        summary = await generate_response(
+            query=query,
+            context=context,
+            persona=persona_enum,
+            model="gpt-4o-mini",
+        )
+        return summary
+    except Exception as e:
+        logger.warning(f"LLM summary generation failed (non-blocking): {e}")
+        return None
+
+
 async def run_search(
     query: str,
     max_results_per_source: int = 10,
     sources: Optional[list[str]] = None,
     include_alt_medicine: bool = True,
+    persona: str = "general",
 ) -> dict:
     """
     Full LENA search pipeline:
@@ -258,7 +319,10 @@ async def run_search(
         logger.debug(f"Alt medicine filter: {len(pulse_report.validated_results)} -> {len(filtered_results)} results")
         pulse_report.validated_results = filtered_results
 
-    # Step 6: Build response
+    # Step 6: Generate LLM summary (non-blocking, best-effort)
+    llm_summary = await _generate_llm_summary(query, pulse_report, persona)
+
+    # Step 7: Build response
     response_time_ms = (time.time() - start_time) * 1000
     result = {
         "guardrail_triggered": False,
@@ -268,6 +332,7 @@ async def run_search(
         "total_results": sum(len(r) for r in results_by_source.values()),
         "include_alt_medicine": include_alt_medicine,
         "pulse_report": pulse_report.to_dict(),
+        "llm_summary": llm_summary,
         "response_time_ms": response_time_ms,
     }
 

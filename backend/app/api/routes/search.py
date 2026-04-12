@@ -57,6 +57,7 @@ async def search_literature(
         max_results_per_source=max_results,
         sources=source_list,
         include_alt_medicine=include_alt_medicine,
+        persona=detected_persona.value,
     )
 
     # Step 5: Log analytics (fire-and-forget, never blocks)

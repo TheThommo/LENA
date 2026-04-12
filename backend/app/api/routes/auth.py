@@ -113,9 +113,11 @@ async def register(request: Request, body: RegisterRequest) -> RegisterResponse:
             detail="Email already registered",
         )
 
-    # TODO: In production, use Supabase Auth for password hashing
-    # For now, we'll create the user in the database
-    # This is a placeholder - actual implementation should use Supabase Auth
+    # Hash password with bcrypt
+    password_hash = bcrypt.hashpw(
+        body.password.encode("utf-8"),
+        bcrypt.gensalt(rounds=12),
+    ).decode("utf-8")
 
     # Create user
     user_create = UserCreate(
@@ -125,7 +127,7 @@ async def register(request: Request, body: RegisterRequest) -> RegisterResponse:
         role=UserRole.PUBLIC_USER,
         persona_type=PersonaType.GENERAL,
     )
-    user = await UserRepository.create(user_create)
+    user = await UserRepository.create(user_create, password_hash=password_hash)
     if not user:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
@@ -206,10 +208,22 @@ async def login(request: Request, body: LoginRequest) -> LoginResponse:
         )
 
     # Verify password against stored bcrypt hash
+    # Handle $2a$ (pgcrypto) vs $2b$ (Python bcrypt) prefix compatibility
     stored_hash = await UserRepository.get_password_hash(body.email)
-    if not stored_hash or not bcrypt.checkpw(
+    if not stored_hash:
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
+
+    # Normalise pgcrypto $2a$ hashes to $2b$ so Python bcrypt can verify them
+    verify_hash = stored_hash
+    if verify_hash.startswith("$2a$"):
+        verify_hash = "$2b$" + verify_hash[4:]
+
+    if not bcrypt.checkpw(
         body.password.encode("utf-8"),
-        stored_hash.encode("utf-8"),
+        verify_hash.encode("utf-8"),
     ):
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
