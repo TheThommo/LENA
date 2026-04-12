@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_debug: bool = True
     app_port: int = int(os.getenv("PORT", 8000))
-    cors_origins: str = "http://localhost:3000,localhost:3000"
+    cors_origins: str = "http://localhost:3000,https://lena-app.up.railway.app"
     railway_environment: Optional[str] = None
 
     # OpenAI

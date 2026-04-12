@@ -1,7 +1,8 @@
 'use client';
 
 import { useState } from 'react';
-import { Sparkles } from 'lucide-react';
+import Image from 'next/image';
+import { branding } from '@/config/branding';
 import type { SearchResponse, ValidatedResult } from '@/lib/api';
 
 interface ChatMessageProps {
@@ -214,10 +215,14 @@ export default function ChatMessage({
       <div className="flex items-center justify-between mb-3">
         <div className="flex items-center gap-2.5">
           {/* LENA avatar */}
-          <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #1B6B93, #145372)' }}>
-            <Sparkles size={14} color="white" />
-          </div>
-          <span className="text-sm font-semibold text-slate-700">LENA</span>
+          <Image
+            src={branding.avatarSrc}
+            alt={branding.name}
+            width={28}
+            height={28}
+            className="rounded-full flex-shrink-0"
+          />
+          <span className="text-sm font-semibold text-slate-700">{branding.name}</span>
         </div>
 
         {response && onShare && (

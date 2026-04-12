@@ -1,7 +1,8 @@
 'use client';
 
 import React from 'react';
-import { Sparkles, User } from 'lucide-react';
+import Image from 'next/image';
+import { branding } from '@/config/branding';
 
 interface SidebarProps {
   activeView: string;
@@ -39,15 +40,19 @@ export function Sidebar({
       {/* Logo Section */}
       <div className="px-5 pt-6 pb-4">
         <div className="flex items-center gap-3">
-          <div className="flex items-center justify-center w-8 h-8 rounded-lg" style={{ background: 'linear-gradient(135deg, #1B6B93, #145372)' }}>
-            <Sparkles size={18} color="white" />
-          </div>
+          <Image
+            src={branding.logoSrc}
+            alt={branding.name}
+            width={36}
+            height={36}
+            className="rounded-lg object-contain"
+          />
           <div>
             <h1 className="text-lg font-bold text-gray-900 leading-none tracking-tight">
-              LENA
+              {branding.name}
             </h1>
             <p className="text-[10px] font-semibold text-lena-500 uppercase tracking-widest">
-              Research Agent
+              {branding.subtitle}
             </p>
           </div>
         </div>
@@ -131,8 +136,8 @@ export function Sidebar({
         {isAuthenticated && userName ? (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="flex items-center justify-center w-7 h-7 rounded-full bg-lena-50">
-                <User size={14} color="#1B6B93" />
+              <div className="flex items-center justify-center w-7 h-7 rounded-full bg-lena-50 text-lena-500 text-xs font-bold">
+                {userName.charAt(0).toUpperCase()}
               </div>
               <span className="text-sm font-medium text-gray-700 truncate max-w-[160px]">
                 {userName}

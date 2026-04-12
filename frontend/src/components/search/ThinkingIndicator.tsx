@@ -1,7 +1,8 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Sparkles } from 'lucide-react';
+import Image from 'next/image';
+import { branding } from '@/config/branding';
 
 const STEPS = [
   'Understanding your query...',
@@ -28,9 +29,13 @@ export default function ThinkingIndicator() {
     <div className="bg-white rounded-xl border border-slate-200 p-6 max-w-lg shadow-sm">
       {/* Header */}
       <div className="flex items-center gap-3 mb-4">
-        <div className="w-8 h-8 rounded-full flex items-center justify-center animate-pulse-glow" style={{ background: 'linear-gradient(135deg, #1B6B93, #145372)' }}>
-          <Sparkles size={16} color="white" />
-        </div>
+        <Image
+          src={branding.avatarSrc}
+          alt={branding.name}
+          width={32}
+          height={32}
+          className="rounded-full animate-pulse-glow"
+        />
         <span className="text-sm font-semibold text-lena-600">LENA is thinking...</span>
       </div>
 

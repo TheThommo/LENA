@@ -1,6 +1,7 @@
 'use client';
 
-import { Sparkles } from 'lucide-react';
+import Image from 'next/image';
+import { branding } from '@/config/branding';
 
 interface WelcomeViewProps {
   persona: string;
@@ -68,9 +69,13 @@ export default function WelcomeView({ persona, onPromptClick }: WelcomeViewProps
   return (
     <div className="flex flex-col items-center justify-center max-w-2xl mx-auto px-4 py-16">
       {/* LENA avatar */}
-      <div className="w-14 h-14 flex items-center justify-center mb-6 shadow-lg shadow-[#1B6B93]/20" style={{ background: 'linear-gradient(135deg, #1B6B93, #145372)', borderRadius: 16 }}>
-        <Sparkles size={28} color="white" />
-      </div>
+      <Image
+        src={branding.avatarSrc}
+        alt={branding.name}
+        width={72}
+        height={72}
+        className="rounded-2xl mb-6 shadow-lg shadow-[#1B6B93]/20"
+      />
 
       {/* Heading */}
       <h1 className="text-3xl font-bold text-slate-900 text-center mb-3">
