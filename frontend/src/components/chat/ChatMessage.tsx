@@ -1,9 +1,145 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import Image from 'next/image';
 import { branding } from '@/config/branding';
 import type { SearchResponse, ValidatedResult } from '@/lib/api';
+
+/* ────────────────────────────────────────
+   Lightweight Markdown → JSX renderer
+   Handles: headers, bold, italic, lists,
+   numbered lists, inline code, paragraphs,
+   blockquotes, horizontal rules
+   ──────────────────────────────────────── */
+function renderMarkdown(text: string): React.ReactNode[] {
+  const lines = text.split('\n');
+  const elements: React.ReactNode[] = [];
+  let listItems: React.ReactNode[] = [];
+  let listType: 'ul' | 'ol' | null = null;
+  let key = 0;
+
+  const flushList = () => {
+    if (listItems.length > 0 && listType) {
+      const Tag = listType;
+      elements.push(
+        <Tag key={key++} className={`${listType === 'ul' ? 'list-disc' : 'list-decimal'} ml-5 space-y-1 text-sm text-slate-700`}>
+          {listItems}
+        </Tag>
+      );
+      listItems = [];
+      listType = null;
+    }
+  };
+
+  const formatInline = (str: string): React.ReactNode => {
+    // Process bold, italic, inline code, links
+    const parts: React.ReactNode[] = [];
+    let remaining = str;
+    let i = 0;
+
+    const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`(.+?)`)|(\[(.+?)\]\((.+?)\))/g;
+    let match;
+    let lastIndex = 0;
+
+    while ((match = regex.exec(remaining)) !== null) {
+      if (match.index > lastIndex) {
+        parts.push(remaining.slice(lastIndex, match.index));
+      }
+      if (match[1]) {
+        parts.push(<strong key={`b${i++}`} className="font-semibold text-slate-900">{match[2]}</strong>);
+      } else if (match[3]) {
+        parts.push(<em key={`i${i++}`}>{match[4]}</em>);
+      } else if (match[5]) {
+        parts.push(<code key={`c${i++}`} className="px-1.5 py-0.5 bg-slate-100 text-slate-800 rounded text-xs font-mono">{match[6]}</code>);
+      } else if (match[7]) {
+        parts.push(<a key={`a${i++}`} href={match[9]} target="_blank" rel="noopener noreferrer" className="text-[#1B6B93] underline hover:text-[#155a7a]">{match[8]}</a>);
+      }
+      lastIndex = match.index + match[0].length;
+    }
+    if (lastIndex < remaining.length) {
+      parts.push(remaining.slice(lastIndex));
+    }
+    return parts.length === 1 ? parts[0] : <>{parts}</>;
+  };
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+
+    // Horizontal rule
+    if (/^[-*_]{3,}$/.test(trimmed)) {
+      flushList();
+      elements.push(<hr key={key++} className="border-slate-200 my-3" />);
+      continue;
+    }
+
+    // Headers
+    if (trimmed.startsWith('### ')) {
+      flushList();
+      elements.push(<h4 key={key++} className="text-sm font-bold text-slate-900 mt-4 mb-1.5">{formatInline(trimmed.slice(4))}</h4>);
+      continue;
+    }
+    if (trimmed.startsWith('## ')) {
+      flushList();
+      elements.push(<h3 key={key++} className="text-sm font-bold text-slate-900 mt-4 mb-1.5">{formatInline(trimmed.slice(3))}</h3>);
+      continue;
+    }
+    if (trimmed.startsWith('# ')) {
+      flushList();
+      elements.push(<h2 key={key++} className="text-base font-bold text-slate-900 mt-4 mb-2">{formatInline(trimmed.slice(2))}</h2>);
+      continue;
+    }
+
+    // Blockquote
+    if (trimmed.startsWith('> ')) {
+      flushList();
+      elements.push(
+        <blockquote key={key++} className="border-l-3 border-[#1B6B93] pl-3 py-1 text-sm text-slate-600 italic bg-slate-50 rounded-r-md my-2">
+          {formatInline(trimmed.slice(2))}
+        </blockquote>
+      );
+      continue;
+    }
+
+    // Unordered list
+    if (/^[-*+]\s/.test(trimmed)) {
+      if (listType !== 'ul') {
+        flushList();
+        listType = 'ul';
+      }
+      listItems.push(<li key={`li${key++}`} className="text-sm text-slate-700 leading-relaxed">{formatInline(trimmed.replace(/^[-*+]\s/, ''))}</li>);
+      continue;
+    }
+
+    // Ordered list
+    if (/^\d+\.\s/.test(trimmed)) {
+      if (listType !== 'ol') {
+        flushList();
+        listType = 'ol';
+      }
+      listItems.push(<li key={`li${key++}`} className="text-sm text-slate-700 leading-relaxed">{formatInline(trimmed.replace(/^\d+\.\s/, ''))}</li>);
+      continue;
+    }
+
+    // Empty line — flush list and add spacing
+    if (trimmed === '') {
+      flushList();
+      continue;
+    }
+
+    // Regular paragraph
+    flushList();
+    elements.push(<p key={key++} className="text-sm text-slate-700 leading-relaxed">{formatInline(trimmed)}</p>);
+  }
+
+  flushList();
+  return elements;
+}
+
+/** Memoised formatted content block */
+function FormattedContent({ text }: { text: string }) {
+  const rendered = useMemo(() => renderMarkdown(text), [text]);
+  return <div className="space-y-2">{rendered}</div>;
+}
 
 interface ChatMessageProps {
   type: 'user' | 'assistant';
@@ -259,7 +395,7 @@ export default function ChatMessage({
 
       {/* Natural language summary */}
       <div className="ml-10 space-y-4">
-        <p className="text-sm text-slate-700 leading-relaxed">{summary}</p>
+        <FormattedContent text={summary} />
 
         {/* PULSE status badge */}
         {response && (

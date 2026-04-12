@@ -22,13 +22,12 @@ import bcrypt
 from app.db.repositories.user_repo import UserRepository
 from app.services.email_service import send_password_reset_email
 from app.db.repositories.tenant_repo import TenantRepository
-from app.db.repositories.subscription_repo import SubscriptionRepository, PlanRepository
 from app.db.repositories.session_repo import SessionRepository
 from app.models import (
     UserCreate, UserPublic, User, SessionUpdate,
-    TenantCreate, SubscriptionCreate,
+    TenantCreate,
 )
-from app.models.enums import UserRole, PersonaType, SubscriptionStatus
+from app.models.enums import UserRole, PersonaType
 from app.core.auth import create_access_token, require_auth
 from app.core.config import settings
 from app.core.tenant import detect_tenant
@@ -134,28 +133,8 @@ async def register(request: Request, body: RegisterRequest) -> RegisterResponse:
             detail="Failed to create user",
         )
 
-    # Get or create "free" plan
-    free_plan = await PlanRepository.get_by_slug("free")
-    if not free_plan:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Free plan not configured",
-        )
-
-    # Create subscription
-    subscription_create = SubscriptionCreate(
-        tenant_id=tenant.id,
-        plan_id=free_plan.id,
-        status=SubscriptionStatus.ACTIVE,
-        current_period_start=datetime.utcnow(),
-        current_period_end=datetime.utcnow() + timedelta(days=365),
-    )
-    subscription = await SubscriptionRepository.create(subscription_create)
-    if not subscription:
-        raise HTTPException(
-            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-            detail="Failed to create subscription",
-        )
+    # NOTE: Plan/subscription assignment is handled separately via Stripe.
+    # New users default to the free tier based on plan_tiers table.
 
     # If session_id provided, link it to the user
     if body.session_id:
