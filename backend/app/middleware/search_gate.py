@@ -14,9 +14,9 @@ import logging
 from uuid import UUID
 from typing import Callable, Optional
 
-from fastapi import Request, HTTPException, status
+from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
-from starlette.responses import Response
+from starlette.responses import Response, JSONResponse
 
 from app.db.repositories.session_repo import SessionRepository
 from app.models import SessionUpdate
@@ -74,25 +74,25 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
         # This would be extracted by require_auth dependency if present
         # For now, we check if session exists
         if not session_id:
-            raise HTTPException(
-                status_code=status.HTTP_401_UNAUTHORIZED,
-                detail="Session required. Complete the medical disclaimer first.",
+            return JSONResponse(
+                status_code=401,
+                content={"detail": "Session required. Complete the medical disclaimer first."},
             )
 
         try:
             # Get session
             session = await SessionRepository.get_by_id(UUID(session_id))
             if not session:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Invalid session.",
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Invalid session."},
                 )
 
             # Check if disclaimer has been accepted
             if not session.disclaimer_accepted_at:
-                raise HTTPException(
-                    status_code=status.HTTP_401_UNAUTHORIZED,
-                    detail="Medical disclaimer must be accepted before searching.",
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Medical disclaimer must be accepted before searching."},
                 )
 
             # Check if user is registered (has user_id)
@@ -109,9 +109,9 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
                         stage="signup_cta_shown",
                     )
 
-                    raise HTTPException(
-                        status_code=status.HTTP_403_FORBIDDEN,
-                        detail="You've used your 2 free searches. Sign up to continue.",
+                    return JSONResponse(
+                        status_code=403,
+                        content={"detail": "You've used your 2 free searches. Sign up to continue."},
                     )
 
                 # Increment search counter
@@ -141,13 +141,11 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
             request.state.session_id = session_id
             request.state.session = session
 
-        except HTTPException:
-            raise
         except Exception as e:
             logger.error(f"Error in search gate: {e}")
-            raise HTTPException(
-                status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
-                detail="Internal server error",
+            return JSONResponse(
+                status_code=500,
+                content={"detail": "Internal server error"},
             )
 
         # Allow request to proceed
