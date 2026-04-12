@@ -39,23 +39,14 @@ export function Sidebar({
     <aside className="flex flex-col w-[280px] h-full bg-white border-r border-gray-200 shrink-0">
       {/* Logo Section */}
       <div className="px-5 pt-6 pb-4">
-        <div className="flex items-center gap-3">
-          <Image
-            src={branding.logoSrc}
-            alt={branding.name}
-            width={36}
-            height={36}
-            className="rounded-lg object-contain"
-          />
-          <div>
-            <h1 className="text-lg font-bold text-gray-900 leading-none tracking-tight">
-              {branding.name}
-            </h1>
-            <p className="text-[10px] font-semibold text-lena-500 uppercase tracking-widest">
-              {branding.subtitle}
-            </p>
-          </div>
-        </div>
+        <Image
+          src={branding.logoSrc}
+          alt={branding.name}
+          width={240}
+          height={80}
+          className="object-contain"
+          priority
+        />
       </div>
 
       {/* New Search Button */}

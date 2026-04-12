@@ -12,11 +12,11 @@ export const branding = {
   /** Subtitle under the app name */
   subtitle: 'Research Agent',
 
-  /** Logo image used in sidebar header (compass/DNA mark) */
-  logoSrc: '/lena-logo.png',
+  /** Logo image used in sidebar header (full brand logo with text) */
+  logoSrc: '/lena-logo.jpg',
 
   /** Agent avatar used in chat messages and thinking indicator */
-  avatarSrc: '/lena-avatar.png',
+  avatarSrc: '/lena-avatar.jpg',
 
   /** Primary brand color */
   primaryColor: '#1B6B93',
