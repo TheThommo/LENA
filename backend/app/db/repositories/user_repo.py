@@ -22,11 +22,41 @@ class UserRepository:
     """Repository for user operations."""
 
     @staticmethod
-    async def create(user_create: UserCreate, password_hash: Optional[str] = None) -> Optional[User]:
-        """Create a new user, optionally storing a bcrypt password hash."""
+    async def create(
+        user_create: UserCreate,
+        password_hash: Optional[str] = None,
+        raw_password: Optional[str] = None,
+    ) -> Optional[User]:
+        """
+        Create a new user.
+
+        Because public.users.id has a FK to auth.users.id, we must first
+        create the user in Supabase Auth (which populates auth.users), then
+        insert the public profile row using the same ID.
+        """
         try:
             client = get_supabase_admin_client()
+
+            # Step 1: Create in Supabase Auth (generates auth.users row)
+            auth_payload: dict = {
+                "email": user_create.email,
+                "email_confirm": True,  # auto-confirm email
+                "user_metadata": {"name": user_create.name},
+            }
+            if raw_password:
+                auth_payload["password"] = raw_password
+
+            auth_response = client.auth.admin.create_user(auth_payload)
+
+            if not auth_response or not auth_response.user:
+                print("Error creating auth user: no user returned")
+                return None
+
+            auth_user_id = str(auth_response.user.id)
+
+            # Step 2: Insert public profile with the same ID
             insert_data = {
+                "id": auth_user_id,
                 "email": user_create.email,
                 "name": user_create.name,
                 "tenant_id": str(user_create.tenant_id),
@@ -35,6 +65,7 @@ class UserRepository:
             }
             if password_hash:
                 insert_data["password_hash"] = password_hash
+
             response = (
                 client.table("users")
                 .insert(insert_data)

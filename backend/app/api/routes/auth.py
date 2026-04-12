@@ -126,7 +126,11 @@ async def register(request: Request, body: RegisterRequest) -> RegisterResponse:
         role=UserRole.PUBLIC_USER,
         persona_type=PersonaType.GENERAL,
     )
-    user = await UserRepository.create(user_create, password_hash=password_hash)
+    user = await UserRepository.create(
+        user_create,
+        password_hash=password_hash,
+        raw_password=body.password,
+    )
     if not user:
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
