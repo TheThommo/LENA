@@ -63,8 +63,8 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
         """Check search gate before allowing request."""
 
-        # Only apply to search endpoints
-        if not request.url.path.startswith("/api/search"):
+        # Only apply to search endpoints (skip OPTIONS preflight requests)
+        if not request.url.path.startswith("/api/search") or request.method == "OPTIONS":
             return await call_next(request)
 
         # Extract session ID from request
