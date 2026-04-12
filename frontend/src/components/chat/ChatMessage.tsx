@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { branding } from '@/config/branding';
 import type { SearchResponse, ValidatedResult } from '@/lib/api';
@@ -32,12 +32,13 @@ function renderMarkdown(text: string): React.ReactNode[] {
   };
 
   const formatInline = (str: string): React.ReactNode => {
-    // Process bold, italic, inline code, links
+    // Process bold, italic, inline code, links, and citation refs like [4]
     const parts: React.ReactNode[] = [];
     let remaining = str;
     let i = 0;
 
-    const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`(.+?)`)|(\[(.+?)\]\((.+?)\))/g;
+    // Order matters: bold before italic, markdown links before bare citation refs
+    const regex = /(\*\*(.+?)\*\*)|(\*(.+?)\*)|(`(.+?)`)|(\[(.+?)\]\((.+?)\))|(\[(\d+)\])/g;
     let match;
     let lastIndex = 0;
 
@@ -53,6 +54,35 @@ function renderMarkdown(text: string): React.ReactNode[] {
         parts.push(<code key={`c${i++}`} className="px-1.5 py-0.5 bg-slate-100 text-slate-800 rounded text-xs font-mono">{match[6]}</code>);
       } else if (match[7]) {
         parts.push(<a key={`a${i++}`} href={match[9]} target="_blank" rel="noopener noreferrer" className="text-[#1B6B93] underline hover:text-[#155a7a]">{match[8]}</a>);
+      } else if (match[10]) {
+        // Citation reference like [4] — clickable, scrolls to source card
+        const refNum = parseInt(match[11], 10);
+        parts.push(
+          <button
+            key={`ref${i++}`}
+            className="inline-flex items-center justify-center w-5 h-5 text-[10px] font-bold text-white bg-[#1B6B93] rounded-full hover:bg-[#155a7a] transition-colors cursor-pointer align-text-top mx-0.5"
+            title={`Jump to source ${refNum}`}
+            onClick={() => {
+              const scrollToCard = () => {
+                const card = document.querySelector(`[data-source-index="${refNum - 1}"]`);
+                if (card) {
+                  card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                  card.classList.add('ring-2', 'ring-[#1B6B93]');
+                  setTimeout(() => card.classList.remove('ring-2', 'ring-[#1B6B93]'), 2000);
+                }
+              };
+              // If card not visible, expand the source list first
+              if (!document.querySelector(`[data-source-index="${refNum - 1}"]`)) {
+                document.dispatchEvent(new Event('lena:expand-sources'));
+                setTimeout(scrollToCard, 100);
+              } else {
+                scrollToCard();
+              }
+            }}
+          >
+            {refNum}
+          </button>
+        );
       }
       lastIndex = match.index + match[0].length;
     }
@@ -210,13 +240,14 @@ function generateFollowUps(response: SearchResponse): string[] {
   return suggestions.slice(0, 3);
 }
 
-function SourceCard({ result, isEdgeCase }: { result: ValidatedResult; isEdgeCase: boolean }) {
+function SourceCard({ result, isEdgeCase, index }: { result: ValidatedResult; isEdgeCase: boolean; index: number }) {
   const [expanded, setExpanded] = useState(false);
   const style = getSourceStyle(result.source);
   const scoreBadge = getPulseScoreBadge(result.relevance_score);
 
   return (
     <div
+      data-source-index={index}
       className={`border-l-3 ${style.border} rounded-md border border-slate-200 bg-white transition-all hover:shadow-sm`}
     >
       <button
@@ -298,6 +329,14 @@ const INITIAL_VISIBLE = 3;
 
 function SourceCardList({ allResults }: { allResults: { result: ValidatedResult; isEdge: boolean }[] }) {
   const [showAll, setShowAll] = useState(false);
+
+  // Listen for citation clicks that need the list expanded
+  useEffect(() => {
+    const handler = () => setShowAll(true);
+    document.addEventListener('lena:expand-sources', handler);
+    return () => document.removeEventListener('lena:expand-sources', handler);
+  }, []);
+
   const visible = showAll ? allResults : allResults.slice(0, INITIAL_VISIBLE);
   const hiddenCount = allResults.length - INITIAL_VISIBLE;
 
@@ -308,7 +347,7 @@ function SourceCardList({ allResults }: { allResults: { result: ValidatedResult;
       </p>
       <div className="space-y-1.5">
         {visible.map(({ result, isEdge }, i) => (
-          <SourceCard key={`${result.source}-${result.title}-${i}`} result={result} isEdgeCase={isEdge} />
+          <SourceCard key={`${result.source}-${result.title}-${i}`} result={result} isEdgeCase={isEdge} index={i} />
         ))}
       </div>
       {hiddenCount > 0 && !showAll && (

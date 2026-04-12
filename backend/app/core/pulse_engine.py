@@ -255,13 +255,20 @@ async def run_pulse_validation(
         )
         report.source_agreements.append(agreement)
 
-    # Step 4: Sort results into validated vs edge cases
+    # Step 4: Score every result and include ALL sources in validated results.
+    # Every source that returns data contributes — no source is excluded.
+    # Edge cases are only individual results with very low relevance, not whole sources.
     consensus_sources = {sa.source_name for sa in report.source_agreements if sa.is_consensus}
     edge_sources = {sa.source_name for sa in report.source_agreements if not sa.is_consensus}
     report.agreement_count = len(consensus_sources)
 
+    # Cap results per source to ensure diversity (max 10 per source in validated)
+    MAX_PER_SOURCE = 10
+    source_validated_counts: dict[str, int] = {}
+
     for source_name, results in results_by_source.items():
-        # Score individual results by how many of their keywords match consensus
+        source_validated_counts[source_name] = 0
+
         for r in results:
             # Skip retracted papers entirely
             if r.is_retracted:
@@ -269,7 +276,6 @@ async def run_pulse_validation(
                 continue
 
             if consensus_keywords and r.keywords:
-                # Calculate base relevance score
                 base_score = len(set(r.keywords) & consensus_keywords) / len(consensus_keywords)
 
                 # RULE 1: Single-source cap at 0.60
@@ -284,21 +290,55 @@ async def run_pulse_validation(
             else:
                 r.relevance_score = 0.0
 
-        if source_name in consensus_sources:
-            report.validated_results.extend(results)
-        else:
-            report.edge_cases.extend(results)
+            # All results from all sources go into validated_results
+            # (capped per source). Overflow goes to edge_cases.
+            if source_validated_counts[source_name] < MAX_PER_SOURCE:
+                report.validated_results.append(r)
+                source_validated_counts[source_name] += 1
+            else:
+                report.edge_cases.append(r)
 
-    # Sort validated results by relevance score (best first)
-    report.validated_results.sort(key=lambda r: r.relevance_score, reverse=True)
+    # Sort validated results: interleave sources by round-robin on relevance
+    # First sort by relevance within each source, then interleave
+    by_source: dict[str, list[SourceResult]] = {}
+    for r in report.validated_results:
+        by_source.setdefault(r.source_name, []).append(r)
+    for src_results in by_source.values():
+        src_results.sort(key=lambda r: r.relevance_score, reverse=True)
+
+    # Round-robin interleave: pick top from each source in turn
+    interleaved: list[SourceResult] = []
+    source_iters = {s: iter(rs) for s, rs in by_source.items()}
+    # Order sources by their agreement overlap score (best first)
+    source_order = sorted(
+        source_iters.keys(),
+        key=lambda s: next((sa.keyword_overlap_score for sa in report.source_agreements if sa.source_name == s), 0),
+        reverse=True,
+    )
+    while source_iters:
+        exhausted = []
+        for src in source_order:
+            if src not in source_iters:
+                continue
+            val = next(source_iters[src], None)
+            if val is not None:
+                interleaved.append(val)
+            else:
+                exhausted.append(src)
+        for src in exhausted:
+            del source_iters[src]
+            source_order = [s for s in source_order if s != src]
+
+    report.validated_results = interleaved
 
     # Step 5: Determine overall validation status
-    if report.agreement_count >= 3:
+    active_sources = len(results_by_source)
+    if active_sources >= 3 and report.agreement_count >= 3:
         report.status = ValidationStatus.VALIDATED
-    elif report.agreement_count >= 1:
+    elif active_sources >= 2 and report.agreement_count >= 1:
         report.status = ValidationStatus.INSUFFICIENT
     else:
-        report.status = ValidationStatus.PENDING
+        report.status = ValidationStatus.PENDING if active_sources == 0 else ValidationStatus.INSUFFICIENT
 
     # Step 6: Build a consensus summary
     if consensus_keywords:
