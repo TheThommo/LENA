@@ -4,7 +4,7 @@ import { Providers } from '@/components/Providers';
 
 export const metadata: Metadata = {
   title: 'LENA - Literature and Evidence Navigation Agent',
-  description: 'AI-powered clinical research assistant that cross-references 40M+ papers across 5 databases',
+  description: 'AI-powered clinical research assistant that cross-references 250M+ papers across 6 scientific databases with PULSE validation',
 };
 
 export default function RootLayout({

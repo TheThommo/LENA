@@ -53,8 +53,8 @@ const FAQ_ITEMS: FaqItem[] = [
 ];
 
 const STATS = [
-  { value: '40M+', label: 'Papers Indexed' },
-  { value: '8+', label: 'Databases' },
+  { value: '250M+', label: 'Papers Indexed' },
+  { value: '6', label: 'Databases' },
   { value: '<30s', label: 'Search Time' },
   { value: '100%', label: 'Peer-Reviewed' },
 ];

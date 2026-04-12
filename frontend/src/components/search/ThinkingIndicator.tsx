@@ -5,11 +5,11 @@ import Image from 'next/image';
 import { branding } from '@/config/branding';
 
 const STEPS = [
-  'Understanding your query...',
-  'Searching 40M+ papers across 5 databases...',
-  'Cross-referencing sources with PULSE...',
-  'Synthesizing results...',
-  'Preparing your response...',
+  { text: 'Parsing clinical query & detecting persona...', detail: 'NLP analysis' },
+  { text: 'Searching 250M+ papers across 6 databases...', detail: 'PubMed \u00B7 ClinicalTrials \u00B7 Cochrane \u00B7 WHO IRIS \u00B7 CDC \u00B7 OpenAlex' },
+  { text: 'Running PULSE cross-reference validation...', detail: 'Keyword overlap \u00B7 Source consensus \u00B7 Edge-case detection' },
+  { text: 'Scoring evidence & ranking by relevance...', detail: 'Systematic reviews weighted \u00B7 Retraction check' },
+  { text: 'Generating intelligent summary with AI...', detail: 'Persona-aware \u00B7 Structured markdown' },
 ];
 
 export default function ThinkingIndicator() {
@@ -17,44 +17,76 @@ export default function ThinkingIndicator() {
 
   useEffect(() => {
     const timers = [
-      setTimeout(() => setStep(1), 800),
-      setTimeout(() => setStep(2), 2000),
-      setTimeout(() => setStep(3), 3500),
-      setTimeout(() => setStep(4), 5000),
+      setTimeout(() => setStep(1), 900),
+      setTimeout(() => setStep(2), 2200),
+      setTimeout(() => setStep(3), 3800),
+      setTimeout(() => setStep(4), 5500),
     ];
     return () => timers.forEach(clearTimeout);
   }, []);
 
+  const progress = Math.min(((step + 1) / STEPS.length) * 100, 100);
+
   return (
-    <div className="bg-white rounded-xl border border-slate-200 p-6 max-w-lg shadow-sm">
+    <div className="bg-white rounded-xl border border-slate-200 p-5 sm:p-6 max-w-lg shadow-sm">
       {/* Header */}
-      <div className="flex items-center gap-3 mb-4">
-        <Image
-          src={branding.avatarSrc}
-          alt={branding.name}
-          width={32}
-          height={32}
-          className="rounded-full animate-pulse-glow"
+      <div className="flex items-center gap-3 mb-1">
+        <div className="relative">
+          <Image
+            src={branding.avatarSrc}
+            alt={branding.name}
+            width={36}
+            height={36}
+            className="rounded-full"
+          />
+          <span className="absolute -bottom-0.5 -right-0.5 w-3 h-3 bg-emerald-400 border-2 border-white rounded-full" />
+        </div>
+        <div>
+          <span className="text-sm font-bold text-slate-800">LENA is analysing...</span>
+          <p className="text-[11px] text-slate-400 leading-tight">Evidence pipeline active</p>
+        </div>
+      </div>
+
+      {/* Progress bar */}
+      <div className="w-full h-1 bg-slate-100 rounded-full mt-3 mb-4 overflow-hidden">
+        <div
+          className="h-full rounded-full transition-all duration-700 ease-out"
+          style={{
+            width: `${progress}%`,
+            background: 'linear-gradient(90deg, #1B6B93, #2A8AB5)',
+          }}
         />
-        <span className="text-sm font-semibold text-lena-600">LENA is thinking...</span>
       </div>
 
       {/* Steps */}
-      <div className="space-y-2">
-        {STEPS.map((text, i) => (
-          <div key={i} className="flex items-center gap-2.5 py-0.5">
+      <div className="space-y-2.5">
+        {STEPS.map(({ text, detail }, i) => (
+          <div key={i} className={`flex items-start gap-2.5 transition-all duration-300 ${i > step ? 'opacity-40' : ''}`}>
             {i < step ? (
-              <svg className="w-4 h-4 text-green-500 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
-              </svg>
+              <div className="w-5 h-5 rounded-full bg-emerald-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <svg className="w-3 h-3 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                </svg>
+              </div>
             ) : i === step ? (
-              <div className="w-4 h-4 border-2 border-lena-500 border-t-transparent rounded-full flex-shrink-0" style={{ animation: 'spin 0.8s linear infinite' }} />
+              <div className="w-5 h-5 rounded-full bg-lena-50 flex items-center justify-center flex-shrink-0 mt-0.5">
+                <div className="w-3 h-3 border-2 border-lena-500 border-t-transparent rounded-full" style={{ animation: 'spin 0.8s linear infinite' }} />
+              </div>
             ) : (
-              <div className="w-4 h-4 rounded-full border-2 border-slate-200 flex-shrink-0" />
+              <div className="w-5 h-5 rounded-full border border-slate-200 flex-shrink-0 mt-0.5" />
             )}
-            <span className={`text-sm ${i < step ? 'text-slate-400' : i === step ? 'text-lena-600 font-medium' : 'text-slate-300'}`}>
-              {text}
-            </span>
+            <div className="min-w-0">
+              <span className={`text-sm leading-snug block ${
+                i < step ? 'text-slate-500' : i === step ? 'text-slate-800 font-semibold' : 'text-slate-400'
+              }`}>
+                {text}
+              </span>
+              {i <= step && (
+                <span className="text-[10px] text-slate-400 leading-tight block mt-0.5">
+                  {detail}
+                </span>
+              )}
+            </div>
           </div>
         ))}
       </div>
