@@ -844,6 +844,84 @@ async def get_persona_distribution(
         }
 
 
+GENERIC_EMAIL_DOMAINS = {
+    "gmail.com", "yahoo.com", "outlook.com", "hotmail.com", "live.com",
+    "icloud.com", "msn.com", "aol.com", "protonmail.com", "mail.com",
+    "zoho.com", "yandex.com", "gmx.com", "fastmail.com", "tutanota.com",
+    "pm.me", "hey.com", "me.com", "mac.com", "googlemail.com",
+    "yahoo.co.uk", "yahoo.com.au", "outlook.com.au", "bigpond.com",
+}
+
+
+async def get_leads(
+    tenant_id: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+) -> Dict[str, Any]:
+    """
+    Get sessions with captured emails (leads).
+    Classifies emails as corporate vs generic.
+    """
+    try:
+        client = get_supabase_admin_client()
+        start_date, end_date = _get_date_range(start_date, end_date)
+
+        sessions_query = client.table("sessions").select(
+            "id, name, email, geo_country, geo_city, utm_source, referrer, "
+            "search_count, started_at, disclaimer_accepted_at"
+        )
+        sessions_query = sessions_query.not_.is_("email", "null")
+        if tenant_id:
+            sessions_query = sessions_query.eq("tenant_id", tenant_id)
+        sessions_query = sessions_query.gte("started_at", start_date.isoformat()).lte("started_at", end_date.isoformat())
+        sessions_query = sessions_query.order("started_at", desc=True)
+        sessions_response = sessions_query.execute()
+
+        leads = []
+        corporate_count = 0
+        for s in sessions_response.data or []:
+            email = s.get("email", "")
+            domain = email.split("@")[-1].lower() if "@" in email else ""
+            is_corporate = domain not in GENERIC_EMAIL_DOMAINS and domain != ""
+            if is_corporate:
+                corporate_count += 1
+            leads.append({
+                "session_id": s.get("id"),
+                "name": s.get("name"),
+                "email": email,
+                "domain": domain,
+                "is_corporate": is_corporate,
+                "country": s.get("geo_country"),
+                "city": s.get("geo_city"),
+                "source": s.get("utm_source") or s.get("referrer") or "Direct",
+                "search_count": s.get("search_count", 0),
+                "started_at": s.get("started_at"),
+                "disclaimer_accepted": s.get("disclaimer_accepted_at") is not None,
+            })
+
+        total = len(leads)
+        return {
+            "total_leads": total,
+            "corporate_leads": corporate_count,
+            "generic_leads": total - corporate_count,
+            "capture_rate": 0.0,  # Will be calculated with total sessions
+            "leads": leads,
+            "period_start": start_date,
+            "period_end": end_date,
+        }
+    except Exception as e:
+        logger.error(f"Error getting leads: {e}")
+        return {
+            "total_leads": 0,
+            "corporate_leads": 0,
+            "generic_leads": 0,
+            "capture_rate": 0.0,
+            "leads": [],
+            "period_start": start_date or date.today(),
+            "period_end": end_date or date.today(),
+        }
+
+
 async def get_pulse_accuracy(
     tenant_id: Optional[str] = None,
     start_date: Optional[date] = None,

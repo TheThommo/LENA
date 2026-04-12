@@ -187,6 +187,32 @@ class PulseAccuracyResponse(BaseModel):
     period_end: date
 
 
+class LeadRecord(BaseModel):
+    """Individual lead from email capture."""
+    session_id: str
+    name: Optional[str] = None
+    email: str
+    domain: str
+    is_corporate: bool = False
+    country: Optional[str] = None
+    city: Optional[str] = None
+    source: str = "Direct"
+    search_count: int = 0
+    started_at: Optional[str] = None
+    disclaimer_accepted: bool = False
+
+
+class LeadsResponse(BaseModel):
+    """Leads intelligence response."""
+    total_leads: int = Field(..., ge=0)
+    corporate_leads: int = Field(..., ge=0)
+    generic_leads: int = Field(..., ge=0)
+    capture_rate: float = Field(..., ge=0)
+    leads: List[LeadRecord]
+    period_start: date
+    period_end: date
+
+
 class TenantSummary(BaseModel):
     """Per-tenant summary for platform view."""
     tenant_name: str

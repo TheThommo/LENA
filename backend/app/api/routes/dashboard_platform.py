@@ -24,6 +24,7 @@ from app.models.dashboard import (
     PopularQueriesResponse,
     PersonaDistributionResponse,
     PulseAccuracyResponse,
+    LeadsResponse,
 )
 from app.services.dashboard_queries import (
     get_overview_stats,
@@ -38,6 +39,7 @@ from app.services.dashboard_queries import (
     get_popular_queries,
     get_persona_distribution,
     get_pulse_accuracy,
+    get_leads,
 )
 
 router = APIRouter(
@@ -236,3 +238,18 @@ async def get_platform_pulse_accuracy(
     """
     data = await get_pulse_accuracy(tenant_id=None, start_date=start_date, end_date=end_date)
     return PulseAccuracyResponse(**data)
+
+
+@router.get("/leads", response_model=LeadsResponse)
+async def get_platform_leads(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    user=Depends(require_auth),
+):
+    """
+    Get email leads with corporate vs generic classification.
+
+    Returns sessions where email was captured, with domain intelligence.
+    """
+    data = await get_leads(tenant_id=None, start_date=start_date, end_date=end_date)
+    return LeadsResponse(**data)
