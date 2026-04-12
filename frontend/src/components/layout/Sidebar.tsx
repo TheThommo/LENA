@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { branding } from '@/config/branding';
 
@@ -18,8 +18,10 @@ interface SidebarProps {
   recentSessions: RecentSession[];
   onSearchClick: (query: string) => void;
   userName?: string;
+  userEmail?: string;
   isAuthenticated?: boolean;
   onSignIn?: () => void;
+  onLogout?: () => void;
 }
 
 const navItems = [
@@ -39,9 +41,26 @@ export function Sidebar({
   recentSessions,
   onSearchClick,
   userName,
+  userEmail,
   isAuthenticated,
   onSignIn,
+  onLogout,
 }: SidebarProps) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  // Close menu on outside click
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
+
   return (
     <aside className="flex flex-col w-[280px] h-full bg-white border-r border-gray-200 shrink-0">
       {/* Logo Section */}
@@ -134,18 +153,101 @@ export function Sidebar({
       {/* Footer */}
       <div className="border-t border-gray-100 px-4 py-4">
         {isAuthenticated && userName ? (
-          <div className="flex items-center justify-between">
-            <div className="flex items-center gap-2.5">
-              <div className="flex items-center justify-center w-7 h-7 rounded-full bg-lena-50 text-lena-500 text-xs font-bold">
-                {userName.charAt(0).toUpperCase()}
+          <div className="relative" ref={menuRef}>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2.5">
+                <div className="flex items-center justify-center w-7 h-7 rounded-full bg-lena-50 text-lena-500 text-xs font-bold">
+                  {userName.charAt(0).toUpperCase()}
+                </div>
+                <span className="text-sm font-medium text-gray-700 truncate max-w-[160px]">
+                  {userName}
+                </span>
               </div>
-              <span className="text-sm font-medium text-gray-700 truncate max-w-[160px]">
-                {userName}
-              </span>
+              <button
+                onClick={() => setMenuOpen(!menuOpen)}
+                className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors rounded-md hover:bg-gray-50"
+              >
+                <SettingsIcon className="w-4 h-4" />
+              </button>
             </div>
-            <button className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors rounded-md hover:bg-gray-50">
-              <SettingsIcon className="w-4 h-4" />
-            </button>
+
+            {/* Profile Dropdown Menu */}
+            {menuOpen && (
+              <div className="absolute bottom-full left-0 right-0 mb-2 bg-white rounded-xl border border-gray-200 shadow-lg overflow-hidden z-50">
+                {/* User info header */}
+                <div className="px-4 py-3 bg-gray-50 border-b border-gray-100">
+                  <p className="text-sm font-semibold text-gray-900 truncate">{userName}</p>
+                  {userEmail && (
+                    <p className="text-[11px] text-gray-400 truncate mt-0.5">{userEmail}</p>
+                  )}
+                  <div className="mt-2 inline-flex items-center gap-1.5 px-2 py-0.5 bg-emerald-50 text-emerald-700 text-[10px] font-bold rounded-full border border-emerald-200">
+                    <span className="w-1.5 h-1.5 bg-emerald-400 rounded-full" />
+                    Free Plan
+                  </div>
+                </div>
+
+                <div className="py-1.5">
+                  {/* Share with Friends */}
+                  <button
+                    onClick={() => setMenuOpen(false)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors group"
+                  >
+                    <ShareIcon className="w-4 h-4 text-gray-400 group-hover:text-lena-500" />
+                    <div>
+                      <span className="text-sm text-gray-700 group-hover:text-gray-900">Share with Colleagues</span>
+                      <span className="ml-2 text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">SOON</span>
+                    </div>
+                  </button>
+
+                  {/* Get 1 Month Free */}
+                  <button
+                    onClick={() => setMenuOpen(false)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors group"
+                  >
+                    <GiftIcon className="w-4 h-4 text-gray-400 group-hover:text-lena-500" />
+                    <div>
+                      <span className="text-sm text-gray-700 group-hover:text-gray-900">Get 1 Month Free</span>
+                      <span className="ml-2 text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">SOON</span>
+                    </div>
+                  </button>
+
+                  {/* Upgrade Plan */}
+                  <button
+                    onClick={() => setMenuOpen(false)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors group"
+                  >
+                    <SparkleIcon className="w-4 h-4 text-gray-400 group-hover:text-lena-500" />
+                    <div>
+                      <span className="text-sm text-gray-700 group-hover:text-gray-900">Upgrade Plan</span>
+                      <span className="ml-2 text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">SOON</span>
+                    </div>
+                  </button>
+
+                  <div className="border-t border-gray-100 my-1.5" />
+
+                  {/* Contact Us */}
+                  <a
+                    href="mailto:hello@lena-research.com"
+                    onClick={() => setMenuOpen(false)}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors group"
+                  >
+                    <MailIcon className="w-4 h-4 text-gray-400 group-hover:text-lena-500" />
+                    <span className="text-sm text-gray-700 group-hover:text-gray-900">Contact Us</span>
+                  </a>
+
+                  <div className="border-t border-gray-100 my-1.5" />
+
+                  {/* Sign Out */}
+                  <button
+                    onClick={() => { setMenuOpen(false); onLogout?.(); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-red-50 transition-colors group"
+                  >
+                    <LogOutIcon className="w-4 h-4 text-gray-400 group-hover:text-red-500" />
+                    <span className="text-sm text-gray-700 group-hover:text-red-600">Sign Out</span>
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
         ) : (
           <button
@@ -320,17 +422,54 @@ function BrainIcon({ className }: { className?: string }) {
 
 function SettingsIcon({ className }: { className?: string }) {
   return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
       <circle cx="12" cy="12" r="3" />
       <path d="M19.4 15a1.65 1.65 0 0 0 .33 1.82l.06.06a2 2 0 0 1 0 2.83 2 2 0 0 1-2.83 0l-.06-.06a1.65 1.65 0 0 0-1.82-.33 1.65 1.65 0 0 0-1 1.51V21a2 2 0 0 1-2 2 2 2 0 0 1-2-2v-.09A1.65 1.65 0 0 0 9 19.4a1.65 1.65 0 0 0-1.82.33l-.06.06a2 2 0 0 1-2.83 0 2 2 0 0 1 0-2.83l.06-.06A1.65 1.65 0 0 0 4.68 15a1.65 1.65 0 0 0-1.51-1H3a2 2 0 0 1-2-2 2 2 0 0 1 2-2h.09A1.65 1.65 0 0 0 4.6 9a1.65 1.65 0 0 0-.33-1.82l-.06-.06a2 2 0 0 1 0-2.83 2 2 0 0 1 2.83 0l.06.06A1.65 1.65 0 0 0 9 4.68a1.65 1.65 0 0 0 1-1.51V3a2 2 0 0 1 2-2 2 2 0 0 1 2 2v.09a1.65 1.65 0 0 0 1 1.51 1.65 1.65 0 0 0 1.82-.33l.06-.06a2 2 0 0 1 2.83 0 2 2 0 0 1 0 2.83l-.06.06A1.65 1.65 0 0 0 19.4 9a1.65 1.65 0 0 0 1.51 1H21a2 2 0 0 1 2 2 2 2 0 0 1-2 2h-.09a1.65 1.65 0 0 0-1.51 1z" />
+    </svg>
+  );
+}
+
+function ShareIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <circle cx="18" cy="5" r="3" /><circle cx="6" cy="12" r="3" /><circle cx="18" cy="19" r="3" />
+      <line x1="8.59" y1="13.51" x2="15.42" y2="17.49" /><line x1="15.41" y1="6.51" x2="8.59" y2="10.49" />
+    </svg>
+  );
+}
+
+function GiftIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="20 12 20 22 4 22 4 12" /><rect x="2" y="7" width="20" height="5" />
+      <line x1="12" y1="22" x2="12" y2="7" /><path d="M12 7H7.5a2.5 2.5 0 0 1 0-5C11 2 12 7 12 7z" />
+      <path d="M12 7h4.5a2.5 2.5 0 0 0 0-5C13 2 12 7 12 7z" />
+    </svg>
+  );
+}
+
+function SparkleIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+    </svg>
+  );
+}
+
+function MailIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M4 4h16c1.1 0 2 .9 2 2v12c0 1.1-.9 2-2 2H4c-1.1 0-2-.9-2-2V6c0-1.1.9-2 2-2z" />
+      <polyline points="22,6 12,13 2,6" />
+    </svg>
+  );
+}
+
+function LogOutIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
     </svg>
   );
 }

@@ -37,7 +37,7 @@ interface RecentSession {
 export default function Home() {
   const router = useRouter();
   const { session, captureName, acceptDisclaimer, captureEmail, skipEmail, incrementSearch } = useSession();
-  const { isAuthenticated, user, token: authToken } = useAuth();
+  const { isAuthenticated, user, token: authToken, logout } = useAuth();
   const { tenant } = useTenant();
 
   // Chat state
@@ -364,8 +364,10 @@ export default function Home() {
           recentSessions={recentSessions}
           onSearchClick={(q) => { setActiveView('chat'); handleSend(q); if (window.innerWidth < 1024) setSidebarOpen(false); }}
           userName={session.name || user?.name}
+          userEmail={user?.email}
           isAuthenticated={isAuthenticated}
           onSignIn={() => router.push('/login')}
+          onLogout={logout}
         />
       </div>
 

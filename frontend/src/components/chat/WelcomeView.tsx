@@ -82,7 +82,7 @@ export default function WelcomeView({ persona, onPromptClick }: WelcomeViewProps
         What would you like to research?
       </h1>
       <p className="text-slate-500 text-center mb-10 max-w-lg leading-relaxed">
-        Search 40+ million medical papers in seconds, cross-referenced by AI for accuracy.
+        Search 250M+ medical papers across 6 databases in seconds, cross-referenced by AI for accuracy.
       </p>
 
       {/* Suggested prompts */}
