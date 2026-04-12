@@ -242,7 +242,7 @@ export default function ResearchPanel({ messages, persona, onClose }: ResearchPa
       const next = new Set(prev);
       if (next.has(key)) next.delete(key);
       else next.add(key);
-      try { localStorage.setItem(LS_KEY_STARS, JSON.stringify([...next])); } catch {}
+      try { localStorage.setItem(LS_KEY_STARS, JSON.stringify(Array.from(next))); } catch {}
       return next;
     });
   }, []);
@@ -385,7 +385,7 @@ export default function ResearchPanel({ messages, persona, onClose }: ResearchPa
       avgConfidence,
       totalResults,
       uniqueSources: uniqueSources.size,
-      uniqueSourcesList: [...uniqueSources],
+      uniqueSourcesList: Array.from(uniqueSources),
       yearRange,
       queryCount: userQueries.length,
       userQueries,
