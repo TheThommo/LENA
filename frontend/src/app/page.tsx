@@ -37,7 +37,7 @@ interface RecentSession {
 export default function Home() {
   const router = useRouter();
   const { session, captureName, acceptDisclaimer, captureEmail, skipEmail, incrementSearch } = useSession();
-  const { isAuthenticated, user } = useAuth();
+  const { isAuthenticated, user, token: authToken } = useAuth();
   const { tenant } = useTenant();
 
   // Chat state
@@ -133,7 +133,7 @@ export default function Home() {
         includeAltMedicine: altMedicineEnabled,
         maxResults: 50,
         sessionId: session.sessionId || undefined,
-        sessionToken: session.sessionToken || undefined,
+        sessionToken: authToken || session.sessionToken || undefined,
         tenantId: tenant.id,
         persona: session.persona,
       });

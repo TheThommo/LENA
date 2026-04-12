@@ -4,10 +4,10 @@ Search Gate Middleware
 Enforces freemium search limits on the /api/search/ endpoints.
 
 Rules:
+- Authenticated user (valid JWT)? → Allow (registered users bypass counter)
 - No session token? → 401 (must complete disclaimer first)
 - Search count >= 2 AND not registered? → 403 (signup required)
 - Otherwise: Allow, and increment search counter
-- Registered users bypass the counter (their plan limits apply)
 """
 
 import logging
@@ -25,23 +25,41 @@ from app.services.funnel_tracker import track_funnel_stage
 logger = logging.getLogger(__name__)
 
 
+def _extract_bearer_token(request: Request) -> Optional[str]:
+    """Extract the raw Bearer token from the Authorization header."""
+    auth_header = request.headers.get("Authorization", "")
+    if auth_header.startswith("Bearer "):
+        return auth_header[7:]
+    return None
+
+
+def _try_decode_jwt(token: str) -> Optional[dict]:
+    """
+    Try to decode the token as a LENA JWT.
+    Returns the payload dict if valid, None otherwise.
+    """
+    try:
+        from app.core.auth import verify_token
+        return verify_token(token)
+    except Exception:
+        return None
+
+
 def extract_session_id(request: Request) -> Optional[str]:
     """
     Extract session ID from Authorization header or X-Session-ID header.
     Token format: "session_{uuid}" or "session_{uuid}_authorized"
     """
     # Check Authorization header (Bearer token)
-    auth_header = request.headers.get("Authorization", "")
-    if auth_header.startswith("Bearer "):
-        token = auth_header[7:]  # Remove "Bearer " prefix
-        if token.startswith("session_"):
-            # Extract UUID from "session_{uuid}" or "session_{uuid}_authorized"
-            parts = token.split("_")
-            if len(parts) >= 2:
-                try:
-                    return str(UUID(parts[1]))
-                except (ValueError, IndexError):
-                    pass
+    token = _extract_bearer_token(request)
+    if token and token.startswith("session_"):
+        # Extract UUID from "session_{uuid}" or "session_{uuid}_authorized"
+        parts = token.split("_")
+        if len(parts) >= 2:
+            try:
+                return str(UUID(parts[1]))
+            except (ValueError, IndexError):
+                pass
 
     # Check X-Session-ID header
     session_id_header = request.headers.get("X-Session-ID", "")
@@ -67,12 +85,20 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
         if not request.url.path.startswith("/api/search") or request.method == "OPTIONS":
             return await call_next(request)
 
-        # Extract session ID from request
+        # ── Check for authenticated user (JWT) first ──
+        bearer = _extract_bearer_token(request)
+        if bearer and not bearer.startswith("session_"):
+            jwt_payload = _try_decode_jwt(bearer)
+            if jwt_payload and jwt_payload.get("user_id"):
+                # Authenticated registered user — bypass search counter
+                request.state.session_id = None
+                request.state.session = None
+                request.state.user_id = jwt_payload["user_id"]
+                return await call_next(request)
+
+        # ── Anonymous / session-based flow ──
         session_id = extract_session_id(request)
 
-        # Check if user is authenticated (has a user_id in JWT)
-        # This would be extracted by require_auth dependency if present
-        # For now, we check if session exists
         if not session_id:
             return JSONResponse(
                 status_code=401,
