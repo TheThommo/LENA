@@ -1,6 +1,6 @@
 'use client';
 
-import React, { createContext, useContext, useState, useRef } from 'react';
+import React, { createContext, useContext, useState, useRef, useCallback } from 'react';
 
 export type FunnelStage = 'landing' | 'name_captured' | 'disclaimer_accepted' | 'searching' | 'email_captured' | 'registered';
 
@@ -66,52 +66,58 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   // Ref to always hold the latest sessionId, avoiding stale closures
   const sessionIdRef = useRef<string | null>(null);
 
-  const startSession = async () => {
-    try {
-      const response = await fetch(`${API_BASE}/session/start`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-      });
-      if (!response.ok) throw new Error('Failed to start session');
+  // Shared promise so only ONE session creation happens, even if called concurrently
+  const sessionPromiseRef = useRef<Promise<string | null> | null>(null);
 
-      const data = await response.json();
-      sessionIdRef.current = data.session_id;
-      setSession(prev => ({
-        ...prev,
-        sessionId: data.session_id,
-        sessionToken: data.session_token,
-      }));
-    } catch (error) {
-      console.error('Error starting session:', error);
-    }
-  };
+  /**
+   * Ensure a session exists. If one is already being created, await that same promise.
+   * Returns the session ID or null on failure.
+   */
+  const ensureSession = useCallback(async (): Promise<string | null> => {
+    // Already have a session
+    if (sessionIdRef.current) return sessionIdRef.current;
 
-  const captureName = async (name: string) => {
-    setSession(prev => ({
-      ...prev,
-      name,
-      funnelStage: 'name_captured',
-    }));
+    // Another call is already creating the session — wait for it
+    if (sessionPromiseRef.current) return sessionPromiseRef.current;
 
-    try {
-      let sid = sessionIdRef.current;
-      if (!sid) {
-        const startRes = await fetch(`${API_BASE}/session/start`, {
+    // Create the session (single shared promise)
+    sessionPromiseRef.current = (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/session/start`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
         });
-        if (startRes.ok) {
-          const data = await startRes.json();
-          sid = data.session_id;
-          sessionIdRef.current = sid;
-          setSession(prev => ({
-            ...prev,
-            sessionId: data.session_id,
-            sessionToken: data.session_token,
-          }));
-        }
-      }
+        if (!res.ok) throw new Error('Failed to start session');
 
+        const data = await res.json();
+        sessionIdRef.current = data.session_id;
+        setSession(prev => ({
+          ...prev,
+          sessionId: data.session_id,
+          sessionToken: data.session_token,
+        }));
+        return data.session_id as string;
+      } catch (error) {
+        console.error('Error starting session:', error);
+        return null;
+      } finally {
+        sessionPromiseRef.current = null;
+      }
+    })();
+
+    return sessionPromiseRef.current;
+  }, []);
+
+  const startSession = async () => {
+    await ensureSession();
+  };
+
+  const captureName = async (name: string) => {
+    // Update UI immediately
+    setSession(prev => ({ ...prev, name, funnelStage: 'name_captured' }));
+
+    try {
+      const sid = await ensureSession();
       if (sid) {
         await fetch(`${API_BASE}/session/${sid}/name`, {
           method: 'POST',
@@ -125,46 +131,23 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   const acceptDisclaimer = async () => {
-    setSession(prev => ({
-      ...prev,
-      disclaimerAccepted: true,
-      funnelStage: 'disclaimer_accepted',
-    }));
+    // Update UI immediately
+    setSession(prev => ({ ...prev, disclaimerAccepted: true, funnelStage: 'disclaimer_accepted' }));
 
     try {
-      // Ensure session exists (captureName may still be in-flight)
-      let sid = sessionIdRef.current;
-      if (!sid) {
-        const startRes = await fetch(`${API_BASE}/session/start`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-        });
-        if (startRes.ok) {
-          const data = await startRes.json();
-          sid = data.session_id;
-          sessionIdRef.current = sid;
-          setSession(prev => ({
-            ...prev,
-            sessionId: data.session_id,
-            sessionToken: data.session_token,
-          }));
-        }
-      }
+      const sid = await ensureSession();
+      if (!sid) return;
 
-      if (sid) {
-        const response = await fetch(`${API_BASE}/session/${sid}/disclaimer`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ accepted: true }),
-        });
-        if (response.ok) {
-          const data = await response.json();
-          if (data.session_token) {
-            setSession(prev => ({
-              ...prev,
-              sessionToken: data.session_token,
-            }));
-          }
+      const response = await fetch(`${API_BASE}/session/${sid}/disclaimer`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ accepted: true }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        if (data.session_token) {
+          setSession(prev => ({ ...prev, sessionToken: data.session_token }));
         }
       }
     } catch (error) {
@@ -173,11 +156,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   const captureEmail = async (data: EmailCapturePayload) => {
-    setSession(prev => ({
-      ...prev,
-      email: data.email,
-      funnelStage: 'email_captured',
-    }));
+    setSession(prev => ({ ...prev, email: data.email, funnelStage: 'email_captured' }));
 
     try {
       const sid = sessionIdRef.current;
@@ -205,7 +184,6 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
   };
 
   const incrementSearch = async () => {
-    // Increment locally — SearchGateMiddleware handles server-side counting
     setSession(prev => ({
       ...prev,
       searchCount: prev.searchCount + 1,
