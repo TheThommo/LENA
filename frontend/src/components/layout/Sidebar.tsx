@@ -1,6 +1,7 @@
 'use client';
 
 import React from 'react';
+import { Sparkles, User } from 'lucide-react';
 
 interface SidebarProps {
   activeView: string;
@@ -39,9 +40,7 @@ export function Sidebar({
       <div className="px-5 pt-6 pb-4">
         <div className="flex items-center gap-3">
           <div className="flex items-center justify-center w-8 h-8 rounded-lg" style={{ background: 'linear-gradient(135deg, #1B6B93, #145372)' }}>
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2C12 2 14.5 8.5 15.5 9.5C16.5 10.5 22 12 22 12C22 12 16.5 13.5 15.5 14.5C14.5 15.5 12 22 12 22C12 22 9.5 15.5 8.5 14.5C7.5 13.5 2 12 2 12C2 12 7.5 10.5 8.5 9.5C9.5 8.5 12 2 12 2Z" />
-            </svg>
+            <Sparkles size={18} color="white" />
           </div>
           <div>
             <h1 className="text-lg font-bold text-gray-900 leading-none tracking-tight">
@@ -132,8 +131,8 @@ export function Sidebar({
         {isAuthenticated && userName ? (
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5">
-              <div className="flex items-center justify-center w-8 h-8 rounded-full bg-lena-50 text-lena-500 text-xs font-bold">
-                {userName.charAt(0).toUpperCase()}
+              <div className="flex items-center justify-center w-7 h-7 rounded-full bg-lena-50">
+                <User size={14} color="#1B6B93" />
               </div>
               <span className="text-sm font-medium text-gray-700 truncate max-w-[160px]">
                 {userName}

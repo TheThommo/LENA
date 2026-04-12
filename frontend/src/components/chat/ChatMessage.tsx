@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { Sparkles } from 'lucide-react';
 import type { SearchResponse, ValidatedResult } from '@/lib/api';
 
 interface ChatMessageProps {
@@ -214,9 +215,7 @@ export default function ChatMessage({
         <div className="flex items-center gap-2.5">
           {/* LENA avatar */}
           <div className="w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0" style={{ background: 'linear-gradient(135deg, #1B6B93, #145372)' }}>
-            <svg width="14" height="14" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2C12 2 14.5 8.5 15.5 9.5C16.5 10.5 22 12 22 12C22 12 16.5 13.5 15.5 14.5C14.5 15.5 12 22 12 22C12 22 9.5 15.5 8.5 14.5C7.5 13.5 2 12 2 12C2 12 7.5 10.5 8.5 9.5C9.5 8.5 12 2 12 2Z" />
-            </svg>
+            <Sparkles size={14} color="white" />
           </div>
           <span className="text-sm font-semibold text-slate-700">LENA</span>
         </div>

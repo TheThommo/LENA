@@ -1,5 +1,7 @@
 'use client';
 
+import { Sparkles } from 'lucide-react';
+
 interface WelcomeViewProps {
   persona: string;
   onPromptClick: (query: string) => void;
@@ -67,9 +69,7 @@ export default function WelcomeView({ persona, onPromptClick }: WelcomeViewProps
     <div className="flex flex-col items-center justify-center max-w-2xl mx-auto px-4 py-16">
       {/* LENA avatar */}
       <div className="w-14 h-14 flex items-center justify-center mb-6 shadow-lg shadow-[#1B6B93]/20" style={{ background: 'linear-gradient(135deg, #1B6B93, #145372)', borderRadius: 16 }}>
-        <svg width="28" height="28" viewBox="0 0 24 24" fill="white" xmlns="http://www.w3.org/2000/svg">
-          <path d="M12 2C12 2 14.5 8.5 15.5 9.5C16.5 10.5 22 12 22 12C22 12 16.5 13.5 15.5 14.5C14.5 15.5 12 22 12 22C12 22 9.5 15.5 8.5 14.5C7.5 13.5 2 12 2 12C2 12 7.5 10.5 8.5 9.5C9.5 8.5 12 2 12 2Z" />
-        </svg>
+        <Sparkles size={28} color="white" />
       </div>
 
       {/* Heading */}
