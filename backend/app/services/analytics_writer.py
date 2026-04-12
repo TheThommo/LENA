@@ -2,7 +2,7 @@
 Analytics Event Writer
 
 Fire-and-forget async logging for all analytics events.
-Writes to Supabase tables: sessions, usage_analytics, search_logs, audit_trail.
+Writes to Supabase tables: sessions, search_logs, event_log, audit_log.
 
 All writes are background tasks to never block user requests.
 Errors are logged but never raised.
@@ -11,9 +11,9 @@ Errors are logged but never raised.
 import logging
 import asyncio
 from typing import Optional, Any
-from datetime import datetime
+from datetime import datetime, timezone
 
-from app.db.supabase import get_supabase_client
+from app.db.supabase import get_supabase_admin_client
 
 logger = logging.getLogger(__name__)
 
@@ -27,21 +27,13 @@ async def log_session_start(
     tenant_id: str,
 ) -> None:
     """
-    Log the start of a new session.
-
-    Args:
-        session_id: Unique session identifier (UUID)
-        ip: Client IP address
-        geo_data: Result from geolocation (country, city, lat, lon) or None
-        referrer_data: Result from classify_referrer (raw, domain, category)
-        utm_data: Result from parse_utm_params (utm_source, medium, campaign, term, content)
-        tenant_id: Tenant identifier (for multi-tenancy)
+    Update an existing session with analytics context (IP, geo, referrer, UTM).
+    Sessions are created by SessionRepository; this enriches them.
     """
     try:
-        client = get_supabase_client()
+        client = get_supabase_admin_client()
 
-        # Build payload (must match sessions table columns)
-        payload = {
+        update_payload = {
             "ip_address": ip,
             "geo_city": geo_data.get("city") if geo_data else None,
             "geo_country": geo_data.get("country") if geo_data else None,
@@ -53,12 +45,12 @@ async def log_session_start(
             "utm_campaign": utm_data.get("utm_campaign"),
         }
 
-        result = client.table("sessions").insert(payload).execute()
-        logger.debug(f"Session logged: {session_id} from {geo_data.get('city') if geo_data else 'unknown'}")
+        # Try to update the existing session
+        result = client.table("sessions").update(update_payload).eq("id", session_id).execute()
+        logger.info(f"Session enriched: {session_id} from {geo_data.get('city') if geo_data else 'unknown'}")
 
     except Exception as e:
-        logger.error(f"Failed to log session start: {e}")
-        # Silently continue - analytics failure should never crash the app
+        logger.error(f"Failed to enrich session: {e}")
 
 
 async def log_search_event(
@@ -74,24 +66,13 @@ async def log_search_event(
     pulse_status: str,
 ) -> None:
     """
-    Log a search event (after search completes).
-
-    Args:
-        search_id: Unique search identifier
-        session_id: Parent session ID
-        query: The search query text
-        persona: Detected persona (patient, provider, researcher)
-        tenant_id: Tenant identifier
-        response_time_ms: How long the search took (milliseconds)
-        sources_queried: List of source names queried
-        sources_succeeded: List of source names that succeeded
-        total_results: Total papers/results returned
-        pulse_status: PULSE status (valid, flagged, risky)
+    Log a search event to both `searches` and `search_logs` tables.
     """
     try:
-        client = get_supabase_client()
+        client = get_supabase_admin_client()
 
-        payload = {
+        # 1. Write to search_logs (detailed analytics)
+        log_payload = {
             "id": search_id,
             "session_id": session_id,
             "tenant_id": tenant_id,
@@ -102,14 +83,33 @@ async def log_search_event(
             "sources_succeeded": sources_succeeded,
             "total_results": total_results,
             "pulse_status": pulse_status,
-            "created_at": datetime.utcnow().isoformat(),
         }
 
-        result = client.table("search_logs").insert(payload).execute()
-        logger.debug(f"Search logged: {search_id} ({len(sources_succeeded)}/{len(sources_queried)} sources, {total_results} results in {response_time_ms}ms)")
+        client.table("search_logs").insert(log_payload).execute()
+        logger.info(f"Search logged: {search_id} ({len(sources_succeeded)}/{len(sources_queried)} sources, {total_results} results in {response_time_ms:.0f}ms)")
 
     except Exception as e:
         logger.error(f"Failed to log search event: {e}")
+
+    # 2. Also write to searches table (for dashboard overview counts)
+    try:
+        client = get_supabase_admin_client()
+
+        search_payload = {
+            "id": search_id,
+            "tenant_id": tenant_id,
+            "query_text": query,
+            "persona_used": persona,
+            "result_count": total_results,
+            "duration_ms": int(response_time_ms),
+            "status": pulse_status,
+        }
+
+        client.table("searches").insert(search_payload).execute()
+        logger.debug(f"Search record created: {search_id}")
+
+    except Exception as e:
+        logger.error(f"Failed to write searches record: {e}")
 
 
 async def log_usage_event(
@@ -117,29 +117,26 @@ async def log_usage_event(
     user_id: Optional[str],
     action: str,
     metadata: Optional[dict] = None,
+    session_id: Optional[str] = None,
 ) -> None:
     """
-    Log a generic usage event (clicks, page views, conversions, etc).
-
-    Args:
-        tenant_id: Tenant identifier
-        user_id: User ID (can be None for anonymous sessions)
-        action: Action type (e.g., "button_click", "form_submit", "disclaimer_accepted")
-        metadata: Optional additional data (as dict, will be stored as JSONB)
+    Log a generic usage/funnel event to `event_log` table.
     """
     try:
-        client = get_supabase_client()
+        client = get_supabase_admin_client()
 
         payload = {
             "tenant_id": tenant_id,
             "user_id": user_id,
-            "action": action,
-            "metadata": metadata or {},
-            "created_at": datetime.utcnow().isoformat(),
+            "event_type": "funnel" if action == "funnel_stage" else "usage",
+            "event_name": action,
+            "session_id": session_id or (metadata.get("session_id") if metadata else None),
+            "persona": metadata.get("persona") if metadata else None,
+            "value": metadata.get("stage") if metadata else action,
         }
 
-        result = client.table("usage_analytics").insert(payload).execute()
-        logger.debug(f"Usage event logged: {action} (user={user_id})")
+        client.table("event_log").insert(payload).execute()
+        logger.info(f"Event logged: {action} (user={user_id}, session={payload.get('session_id')})")
 
     except Exception as e:
         logger.error(f"Failed to log usage event: {e}")
@@ -155,19 +152,10 @@ async def log_audit_event(
     ip_address: str,
 ) -> None:
     """
-    Log an audit event (admin actions, data modifications, permission changes).
-
-    Args:
-        user_id: User who took the action (can be None for system actions)
-        tenant_id: Tenant identifier
-        action: audit_action enum value (e.g., "create", "update", "delete", "access")
-        resource_type: Type of resource affected (e.g., "search", "user", "document")
-        resource_id: ID of the resource affected
-        details: Optional additional audit details (as dict, will be stored as JSONB)
-        ip_address: IP address from which action was taken
+    Log an audit event to `audit_log` table.
     """
     try:
-        client = get_supabase_client()
+        client = get_supabase_admin_client()
 
         payload = {
             "user_id": user_id,
@@ -175,12 +163,11 @@ async def log_audit_event(
             "action": action,
             "resource_type": resource_type,
             "resource_id": resource_id,
-            "details": details or {},
+            "old_values": details or {},
             "ip_address": ip_address,
-            "created_at": datetime.utcnow().isoformat(),
         }
 
-        result = client.table("audit_trail").insert(payload).execute()
+        client.table("audit_log").insert(payload).execute()
         logger.debug(f"Audit event logged: {action} on {resource_type} {resource_id} by {user_id}")
 
     except Exception as e:
@@ -191,9 +178,6 @@ def schedule_analytics_task(coro) -> None:
     """
     Schedule an async analytics task to run in the background.
     Never blocks or raises exceptions.
-
-    Args:
-        coro: Async coroutine to schedule
     """
     try:
         asyncio.create_task(coro)

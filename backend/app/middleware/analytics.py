@@ -6,17 +6,13 @@ Runs on every request to:
 2. Geolocate the IP
 3. Extract UTM parameters
 4. Extract referrer header
-5. Create or update session tracking
-6. Store analytics context in request.state
-
-All Supabase writes are background tasks (never blocking).
-Errors are logged but never raised (analytics failures must not break the app).
+5. Store analytics context in request.state
+6. Enrich session with geo/referrer data (background task)
 """
 
 import logging
-import uuid
 from typing import Callable
-from datetime import datetime
+from datetime import datetime, timezone
 
 from fastapi import Request
 from starlette.middleware.base import BaseHTTPMiddleware
@@ -30,36 +26,22 @@ logger = logging.getLogger(__name__)
 
 
 def _extract_client_ip(request: Request) -> str:
-    """
-    Extract client IP from request.
-    Checks X-Forwarded-For header first (for proxies/load balancers).
-    Falls back to request.client.host.
-    """
-    # Check X-Forwarded-For (set by proxies/load balancers)
+    """Extract client IP, checking X-Forwarded-For first."""
     forwarded_for = request.headers.get("x-forwarded-for")
     if forwarded_for:
-        # Take the first IP in the comma-separated list
         return forwarded_for.split(",")[0].strip()
-
-    # Fallback to direct client IP
     if request.client:
         return request.client.host
-
     return "unknown"
 
 
 class AnalyticsMiddleware(BaseHTTPMiddleware):
-    """
-    Middleware that collects analytics for every request.
-    Stores session/context info in request.state for use by route handlers.
-    """
+    """Collects analytics for every request and enriches sessions."""
 
     async def dispatch(self, request: Request, call_next: Callable) -> Response:
-        """Process request, collect analytics, then pass to route handler."""
-
         # Extract client info
         ip_address = _extract_client_ip(request)
-        referrer = request.headers.get("referer")  # Note: HTTP header spelling is "referer"
+        referrer = request.headers.get("referer")
         query_params = dict(request.query_params)
 
         # Parse UTM and referrer (synchronous)
@@ -73,20 +55,39 @@ class AnalyticsMiddleware(BaseHTTPMiddleware):
             logger.warning(f"Geolocation failed: {e}")
             geo_data = None
 
-        # Create a unique session ID if not already set
-        # In a real app, this would check for existing session cookies
-        session_id = str(uuid.uuid4())
-
-            # Store analytics context in request.state
-        # Tenant is resolved by the route handler, not middleware
-        request.state.session_id = session_id
+        # Store analytics context in request.state
         request.state.ip_address = ip_address
         request.state.geo_data = geo_data
         request.state.referrer_data = referrer_data
         request.state.utm_data = utm_data
-        request.state.request_started_at = datetime.utcnow()
+        request.state.request_started_at = datetime.now(timezone.utc)
 
-        # Continue processing the request
+        # Process the request
         response = await call_next(request)
+
+        # After request: enrich session with geo/referrer if session exists
+        try:
+            session_id = getattr(request.state, "session_id", None)
+            tenant_id = None
+
+            # Try to get tenant_id from query params or session
+            if hasattr(request.state, "session") and request.state.session:
+                tenant_id = str(request.state.session.tenant_id)
+            else:
+                tenant_id = query_params.get("tenant_id")
+
+            if session_id and tenant_id and (geo_data or referrer_data.get("raw") or utm_data.get("utm_source")):
+                schedule_analytics_task(
+                    log_session_start(
+                        session_id=session_id,
+                        ip=ip_address,
+                        geo_data=geo_data,
+                        referrer_data=referrer_data,
+                        utm_data=utm_data,
+                        tenant_id=tenant_id,
+                    )
+                )
+        except Exception as e:
+            logger.warning(f"Failed to schedule session enrichment: {e}")
 
         return response

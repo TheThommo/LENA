@@ -115,14 +115,14 @@ async def get_overview_stats(
         # MRR (monthly recurring revenue) - only if not tenant-scoped
         mrr = None
         if not tenant_id:
-            subs_response = client.table("subscriptions").select("id, status, plan_id")
+            subs_response = client.table("tenant_subscriptions").select("id, status, plan_id")
             subs_response = subs_response.eq("status", "active").execute()
             if subs_response.data:
                 # Fetch plans for pricing
                 plan_ids = list(set(sub.get("plan_id") for sub in subs_response.data if sub.get("plan_id")))
                 if plan_ids:
-                    plans_response = client.table("plans").select("id, price_monthly").execute()
-                    plans_map = {p["id"]: p.get("price_monthly", 0) for p in plans_response.data or []}
+                    plans_response = client.table("plan_tiers").select("id, price_monthly").execute()
+                    plans_map = {p["id"]: p.get("monthly_price_cents", 0) for p in plans_response.data or []}
                     mrr = sum(plans_map.get(sub.get("plan_id"), 0) for sub in subs_response.data)
 
         return {
@@ -168,7 +168,7 @@ async def get_traffic_sources(
         start_date, end_date = _get_date_range(start_date, end_date)
 
         # Fetch sessions with UTM and referrer data
-        sessions_query = client.table("sessions").select("utm_source, referrer_category")
+        sessions_query = client.table("sessions").select("utm_source, referrer")
         if tenant_id:
             sessions_query = sessions_query.eq("tenant_id", tenant_id)
         sessions_query = sessions_query.gte("started_at", start_date.isoformat()).lte("started_at", end_date.isoformat())
@@ -176,7 +176,7 @@ async def get_traffic_sources(
 
         source_counts = Counter()
         for session in sessions_response.data or []:
-            source = session.get("utm_source") or session.get("referrer_category") or "Direct"
+            source = session.get("utm_source") or session.get("referrer") or "Direct"
             source_counts[source] += 1
 
         total_sessions = sum(source_counts.values())
@@ -281,7 +281,7 @@ async def get_topic_trends(
         start_date, end_date = _get_date_range(start_date, end_date)
 
         # Try to fetch from usage_analytics where action contains 'topic'
-        analytics_query = client.table("usage_analytics").select("metadata")
+        analytics_query = client.table("event_log").select("metadata")
         if tenant_id:
             analytics_query = analytics_query.eq("tenant_id", tenant_id)
         analytics_query = analytics_query.gte("created_at", start_date.isoformat()).lte("created_at", end_date.isoformat())
@@ -297,7 +297,7 @@ async def get_topic_trends(
 
         # If no topics found in analytics, get from searches (fallback)
         if not topic_counts:
-            searches_query = client.table("searches").select("query")
+            searches_query = client.table("searches").select("query_text")
             if tenant_id:
                 searches_query = searches_query.eq("tenant_id", tenant_id)
             searches_query = searches_query.gte("created_at", start_date.isoformat()).lte("created_at", end_date.isoformat())
@@ -305,7 +305,7 @@ async def get_topic_trends(
 
             # Use first 2 words as topic proxy
             for search in searches_response.data or []:
-                query = search.get("query", "")
+                query = search.get("query_text", "")
                 if query:
                     words = query.split()[:2]
                     topic = " ".join(words) if words else "Other"
@@ -365,8 +365,9 @@ async def get_funnel_metrics(
 
         stage_counts = {}
         for action in funnel_actions:
-            analytics_query = client.table("usage_analytics").select("id", count="exact")
-            analytics_query = analytics_query.eq("action", action)
+            analytics_query = client.table("event_log").select("id", count="exact")
+            analytics_query = analytics_query.eq("event_name", "funnel_stage")
+            analytics_query = analytics_query.eq("value", action)
             if tenant_id:
                 analytics_query = analytics_query.eq("tenant_id", tenant_id)
             analytics_query = analytics_query.gte("created_at", start_date.isoformat()).lte("created_at", end_date.isoformat())
@@ -575,13 +576,13 @@ async def get_revenue_metrics(tenant_id: Optional[str] = None) -> Dict[str, Any]
         client = get_supabase_admin_client()
 
         # Fetch active subscriptions
-        active_subs_response = client.table("subscriptions").select("id, plan_id, status")
+        active_subs_response = client.table("tenant_subscriptions").select("id, plan_id, status")
         active_subs_response = active_subs_response.eq("status", "active").execute()
         active_subs = active_subs_response.data or []
         active_count = len(active_subs)
 
         # Fetch plans
-        plans_response = client.table("plans").select("id, name, price_monthly").execute()
+        plans_response = client.table("plan_tiers").select("id, name, monthly_price_cents").execute()
         plans_map = {p["id"]: p for p in plans_response.data or []}
 
         # Calculate MRR and plan distribution
@@ -592,7 +593,7 @@ async def get_revenue_metrics(tenant_id: Optional[str] = None) -> Dict[str, Any]
             plan_id = sub.get("plan_id")
             plan = plans_map.get(plan_id, {})
             plan_name = plan.get("name", "Unknown")
-            price = plan.get("price_monthly", 0)
+            price = plan.get("monthly_price_cents", 0)
 
             plan_counts[plan_name] += 1
             plan_mrr[plan_name] = plan_mrr.get(plan_name, 0) + price
@@ -611,7 +612,7 @@ async def get_revenue_metrics(tenant_id: Optional[str] = None) -> Dict[str, Any]
 
         # Cancelled subscriptions (last 30 days)
         thirty_days_ago = (date.today() - timedelta(days=30)).isoformat()
-        cancelled_response = client.table("subscriptions").select("id", count="exact")
+        cancelled_response = client.table("tenant_subscriptions").select("id", count="exact")
         cancelled_response = cancelled_response.eq("status", "cancelled")
         cancelled_response = cancelled_response.gte("updated_at", thirty_days_ago)
         cancelled_response = cancelled_response.execute()
@@ -669,21 +670,21 @@ async def get_tenant_comparison(
             search_count = searches_response.count or 0
 
             # Active subscriptions and MRR
-            subs_response = client.table("subscriptions").select("id, plan_id, status").eq("tenant_id", tenant_id).eq("status", "active").execute()
+            subs_response = client.table("tenant_subscriptions").select("id, plan_id, status").eq("tenant_id", tenant_id).eq("status", "active").execute()
             subs = subs_response.data or []
             active_subscriptions = len(subs)
 
             # Get plan pricing
-            plans_response = client.table("plans").select("id, price_monthly").execute()
-            plans_map = {p["id"]: p.get("price_monthly", 0) for p in plans_response.data or []}
+            plans_response = client.table("plan_tiers").select("id, price_monthly").execute()
+            plans_map = {p["id"]: p.get("monthly_price_cents", 0) for p in plans_response.data or []}
             mrr = sum(plans_map.get(sub.get("plan_id"), 0) for sub in subs)
 
             # Average response time
             logs_response = client.table("search_logs").select("response_time_ms")
+            logs_response = logs_response.eq("tenant_id", tenant_id)
             logs_response = logs_response.gte("created_at", start_date.isoformat()).lte("created_at", end_date.isoformat()).execute()
             logs = logs_response.data or []
 
-            # Filter by tenant (can't filter in query for search_logs without search join, so do in Python)
             avg_response_time = None
             if logs:
                 times = [log.get("response_time_ms", 0) for log in logs]
@@ -735,7 +736,7 @@ async def get_popular_queries(
         start_date, end_date = _get_date_range(start_date, end_date)
 
         # Fetch searches
-        searches_query = client.table("searches").select("query, id")
+        searches_query = client.table("searches").select("query_text, id")
         if tenant_id:
             searches_query = searches_query.eq("tenant_id", tenant_id)
         searches_query = searches_query.gte("created_at", start_date.isoformat()).lte("created_at", end_date.isoformat())
@@ -744,7 +745,7 @@ async def get_popular_queries(
         query_counts = Counter()
         search_ids = []
         for search in searches_response.data or []:
-            query = search.get("query", "").strip()
+            query = search.get("query_text", "").strip()
             if query:
                 query_counts[query] += 1
             search_ids.append(search.get("id"))
@@ -943,8 +944,10 @@ async def get_pulse_accuracy(
         client = get_supabase_admin_client()
         start_date, end_date = _get_date_range(start_date, end_date)
 
-        # Fetch search results with PULSE status
-        results_query = client.table("search_results").select("pulse_status")
+        # Fetch PULSE status from search_logs
+        results_query = client.table("search_logs").select("pulse_status")
+        if tenant_id:
+            results_query = results_query.eq("tenant_id", tenant_id)
         results_query = results_query.gte("created_at", start_date.isoformat()).lte("created_at", end_date.isoformat())
         results_response = results_query.execute()
 
