@@ -62,7 +62,7 @@ class UserRepository:
     async def get_by_email(email: str) -> Optional[User]:
         """Get a user by email."""
         try:
-            client = get_supabase_client()
+            client = get_supabase_admin_client()
             response = (
                 client.table("users").select("*").eq("email", email).execute()
             )
@@ -71,6 +71,24 @@ class UserRepository:
             return None
         except Exception as e:
             print(f"Error fetching user by email: {e}")
+            return None
+
+    @staticmethod
+    async def get_password_hash(email: str) -> Optional[str]:
+        """Get the password hash for a user by email (admin client, bypasses RLS)."""
+        try:
+            client = get_supabase_admin_client()
+            response = (
+                client.table("users")
+                .select("password_hash")
+                .eq("email", email)
+                .execute()
+            )
+            if response.data and len(response.data) > 0:
+                return response.data[0].get("password_hash")
+            return None
+        except Exception as e:
+            print(f"Error fetching password hash: {e}")
             return None
 
     @staticmethod

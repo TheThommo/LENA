@@ -16,6 +16,7 @@ from datetime import datetime, timedelta
 from pydantic import BaseModel, EmailStr, Field
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 
+import bcrypt
 from app.db.repositories.user_repo import UserRepository
 from app.db.repositories.tenant_repo import TenantRepository
 from app.db.repositories.subscription_repo import SubscriptionRepository, PlanRepository
@@ -201,8 +202,16 @@ async def login(request: Request, body: LoginRequest) -> LoginResponse:
             detail="Invalid email or password",
         )
 
-    # TODO: Verify password against Supabase Auth
-    # For now, we skip password verification for testing
+    # Verify password against stored bcrypt hash
+    stored_hash = await UserRepository.get_password_hash(body.email)
+    if not stored_hash or not bcrypt.checkpw(
+        body.password.encode("utf-8"),
+        stored_hash.encode("utf-8"),
+    ):
+        raise HTTPException(
+            status_code=status.HTTP_401_UNAUTHORIZED,
+            detail="Invalid email or password",
+        )
 
     # Update last login
     updated_user = await UserRepository.update_last_login(user.id)
