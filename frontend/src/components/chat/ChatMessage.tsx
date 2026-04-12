@@ -155,6 +155,7 @@ const SOURCE_COLORS: Record<string, { border: string; bg: string; text: string; 
   cochrane:        { border: 'border-l-[#EA580C]', bg: 'bg-orange-50',  text: 'text-orange-700',  label: 'Cochrane' },
   who_iris:        { border: 'border-l-[#0891B2]', bg: 'bg-cyan-50',    text: 'text-cyan-700',    label: 'WHO IRIS' },
   cdc:             { border: 'border-l-[#059669]', bg: 'bg-emerald-50', text: 'text-emerald-700', label: 'CDC' },
+  openalex:        { border: 'border-l-[#DC2626]', bg: 'bg-red-50',     text: 'text-red-700',     label: 'OpenAlex' },
 };
 
 function getSourceStyle(source: string) {
@@ -417,6 +418,28 @@ export default function ChatMessage({
               {Math.round(response.pulse_report.confidence_ratio * 100)}% confidence
               &middot; {response.response_time_ms}ms
             </span>
+          </div>
+        )}
+
+        {/* Source status indicators */}
+        {response && (
+          <div className="flex items-center gap-1.5 flex-wrap">
+            {response.sources_queried.map((src) => {
+              const style = getSourceStyle(src);
+              return (
+                <span key={src} className={`px-1.5 py-0.5 text-[10px] font-semibold rounded ${style.bg} ${style.text}`}>
+                  {style.label} ✓
+                </span>
+              );
+            })}
+            {Object.keys(response.sources_failed).map((src) => {
+              const style = getSourceStyle(src);
+              return (
+                <span key={src} className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-red-50 text-red-400 line-through">
+                  {style.label}
+                </span>
+              );
+            })}
           </div>
         )}
 

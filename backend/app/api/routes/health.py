@@ -6,7 +6,7 @@ import asyncio
 from fastapi import APIRouter
 
 from app.core.config import settings
-from app.services import pubmed, clinical_trials, cochrane, who_iris, cdc, openai_service
+from app.services import pubmed, clinical_trials, cochrane, who_iris, cdc, openalex, openai_service
 from app.db.supabase import test_connection as test_supabase
 
 router = APIRouter(prefix="/health", tags=["health"])
@@ -29,17 +29,18 @@ async def test_all_connections():
     Test all external API connections in parallel.
     Returns status for each data source.
     """
-    # Run all 5 connection tests in parallel
+    # Run all 6 connection tests in parallel
     test_results = await asyncio.gather(
         pubmed.test_connection(),
         clinical_trials.test_connection(),
         cochrane.test_connection(),
         who_iris.test_connection(),
         cdc.test_connection(),
+        openalex.test_connection(),
         return_exceptions=True,
     )
 
-    source_names = ["pubmed", "clinical_trials", "cochrane", "who_iris", "cdc"]
+    source_names = ["pubmed", "clinical_trials", "cochrane", "who_iris", "cdc", "openalex"]
     results = {}
     for name, result in zip(source_names, test_results):
         if isinstance(result, Exception):

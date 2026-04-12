@@ -34,6 +34,7 @@ const AVAILABLE_SOURCES = [
   { key: 'cochrane', label: 'Cochrane' },
   { key: 'who_iris', label: 'WHO IRIS' },
   { key: 'cdc', label: 'CDC' },
+  { key: 'openalex', label: 'OpenAlex (250M+ papers)' },
 ];
 
 const COMMUNICATION_STYLES = [

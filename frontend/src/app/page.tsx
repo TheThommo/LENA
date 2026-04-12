@@ -129,7 +129,7 @@ export default function Home() {
 
     try {
       const result = await searchLiterature(query, {
-        sources: ['pubmed', 'clinical_trials', 'cochrane', 'who_iris', 'cdc'],
+        sources: ['pubmed', 'clinical_trials', 'cochrane', 'who_iris', 'cdc', 'openalex'],
         includeAltMedicine: altMedicineEnabled,
         maxResults: 50,
         sessionId: session.sessionId || undefined,
@@ -332,7 +332,7 @@ export default function Home() {
             </div>
             <div className="flex items-center justify-between mt-2 px-1">
               <span className="text-xs text-slate-400">Shift + Enter for new line</span>
-              <span className="text-xs text-slate-400">LENA searches 40M+ papers across 8+ scientific databases</span>
+              <span className="text-xs text-slate-400">LENA searches 250M+ papers across 6 scientific databases</span>
             </div>
           </div>
         </div>

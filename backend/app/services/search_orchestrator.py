@@ -14,7 +14,7 @@ from app.core.pulse_engine import SourceResult, run_pulse_validation, PULSERepor
 from app.core.guardrails import check_for_advice_request, get_warm_redirect
 from app.core.logging import get_logger
 from app.core.config import settings
-from app.services import pubmed, clinical_trials, cochrane, who_iris, cdc
+from app.services import pubmed, clinical_trials, cochrane, who_iris, cdc, openalex
 from app.services.topic_classifier import classify_query_topic
 from app.services.result_cache import get_cached_result, cache_result
 
@@ -22,7 +22,7 @@ logger = get_logger("lena.search")
 
 
 # Maps source names to their query functions
-ALL_SOURCES = ["pubmed", "clinical_trials", "cochrane", "who_iris", "cdc"]
+ALL_SOURCES = ["pubmed", "clinical_trials", "cochrane", "who_iris", "cdc", "openalex"]
 
 
 async def _query_pubmed(query: str, max_results: int) -> list[SourceResult]:
@@ -128,6 +128,26 @@ async def _query_cdc(query: str, max_results: int) -> list[SourceResult]:
         return []
 
 
+async def _query_openalex(query: str, max_results: int) -> list[SourceResult]:
+    """Query OpenAlex and convert to SourceResult objects."""
+    try:
+        works = await openalex.search_openalex(query, max_results=max_results)
+        return [
+            SourceResult(
+                source_name="openalex",
+                title=w.title,
+                summary=w.abstract,
+                url=w.url,
+                doi=w.doi,
+                year=w.year,
+            )
+            for w in works
+        ]
+    except Exception as e:
+        logger.warning(f"OpenAlex query failed: {e}")
+        return []
+
+
 # Map source names to their query functions
 SOURCE_QUERY_MAP = {
     "pubmed": _query_pubmed,
@@ -135,6 +155,7 @@ SOURCE_QUERY_MAP = {
     "cochrane": _query_cochrane,
     "who_iris": _query_who_iris,
     "cdc": _query_cdc,
+    "openalex": _query_openalex,
 }
 
 
@@ -271,7 +292,7 @@ async def run_search(
         logger.debug("Medical advice guardrail triggered")
         return {
             "guardrail_triggered": True,
-            "guardrail_response": get_warm_redirect(query),
+            "guardrail_message": get_warm_redirect(query),
             "query": query,
             "pulse_report": None,
             "response_time_ms": (time.time() - start_time) * 1000,
