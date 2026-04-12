@@ -20,7 +20,17 @@ app = FastAPI(
     redirect_slashes=False,
 )
 
-# CORS
+# Middleware order matters: last added = outermost (runs first).
+# CORSMiddleware must be outermost so it adds CORS headers to ALL responses,
+# including early returns from inner middleware like SearchGateMiddleware.
+
+# Inner: Search gate (enforces freemium limits)
+app.add_middleware(SearchGateMiddleware)
+
+# Middle: Analytics
+app.add_middleware(AnalyticsMiddleware)
+
+# Outer: CORS (must be last = outermost so headers are always added)
 app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins.split(","),
@@ -28,12 +38,6 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
-
-# Analytics
-app.add_middleware(AnalyticsMiddleware)
-
-# Search gate (enforces freemium limits) - must be before search router
-app.add_middleware(SearchGateMiddleware)
 
 # Routes
 app.include_router(health.router, prefix="/api")
