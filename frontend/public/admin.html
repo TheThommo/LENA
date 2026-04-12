@@ -293,6 +293,21 @@ body {
       <button type="submit" class="btn-primary" id="loginBtn">Sign In</button>
       <div class="login-error" id="loginError"></div>
     </form>
+    <div id="forgotSection" style="text-align:center;margin-top:16px">
+      <button onclick="showForgotPassword()" style="background:none;border:none;color:var(--lena-400);font-size:13px;cursor:pointer;font-family:inherit;text-decoration:underline;">Forgot password?</button>
+    </div>
+    <div id="forgotForm" style="display:none;margin-top:20px">
+      <p style="font-size:13px;color:var(--text-secondary);margin-bottom:12px;text-align:center">Enter your admin email to receive a reset link.</p>
+      <div class="form-group">
+        <input type="email" id="forgotEmail" class="form-input" placeholder="admin@lena-research.com" required>
+      </div>
+      <button class="btn-primary" id="forgotBtn" onclick="submitForgotPassword()">Send Reset Link</button>
+      <div style="text-align:center;margin-top:10px">
+        <button onclick="hideForgotPassword()" style="background:none;border:none;color:var(--text-muted);font-size:12px;cursor:pointer;font-family:inherit;">Back to login</button>
+      </div>
+      <div class="login-error" id="forgotError" style="margin-top:8px"></div>
+      <div id="forgotSuccess" style="color:var(--accent-green);font-size:13px;text-align:center;margin-top:8px;display:none"></div>
+    </div>
   </div>
 </div>
 
@@ -584,6 +599,50 @@ async function doLogin(email, password) {
   }
   const data = await res.json();
   return data;
+}
+
+// ─�� Forgot Password ─────────────────────────────────────────────
+function showForgotPassword() {
+  document.getElementById('loginForm').style.display = 'none';
+  document.getElementById('forgotSection').style.display = 'none';
+  document.getElementById('forgotForm').style.display = 'block';
+  document.getElementById('forgotError').textContent = '';
+  document.getElementById('forgotSuccess').style.display = 'none';
+  document.getElementById('forgotEmail').focus();
+}
+
+function hideForgotPassword() {
+  document.getElementById('loginForm').style.display = 'block';
+  document.getElementById('forgotSection').style.display = 'block';
+  document.getElementById('forgotForm').style.display = 'none';
+}
+
+async function submitForgotPassword() {
+  const email = document.getElementById('forgotEmail').value.trim();
+  const errorEl = document.getElementById('forgotError');
+  const successEl = document.getElementById('forgotSuccess');
+  const btn = document.getElementById('forgotBtn');
+
+  if (!email) { errorEl.textContent = 'Please enter your email'; return; }
+
+  btn.disabled = true;
+  errorEl.textContent = '';
+  successEl.style.display = 'none';
+
+  try {
+    const res = await fetch(`${API_BASE}/api/auth/forgot-password`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json();
+    successEl.textContent = data.message || 'Reset link sent. Check your inbox.';
+    successEl.style.display = 'block';
+  } catch (err) {
+    errorEl.textContent = 'Failed to send reset email. Try again.';
+  } finally {
+    btn.disabled = false;
+  }
 }
 
 function logout() {

@@ -51,12 +51,17 @@ class Settings(BaseSettings):
     # Freemium
     free_search_limit: int = 2
 
+    # Email (Resend)
+    resend_api_key: Optional[str] = None
+    admin_email: str = "mark.e.s.thompson@gmail.com"
+    app_url: str = "https://lena-production-health.up.railway.app"
+
     # Rate limiting
     rate_limit_per_minute: int = 60
 
     @field_validator(
         "openai_api_key", "supabase_url", "supabase_anon_key",
-        "supabase_service_role_key", "ncbi_api_key", "ncbi_email",
+        "supabase_service_role_key", "ncbi_api_key", "ncbi_email", "resend_api_key",
         mode="before",
     )
     @classmethod

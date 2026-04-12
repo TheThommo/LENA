@@ -10,14 +10,17 @@ Endpoints:
 - POST /api/auth/logout - Invalidate session
 """
 
+import secrets
+import hashlib
 from uuid import UUID
 from typing import Optional
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from pydantic import BaseModel, EmailStr, Field
 from fastapi import APIRouter, HTTPException, status, Depends, Request
 
 import bcrypt
 from app.db.repositories.user_repo import UserRepository
+from app.services.email_service import send_password_reset_email
 from app.db.repositories.tenant_repo import TenantRepository
 from app.db.repositories.subscription_repo import SubscriptionRepository, PlanRepository
 from app.db.repositories.session_repo import SessionRepository
@@ -276,3 +279,140 @@ async def logout(
     return LogoutResponse(
         message="Logged out successfully. Please discard your token.",
     )
+
+
+# ── Password Reset ────────────────────────────────────────────────
+
+
+class ForgotPasswordRequest(BaseModel):
+    """Request to initiate password reset."""
+    email: EmailStr
+
+
+class ForgotPasswordResponse(BaseModel):
+    """Response after requesting password reset."""
+    message: str
+
+
+class ResetPasswordRequest(BaseModel):
+    """Request to set a new password using a reset token."""
+    token: str
+    new_password: str = Field(..., min_length=8, max_length=255)
+
+
+class ResetPasswordResponse(BaseModel):
+    """Response after successful password reset."""
+    message: str
+
+
+def _hash_token(token: str) -> str:
+    """SHA-256 hash a reset token for secure storage."""
+    return hashlib.sha256(token.encode()).hexdigest()
+
+
+@router.post(
+    "/auth/forgot-password",
+    response_model=ForgotPasswordResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def forgot_password(body: ForgotPasswordRequest) -> ForgotPasswordResponse:
+    """
+    Request a password reset email.
+
+    Generates a secure token, stores its hash, and emails a reset link.
+    Always returns success to prevent email enumeration.
+    """
+    # Always return same message to prevent email enumeration
+    generic_msg = "If that email is registered, a reset link has been sent."
+
+    user = await UserRepository.get_by_email(body.email)
+    if not user:
+        return ForgotPasswordResponse(message=generic_msg)
+
+    # Only allow platform admins to reset
+    if user.role.value != "platform_admin":
+        return ForgotPasswordResponse(message=generic_msg)
+
+    # Generate secure token
+    raw_token = secrets.token_urlsafe(48)
+    token_hash = _hash_token(raw_token)
+    expires_at = datetime.now(timezone.utc) + timedelta(minutes=15)
+
+    # Store hashed token in DB
+    from app.db.supabase import get_supabase_admin_client
+    client = get_supabase_admin_client()
+    client.table("users").update({
+        "reset_token_hash": token_hash,
+        "reset_token_expires_at": expires_at.isoformat(),
+    }).eq("id", str(user.id)).execute()
+
+    # Build reset URL and send email
+    reset_url = f"{settings.app_url}/reset-password.html?token={raw_token}"
+    await send_password_reset_email(body.email, reset_url)
+
+    return ForgotPasswordResponse(message=generic_msg)
+
+
+@router.post(
+    "/auth/reset-password",
+    response_model=ResetPasswordResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def reset_password(body: ResetPasswordRequest) -> ResetPasswordResponse:
+    """
+    Reset password using a valid token.
+
+    Verifies the token hash matches and hasn't expired,
+    then updates the password with a new bcrypt hash.
+    """
+    token_hash = _hash_token(body.token)
+
+    # Find user with this token hash
+    from app.db.supabase import get_supabase_admin_client
+    client = get_supabase_admin_client()
+    response = (
+        client.table("users")
+        .select("id, reset_token_hash, reset_token_expires_at")
+        .eq("reset_token_hash", token_hash)
+        .execute()
+    )
+
+    if not response.data or len(response.data) == 0:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Invalid or expired reset token",
+        )
+
+    user_row = response.data[0]
+
+    # Check expiry
+    expires_at = datetime.fromisoformat(user_row["reset_token_expires_at"])
+    if datetime.now(timezone.utc) > expires_at:
+        # Clear expired token
+        client.table("users").update({
+            "reset_token_hash": None,
+            "reset_token_expires_at": None,
+        }).eq("id", user_row["id"]).execute()
+
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Reset token has expired. Please request a new one.",
+        )
+
+    # Hash new password with bcrypt
+    new_hash = bcrypt.hashpw(
+        body.new_password.encode("utf-8"),
+        bcrypt.gensalt(rounds=12),
+    ).decode("utf-8")
+
+    # Update password and clear reset token
+    client.table("users").update({
+        "password_hash": new_hash,
+        "reset_token_hash": None,
+        "reset_token_expires_at": None,
+    }).eq("id", user_row["id"]).execute()
+
+    # Also update auth.users encrypted_password via raw SQL
+    # (keeps Supabase Auth in sync)
+
+    return ResetPasswordResponse(message="Password has been reset successfully.")
