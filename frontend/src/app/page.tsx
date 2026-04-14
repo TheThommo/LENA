@@ -17,7 +17,7 @@ import MyBrain from '@/components/views/MyBrain';
 import { useSession } from '@/contexts/SessionContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
-import { searchLiterature, SearchResponse } from '@/lib/api';
+import { searchLiterature, SearchResponse, ResultMode } from '@/lib/api';
 
 interface Message {
   id: string;
@@ -50,7 +50,18 @@ export default function Home() {
   const [activeView, setActiveView] = useState('chat');
   const [panelOpen, setPanelOpen] = useState(false);
   const [shareModal, setShareModal] = useState<{ isOpen: boolean; title?: string }>({ isOpen: false });
-  const [altMedicineEnabled, setAltMedicineEnabled] = useState(true);
+  // Result-mode multi-select: 'all' (default), 'herbal', 'outlier'. Multiple may be active.
+  const [resultModes, setResultModes] = useState<ResultMode[]>(['all']);
+
+  const toggleMode = (mode: ResultMode) => {
+    setResultModes(prev => {
+      const has = prev.includes(mode);
+      let next: ResultMode[] = has ? prev.filter(m => m !== mode) : [...prev, mode];
+      // If user deselects everything, fall back to 'all'
+      if (next.length === 0) next = ['all'];
+      return next;
+    });
+  };
   const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -130,7 +141,7 @@ export default function Home() {
     try {
       const result = await searchLiterature(query, {
         sources: ['pubmed', 'clinical_trials', 'cochrane', 'who_iris', 'cdc', 'openalex'],
-        includeAltMedicine: altMedicineEnabled,
+        modes: resultModes,
         maxResults: 50,
         sessionId: session.sessionId || undefined,
         sessionToken: authToken || session.sessionToken || undefined,
@@ -384,23 +395,36 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            {/* Natural & Herbal Toggle */}
-            <button
-              onClick={() => setAltMedicineEnabled(!altMedicineEnabled)}
-              className={`flex items-center gap-1.5 px-2.5 py-1.5 border rounded-full text-xs transition-all ${
-                altMedicineEnabled
-                  ? 'border-emerald-300 bg-emerald-50 text-emerald-700'
-                  : 'border-slate-200 text-slate-500'
-              }`}
+            {/* Result-mode multi-select */}
+            <div
+              className="flex items-center gap-1 p-1 rounded-full border border-slate-200 bg-slate-50"
+              role="group"
+              aria-label="Result modes"
+              title="Select one or more lenses. PULSE scores within the selected scope."
             >
-              <svg className={`w-3.5 h-3.5 flex-shrink-0 ${altMedicineEnabled ? 'text-emerald-600' : 'text-slate-400'}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
-              </svg>
-              <span className="hidden sm:inline">Natural & Herbal</span>
-              <div className={`w-7 h-4 rounded-full relative transition-colors flex-shrink-0 ${altMedicineEnabled ? 'bg-emerald-500' : 'bg-slate-300'}`}>
-                <div className={`w-3 h-3 rounded-full bg-white absolute top-0.5 transition-all shadow-sm ${altMedicineEnabled ? 'left-3.5' : 'left-0.5'}`} />
-              </div>
-            </button>
+              {([
+                { id: 'all',     label: 'All',     short: 'All' },
+                { id: 'herbal',  label: 'Herbal / Alt', short: 'Herbal' },
+                { id: 'outlier', label: 'Outlier', short: 'Outlier' },
+              ] as { id: ResultMode; label: string; short: string }[]).map((m) => {
+                const active = resultModes.includes(m.id);
+                return (
+                  <button
+                    key={m.id}
+                    onClick={() => toggleMode(m.id)}
+                    aria-pressed={active}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
+                      active
+                        ? 'bg-[#1B6B93] text-white shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
+                    }`}
+                  >
+                    <span className="hidden sm:inline">{m.label}</span>
+                    <span className="sm:hidden">{m.short}</span>
+                  </button>
+                );
+              })}
+            </div>
 
             {/* Persona Selector */}
             <PersonaSelector />

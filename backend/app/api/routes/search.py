@@ -24,7 +24,11 @@ async def search_literature(
     persona: Optional[PersonaType] = Query(None, description="User persona override"),
     sources: Optional[str] = Query(None, description="Comma-separated source filter"),
     max_results: int = Query(10, ge=1, le=50, description="Max results per source"),
-    include_alt_medicine: bool = Query(True, description="Include alternative medicine results"),
+    include_alt_medicine: bool = Query(True, description="[Legacy] Include alternative medicine results"),
+    modes: Optional[str] = Query(
+        None,
+        description="Comma-separated result modes: all,herbal,outlier (defaults to 'all')",
+    ),
     session_id: Optional[str] = Query(None, description="Session identifier for analytics"),
     tenant_id: Optional[str] = Query("default", description="Tenant identifier"),
 ):
@@ -44,8 +48,9 @@ async def search_literature(
     detected_persona = persona or detect_persona_from_query(q)
     persona_config = get_persona_config(detected_persona)
 
-    # Step 2: Parse source filter
+    # Step 2: Parse source + mode filters
     source_list = sources.split(",") if sources else None
+    mode_list = [m.strip() for m in modes.split(",")] if modes else None
 
     # Step 3: Generate search ID for tracking
     search_id = str(uuid.uuid4())
@@ -58,6 +63,7 @@ async def search_literature(
         sources=source_list,
         include_alt_medicine=include_alt_medicine,
         persona=detected_persona.value,
+        modes=mode_list,
     )
 
     # Step 5: Log analytics (fire-and-forget, never blocks)

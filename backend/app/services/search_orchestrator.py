@@ -17,6 +17,10 @@ from app.core.config import settings
 from app.services import pubmed, clinical_trials, cochrane, who_iris, cdc, openalex
 from app.services.topic_classifier import classify_query_topic
 from app.services.result_cache import get_cached_result, cache_result
+from app.services.outlier_authors import (
+    is_outlier_result,
+    result_authors_match_outlier,
+)
 
 logger = get_logger("lena.search")
 
@@ -40,6 +44,7 @@ async def _query_pubmed(query: str, max_results: int) -> list[SourceResult]:
                 url=a.url,
                 doi=a.doi,
                 year=a.year,
+                authors=list(a.authors or []),
             )
             for a in articles
         ]
@@ -83,6 +88,7 @@ async def _query_cochrane(query: str, max_results: int) -> list[SourceResult]:
                 url=r.cochrane_url or r.pubmed_url,
                 doi=r.doi,
                 year=r.year,
+                authors=list(getattr(r, "authors", []) or []),
             )
             for r in reviews
         ]
@@ -140,6 +146,7 @@ async def _query_openalex(query: str, max_results: int) -> list[SourceResult]:
                 url=w.url,
                 doi=w.doi,
                 year=w.year,
+                authors=list(getattr(w, "authors", []) or []),
             )
             for w in works
         ]
@@ -259,33 +266,113 @@ async def _generate_llm_summary(
         return None
 
 
+# ── Result-mode filter ───────────────────────────────────────────────
+# Shared with topic_classifier; duplicated here so the filter is self-contained.
+_ALT_MED_KEYWORDS: set[str] = {
+    "herbal", "herb", "acupuncture", "homeopathy", "naturopathy",
+    "ayurveda", "traditional", "chinese", "tcm", "supplement",
+    "remedy", "remedies", "essential", "aromatherapy",
+    "meditation", "yoga", "chiropractic", "osteopathy", "holistic",
+    "phytotherapy", "botanical",
+}
+
+VALID_MODES = {"all", "herbal", "outlier"}
+
+
+def _normalise_modes(modes: Optional[list[str]]) -> list[str]:
+    """Keep only known modes; empty / unknown collapses to ['all']."""
+    if not modes:
+        return ["all"]
+    cleaned = [m for m in modes if m in VALID_MODES]
+    return cleaned or ["all"]
+
+
+def _tag_result_modes(result: SourceResult) -> None:
+    """Populate result.matched_modes with every mode this result qualifies for.
+
+    'all' is always included so a result is never invisible when no filter
+    is active. 'herbal' / 'outlier' are set based on content.
+    """
+    tags = ["all"]
+    # Herbal / alt-med: keyword overlap against title+summary tokens
+    text_tokens = set((result.keywords or []))
+    if not text_tokens:
+        # Keywords may not be extracted yet; fall back to title/summary match
+        blob = f"{result.title or ''} {result.summary or ''}".lower()
+        if any(k in blob for k in _ALT_MED_KEYWORDS):
+            tags.append("herbal")
+    elif text_tokens & _ALT_MED_KEYWORDS:
+        tags.append("herbal")
+    # Outlier: match against author list
+    if is_outlier_result(result.authors or []):
+        tags.append("outlier")
+    result.matched_modes = tags
+
+
+def _scope_corpus_by_modes(
+    results_by_source: dict[str, list[SourceResult]],
+    modes: list[str],
+) -> dict[str, list[SourceResult]]:
+    """Filter raw per-source results down to only those matching the active modes.
+
+    Rules:
+    - "all" in modes → pass everything through (no filter).
+    - Otherwise union: a result is kept if it matches ANY active mode.
+    - Tagging happens first so downstream consumers see matched_modes.
+    """
+    # Tag every result first
+    for results in results_by_source.values():
+        for r in results:
+            _tag_result_modes(r)
+
+    if "all" in modes:
+        return results_by_source
+
+    active = set(modes)
+    scoped: dict[str, list[SourceResult]] = {}
+    for src, results in results_by_source.items():
+        kept = [r for r in results if active.intersection(r.matched_modes)]
+        if kept:
+            scoped[src] = kept
+    return scoped
+
+
 async def run_search(
     query: str,
     max_results_per_source: int = 10,
     sources: Optional[list[str]] = None,
     include_alt_medicine: bool = True,
     persona: str = "general",
+    modes: Optional[list[str]] = None,
 ) -> dict:
     """
     Full LENA search pipeline:
     1. Check for medical advice guardrail
-    2. Check result cache
+    2. Check result cache (keyed on query + sources + modes)
     3. Query all sources in parallel
-    4. Run PULSE cross-reference validation
-    5. Filter by alt medicine toggle
-    6. Cache results and return unified response
+    4. Tag every result with its matched_modes (all / herbal / outlier)
+    5. Scope the corpus to the user's selected modes BEFORE PULSE
+    6. Run PULSE cross-reference validation on the scoped corpus
+    7. Generate LLM summary and cache results
 
     Args:
         query: The user's search query
         max_results_per_source: Max results per source
         sources: Optional list of specific sources to query
-        include_alt_medicine: Whether to include alternative medicine results
+        include_alt_medicine: Legacy toggle; ignored when `modes` is set
+        persona: Persona for LLM summary
+        modes: Active result-mode filters – any of "all", "herbal", "outlier"
 
     Returns:
         Dictionary with PULSE report, source errors, timing, and metadata
     """
+    # Back-compat: if caller didn't pass modes, derive from include_alt_medicine
+    if modes is None:
+        modes = ["all"] if include_alt_medicine else ["all"]
+    modes = _normalise_modes(modes)
+
     start_time = time.time()
-    logger.info(f"Starting search: query='{query}', alt_medicine={include_alt_medicine}")
+    logger.info(f"Starting search: query='{query}', modes={modes}")
 
     # Step 1: Check medical advice guardrail
     if check_for_advice_request(query):
@@ -299,7 +386,7 @@ async def run_search(
         }
 
     # Step 2: Check cache
-    cached = get_cached_result(query, sources, include_alt_medicine)
+    cached = get_cached_result(query, sources, include_alt_medicine, modes)
     if cached:
         cached["response_time_ms"] = (time.time() - start_time) * 1000
         cached["from_cache"] = True
@@ -307,7 +394,7 @@ async def run_search(
         return cached
 
     # Step 3: Query all sources in parallel
-    results_by_source, errors = await search_all_sources(
+    raw_results_by_source, errors = await search_all_sources(
         query=query,
         max_results_per_source=max_results_per_source,
         sources=sources,
@@ -316,49 +403,44 @@ async def run_search(
     if errors:
         logger.warning(f"Source errors: {errors}")
 
-    # Step 4: Run PULSE validation
+    # Step 4+5: Tag results and scope corpus to active modes (pre-PULSE)
+    scoped_results_by_source = _scope_corpus_by_modes(raw_results_by_source, modes)
+
+    pre_scope = sum(len(r) for r in raw_results_by_source.values())
+    post_scope = sum(len(r) for r in scoped_results_by_source.values())
+    logger.debug(f"Mode scope {modes}: {pre_scope} -> {post_scope} results")
+
+    # Step 6: Run PULSE validation on the scoped corpus only
     pulse_report = await run_pulse_validation(
         query=query,
-        results_by_source=results_by_source,
+        results_by_source=scoped_results_by_source,
     )
 
-    # Step 5: Filter by alt medicine toggle if needed
-    if not include_alt_medicine and pulse_report.validated_results:
-        alt_med_topics = classify_query_topic(query)
-        alt_med_keywords = {"herbal", "herb", "acupuncture", "homeopathy", "naturopathy",
-                            "ayurveda", "traditional medicine", "chinese medicine", "tcm",
-                            "supplement", "natural remedy", "essential oil", "aromatherapy",
-                            "meditation", "yoga", "chiropractic", "osteopathy", "holistic"}
+    # PULSE re-extracts keywords; re-tag so matched_modes reflects the fresh keyword set
+    for r in pulse_report.validated_results + pulse_report.edge_cases:
+        _tag_result_modes(r)
 
-        # Filter validated results
-        filtered_results = []
-        for result in pulse_report.validated_results:
-            result_keywords = set(result.keywords or [])
-            if not (result_keywords & alt_med_keywords):
-                filtered_results.append(result)
-
-        logger.debug(f"Alt medicine filter: {len(pulse_report.validated_results)} -> {len(filtered_results)} results")
-        pulse_report.validated_results = filtered_results
-
-    # Step 6: Generate LLM summary (non-blocking, best-effort)
+    # Step 7: Generate LLM summary (non-blocking, best-effort)
     llm_summary = await _generate_llm_summary(query, pulse_report, persona)
 
-    # Step 7: Build response
+    # Step 8: Build response
     response_time_ms = (time.time() - start_time) * 1000
     result = {
         "guardrail_triggered": False,
         "query": query,
-        "sources_queried": list(results_by_source.keys()),
+        "sources_queried": list(raw_results_by_source.keys()),
         "sources_failed": errors,
-        "total_results": sum(len(r) for r in results_by_source.values()),
+        "total_results": post_scope,
+        "total_pre_scope": pre_scope,
         "include_alt_medicine": include_alt_medicine,
+        "modes": modes,
         "pulse_report": pulse_report.to_dict(),
         "llm_summary": llm_summary,
         "response_time_ms": response_time_ms,
     }
 
     # Cache the result for future identical queries
-    cache_result(query, result, sources, include_alt_medicine)
+    cache_result(query, result, sources, include_alt_medicine, modes)
     logger.info(f"Search completed: {len(pulse_report.validated_results)} validated results in {response_time_ms:.0f}ms")
 
     return result

@@ -60,6 +60,9 @@ class SourceResult:
     year: Optional[int] = None
     relevance_score: float = 0.0
     keywords: list[str] = field(default_factory=list)
+    authors: list[str] = field(default_factory=list)
+    # Modes this result qualifies for: "all", "herbal", "outlier"
+    matched_modes: list[str] = field(default_factory=list)
     is_retracted: bool = False
 
 
@@ -135,6 +138,8 @@ class PULSEReport:
                     "year": r.year,
                     "relevance_score": round(r.relevance_score, 2),
                     "keywords": r.keywords[:10],
+                    "authors": r.authors[:6],
+                    "matched_modes": r.matched_modes,
                 }
                 for r in self.validated_results
             ],
@@ -146,6 +151,8 @@ class PULSEReport:
                     "doi": r.doi,
                     "year": r.year,
                     "keywords": r.keywords[:10],
+                    "authors": r.authors[:6],
+                    "matched_modes": r.matched_modes,
                 }
                 for r in self.edge_cases
             ],

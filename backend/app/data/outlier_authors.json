@@ -1,0 +1,108 @@
+{
+  "version": "1.0",
+  "updated": "2026-04-14",
+  "description": "Peer-reviewed authors whose published work often diverges from mainstream or big-pharma consensus. Inclusion requires verifiable peer-reviewed publication history (Tier 1 or Tier 2 from practitioner tiers research). Tier 3/4 names are intentionally excluded because they have no peer-reviewed work for PULSE to cross-reference.",
+  "tier_1_extensive": [
+    {
+      "name": "Peter A. McCullough",
+      "credentials": "MD, MPH",
+      "specialties": ["cardiology", "nephrology", "cardiorenal medicine"],
+      "publication_count_approx": "650+",
+      "bio_url": "https://petermcculloughmd.com/",
+      "pubmed_author_search": "https://pubmed.ncbi.nlm.nih.gov/?term=McCullough+PA%5BAuthor%5D",
+      "notes": "Extensive cardiology and CKD research. Controversial positions on COVID-era therapeutics."
+    },
+    {
+      "name": "David A. Sinclair",
+      "credentials": "PhD",
+      "specialties": ["genetics", "aging", "longevity"],
+      "publication_count_approx": "200+",
+      "bio_url": "https://sinclair.hms.harvard.edu/",
+      "pubmed_author_search": "https://pubmed.ncbi.nlm.nih.gov/?term=Sinclair+DA%5BAuthor%5D",
+      "notes": "Harvard Medical School. 109K+ citations. Longevity claims sometimes challenged by mainstream gerontology."
+    },
+    {
+      "name": "James J. DiNicolantonio",
+      "credentials": "PharmD",
+      "specialties": ["cardiovascular", "nutrition", "supplements"],
+      "publication_count_approx": "200+",
+      "bio_url": "https://drjamesdinic.com/",
+      "pubmed_author_search": "https://pubmed.ncbi.nlm.nih.gov/?term=DiNicolantonio+JJ%5BAuthor%5D",
+      "notes": "Saint Luke's Mid America Heart Institute. Published on magnesium, omega-3, salt. LENA showcase researcher."
+    },
+    {
+      "name": "Matthew P. Walker",
+      "credentials": "PhD",
+      "specialties": ["sleep science", "neuroscience"],
+      "publication_count_approx": "100+",
+      "bio_url": "https://www.sleepdiplomat.com/",
+      "pubmed_author_search": "https://pubmed.ncbi.nlm.nih.gov/?term=Walker+MP%5BAuthor%5D",
+      "notes": "UC Berkeley. 31K+ citations."
+    },
+    {
+      "name": "Robert W. Malone",
+      "credentials": "MD, MS",
+      "specialties": ["mRNA technology", "immunology", "virology"],
+      "publication_count_approx": "100",
+      "bio_url": "https://www.rwmalonemd.com/",
+      "pubmed_author_search": "https://pubmed.ncbi.nlm.nih.gov/?term=Malone+RW%5BAuthor%5D",
+      "notes": "Early mRNA platform contributor. 11K+ citations. Dissenting positions on mRNA vaccine policy."
+    },
+    {
+      "name": "Andrew D. Huberman",
+      "credentials": "PhD",
+      "specialties": ["neurobiology", "ophthalmology", "behavior"],
+      "publication_count_approx": "75+",
+      "bio_url": "https://www.hubermanlab.com/about",
+      "pubmed_author_search": "https://pubmed.ncbi.nlm.nih.gov/?term=Huberman+AD%5BAuthor%5D",
+      "notes": "Stanford. Published in Nature, Science, Cell."
+    }
+  ],
+  "tier_2_some_publications": [
+    {
+      "name": "Rhonda P. Patrick",
+      "credentials": "PhD",
+      "specialties": ["biomedical science", "vitamin D", "omega-3"],
+      "publication_count_approx": "11",
+      "bio_url": "https://www.foundmyfitness.com/about",
+      "pubmed_author_search": "https://pubmed.ncbi.nlm.nih.gov/?term=Patrick+RP%5BAuthor%5D",
+      "notes": "3.4K+ citations."
+    },
+    {
+      "name": "Mary Talley Bowden",
+      "credentials": "MD",
+      "specialties": ["otolaryngology", "sleep medicine"],
+      "publication_count_approx": "3",
+      "bio_url": "https://www.breathemd.org/about-us",
+      "pubmed_author_search": "https://pubmed.ncbi.nlm.nih.gov/?term=Bowden+MT%5BAuthor%5D",
+      "notes": "Peer-reviewed work is in ENT/sleep, not her public advocacy areas. Flag this context when surfacing."
+    },
+    {
+      "name": "Deborah Murtagh",
+      "credentials": "Nutritionist",
+      "specialties": ["ketogenic diet", "nutrition"],
+      "publication_count_approx": "2+",
+      "bio_url": "https://www.drdeborahmurtagh.com/",
+      "pubmed_author_search": "https://pubmed.ncbi.nlm.nih.gov/?term=Murtagh+D%5BAuthor%5D",
+      "notes": "Co-authored ketogenic diet research in neurology."
+    }
+  ],
+  "excluded_from_outlier_list": {
+    "reason": "No verifiable peer-reviewed publication history in their current public advocacy areas. Including them would violate LENA agent rules (never guess, score only on cited facts). They are excluded from the outlier filter entirely.",
+    "names": [
+      "Peter Attia",
+      "Casey Means",
+      "Scott Jensen",
+      "Nathan Goodyear",
+      "Simone Gold",
+      "TJ Williams",
+      "Bryan Ardis",
+      "Gary Brecka",
+      "Barbara O'Neill",
+      "Jennifer Sierzant",
+      "Sarah Green",
+      "Pete Sulack",
+      "RisesAboveItAll"
+    ]
+  }
+}

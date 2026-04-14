@@ -40,6 +40,8 @@ export interface SourceAgreement {
   is_consensus: boolean;
 }
 
+export type ResultMode = 'all' | 'herbal' | 'outlier';
+
 export interface ValidatedResult {
   source: string;
   title: string;
@@ -48,6 +50,8 @@ export interface ValidatedResult {
   year: number;
   relevance_score: number;
   keywords: string[];
+  authors?: string[];
+  matched_modes?: ResultMode[];
 }
 
 export interface PulseReport {
@@ -75,7 +79,9 @@ export interface SearchResponse {
   sources_queried: string[];
   sources_failed: Record<string, string>;
   total_results: number;
+  total_pre_scope?: number;
   include_alt_medicine: boolean;
+  modes?: ResultMode[];
   response_time_ms: number;
   pulse_report: PulseReport;
   llm_summary?: string | null;
@@ -184,6 +190,7 @@ export async function searchLiterature(
     sources?: string[];
     maxResults?: number;
     includeAltMedicine?: boolean;
+    modes?: ResultMode[];
     sessionId?: string;
     sessionToken?: string;
     tenantId?: string;
@@ -195,6 +202,9 @@ export async function searchLiterature(
   if (options?.maxResults) params.set('max_results', String(options.maxResults));
   if (options?.includeAltMedicine !== undefined) {
     params.set('include_alt_medicine', String(options.includeAltMedicine));
+  }
+  if (options?.modes?.length) {
+    params.set('modes', options.modes.join(','));
   }
   if (options?.tenantId) params.set('tenant_id', options.tenantId);
 

@@ -270,6 +270,16 @@ function SourceCard({ result, isEdgeCase, index }: { result: ValidatedResult; is
                 Edge
               </span>
             )}
+            {result.matched_modes?.includes('herbal') && (
+              <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-emerald-100 text-emerald-800 flex-shrink-0" title="Herbal / alternative medicine result">
+                Herbal
+              </span>
+            )}
+            {result.matched_modes?.includes('outlier') && (
+              <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-800 flex-shrink-0" title="Authored by a researcher in the outlier list">
+                Outlier
+              </span>
+            )}
             <p className="text-xs font-medium text-slate-900 truncate">
               {result.title}
             </p>
@@ -297,6 +307,13 @@ function SourceCard({ result, isEdgeCase, index }: { result: ValidatedResult; is
                 </span>
               ))}
             </div>
+          )}
+
+          {result.authors && result.authors.length > 0 && (
+            <p className="text-[10px] text-slate-600">
+              <span className="font-semibold">Authors:</span> {result.authors.slice(0, 3).join(', ')}
+              {result.authors.length > 3 && ` +${result.authors.length - 3}`}
+            </p>
           )}
 
           {result.doi && (

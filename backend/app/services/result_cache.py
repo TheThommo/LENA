@@ -28,6 +28,7 @@ def _make_cache_key(
     query: str,
     sources: Optional[list[str]] = None,
     include_alt_medicine: bool = True,
+    modes: Optional[list[str]] = None,
 ) -> str:
     """
     Generate a deterministic cache key from search parameters.
@@ -35,15 +36,17 @@ def _make_cache_key(
     Args:
         query: Search query
         sources: List of source names (None = all)
-        include_alt_medicine: Whether alt medicine is included
+        include_alt_medicine: Legacy flag (retained for backward compat)
+        modes: Active result-mode filters (e.g. ["all"], ["herbal","outlier"])
 
     Returns:
         Cache key string
     """
+    modes_part = ",".join(sorted(modes)) if modes else str(include_alt_medicine)
     key_parts = [
         query,
         ",".join(sorted(sources)) if sources else "all_sources",
-        str(include_alt_medicine),
+        modes_part,
     ]
     key_string = "|".join(key_parts)
     return hashlib.md5(key_string.encode()).hexdigest()
@@ -53,6 +56,7 @@ def get_cached_result(
     query: str,
     sources: Optional[list[str]] = None,
     include_alt_medicine: bool = True,
+    modes: Optional[list[str]] = None,
 ) -> Optional[dict]:
     """
     Retrieve a cached search result if it exists and hasn't expired.
@@ -65,7 +69,7 @@ def get_cached_result(
     Returns:
         Cached result dict or None if not found/expired
     """
-    cache_key = _make_cache_key(query, sources, include_alt_medicine)
+    cache_key = _make_cache_key(query, sources, include_alt_medicine, modes)
 
     if cache_key not in _CACHE_STORE:
         return None
@@ -88,6 +92,7 @@ def cache_result(
     result: dict,
     sources: Optional[list[str]] = None,
     include_alt_medicine: bool = True,
+    modes: Optional[list[str]] = None,
 ) -> None:
     """
     Store a search result in the cache.
@@ -100,7 +105,7 @@ def cache_result(
         sources: List of source names
         include_alt_medicine: Whether alt medicine is included
     """
-    cache_key = _make_cache_key(query, sources, include_alt_medicine)
+    cache_key = _make_cache_key(query, sources, include_alt_medicine, modes)
 
     # Evict oldest entry if cache is full
     if len(_CACHE_STORE) >= _CACHE_MAX_ENTRIES:

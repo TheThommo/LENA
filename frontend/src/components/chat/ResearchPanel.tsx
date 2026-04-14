@@ -476,8 +476,10 @@ export default function ResearchPanel({ messages, persona, onClose }: ResearchPa
     if (yearRange) {
       r += `  Date range: ${yearRange.min} - ${yearRange.max}\n`;
     }
-    const hasAltMed = responses.some(resp => resp.include_alt_medicine);
-    r += `  Alternative medicine: ${hasAltMed ? 'Included' : 'Excluded'}\n`;
+    const activeModes = Array.from(
+      new Set(responses.flatMap(resp => resp.modes || ['all']))
+    ).join(', ');
+    r += `  Result modes: ${activeModes || 'all'}\n`;
     r += `  Total results: ${analysis.totalResults} across ${analysis.uniqueSources} databases\n`;
     r += '\n';
 
