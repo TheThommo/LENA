@@ -1,6 +1,32 @@
 'use client';
 
-import React, { createContext, useContext, useState, useRef, useCallback } from 'react';
+import React, { createContext, useContext, useState, useRef, useCallback, useEffect } from 'react';
+
+const STORAGE_KEY = 'lena_session_v1';
+
+interface PersistedSession {
+  name?: string | null;
+  email?: string | null;
+  disclaimerAccepted?: boolean;
+  persona?: string;
+}
+
+function loadPersistedSession(): PersistedSession {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(STORAGE_KEY);
+    return raw ? JSON.parse(raw) : {};
+  } catch {
+    return {};
+  }
+}
+
+function savePersistedSession(s: PersistedSession) {
+  if (typeof window === 'undefined') return;
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(s));
+  } catch {}
+}
 
 export type FunnelStage = 'landing' | 'name_captured' | 'disclaimer_accepted' | 'searching' | 'email_captured' | 'registered';
 
@@ -53,16 +79,29 @@ const SessionContext = createContext<SessionContextType | undefined>(undefined);
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
-  const [session, setSession] = useState<SessionState>({
-    sessionId: null,
-    sessionToken: null,
-    name: null,
-    email: null,
-    persona: 'general',
-    disclaimerAccepted: false,
-    searchCount: 0,
-    funnelStage: 'landing',
+  const [session, setSession] = useState<SessionState>(() => {
+    const persisted = loadPersistedSession();
+    return {
+      sessionId: null,
+      sessionToken: null,
+      name: persisted.name ?? null,
+      email: persisted.email ?? null,
+      persona: (persisted.persona as PersonaId) || 'general',
+      disclaimerAccepted: !!persisted.disclaimerAccepted,
+      searchCount: 0,
+      funnelStage: persisted.disclaimerAccepted ? 'disclaimer_accepted' : (persisted.name ? 'name_captured' : 'landing'),
+    };
   });
+
+  // Persist session state to localStorage whenever it changes
+  useEffect(() => {
+    savePersistedSession({
+      name: session.name,
+      email: session.email,
+      disclaimerAccepted: session.disclaimerAccepted,
+      persona: session.persona,
+    });
+  }, [session.name, session.email, session.disclaimerAccepted, session.persona]);
 
   // Ref to always hold the latest sessionId, avoiding stale closures
   const sessionIdRef = useRef<string | null>(null);

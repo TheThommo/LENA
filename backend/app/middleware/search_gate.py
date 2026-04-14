@@ -6,7 +6,7 @@ Enforces freemium search limits on the /api/search/ endpoints.
 Rules:
 - Authenticated user (valid JWT)? → Allow (registered users bypass counter)
 - No session token? → 401 (must complete disclaimer first)
-- Search count >= 2 AND not registered? → 403 (signup required)
+- Search count >= 5 AND not registered? → 403 (signup required)
 - Otherwise: Allow, and increment search counter
 """
 
@@ -126,8 +126,8 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
             if not session.user_id:
                 search_count = session.search_count or 0
 
-                # Hard gate at 2 free searches
-                if search_count >= 2:
+                # Hard gate at 5 free searches/day
+                if search_count >= 5:
                     # Track funnel stage
                     await track_funnel_stage(
                         session_id=str(session.id),
@@ -137,7 +137,7 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
 
                     return JSONResponse(
                         status_code=403,
-                        content={"detail": "You've used your 2 free searches. Sign up to continue."},
+                        content={"detail": "You've used your 5 free searches today. Sign up for Pro to continue."},
                     )
 
                 # Increment search counter
@@ -152,7 +152,7 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
                         tenant_id=str(session.tenant_id),
                         stage="first_search",
                     )
-                elif new_count == 2:
+                elif new_count == 5:
                     await track_funnel_stage(
                         session_id=str(session.id),
                         tenant_id=str(session.tenant_id),

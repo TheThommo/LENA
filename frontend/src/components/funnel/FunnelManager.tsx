@@ -64,8 +64,8 @@ export default function FunnelManager({
       return 'email';
     }
 
-    // After 2 searches and not registered, show search limit gate
-    if (sessionState.searchCount >= 2) {
+    // After 5 searches and not registered, show search limit gate
+    if (sessionState.searchCount >= 5) {
       return 'search-limit';
     }
 

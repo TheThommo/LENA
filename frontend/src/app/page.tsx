@@ -37,7 +37,7 @@ interface RecentSession {
 export default function Home() {
   const router = useRouter();
   const { session, captureName, acceptDisclaimer, captureEmail, skipEmail, incrementSearch } = useSession();
-  const { isAuthenticated, user, token: authToken, logout } = useAuth();
+  const { isAuthenticated, isLoading: authLoading, user, token: authToken, logout } = useAuth();
   const { tenant } = useTenant();
 
   // Chat state
@@ -192,8 +192,8 @@ export default function Home() {
     }
   }, [responseCount]);
 
-  // Funnel overlay
-  const funnelOverlay = (
+  // Funnel overlay — don't render while auth is still loading (prevents flash for signed-in users)
+  const funnelOverlay = authLoading ? null : (
     <FunnelManager
       sessionState={{
         name: session.name || undefined,
