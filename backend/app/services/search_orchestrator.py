@@ -267,14 +267,40 @@ async def _generate_llm_summary(
 
 
 # ── Result-mode filter ───────────────────────────────────────────────
-# Shared with topic_classifier; duplicated here so the filter is self-contained.
+# Two sets:
+#  * _ALT_MED_KEYWORDS — single-token matches (PULSE keyword intersection)
+#  * _ALT_MED_PHRASES — multi-word phrases (scanned against title+summary blob)
+# Must be tokens actually found in abstracts, including specific supplements
+# and compounds that don't look "herbal" on the surface.
 _ALT_MED_KEYWORDS: set[str] = {
-    "herbal", "herb", "acupuncture", "homeopathy", "naturopathy",
-    "ayurveda", "traditional", "chinese", "tcm", "supplement",
-    "remedy", "remedies", "essential", "aromatherapy",
-    "meditation", "yoga", "chiropractic", "osteopathy", "holistic",
-    "phytotherapy", "botanical",
+    # modality / tradition tokens
+    "herbal", "herb", "herbs", "acupuncture", "homeopathy", "naturopathy",
+    "ayurveda", "ayurvedic", "tcm", "supplement", "supplements",
+    "remedy", "remedies", "aromatherapy", "meditation", "yoga",
+    "chiropractic", "osteopathy", "holistic", "phytotherapy", "botanical",
+    "nutraceutical", "integrative", "functional",
+    # specific herbs / supplements / compounds commonly studied
+    "nattokinase", "quercetin", "curcumin", "turmeric", "resveratrol",
+    "melatonin", "niacin", "nicotinamide", "berberine", "bromelain",
+    "serrapeptase", "astragalus", "andrographis", "ashwagandha", "ginseng",
+    "garlic", "ginger", "echinacea", "elderberry", "licorice", "rhodiola",
+    "reishi", "cordyceps", "valerian", "chamomile", "passionflower",
+    "saffron", "milk", "thistle", "spirulina", "chlorella",
+    "ivermectin", "hydroxychloroquine",  # non-herbal but part of outlier therapeutics
+    "glutathione", "nac", "lysine", "zinc", "magnesium",
+    "omega", "probiotic", "probiotics", "prebiotic", "prebiotics",
+    "cbd", "cannabidiol",
+    # vitamin / fatty acid categories (without capturing "vitamin" alone which is too broad)
+    "tocopherol", "cholecalciferol", "ascorbate", "ascorbic",
 }
+
+_ALT_MED_PHRASES: tuple[str, ...] = (
+    "traditional medicine", "chinese medicine", "natural remedy",
+    "essential oil", "complementary medicine", "alternative medicine",
+    "integrative medicine", "functional medicine", "plant-based",
+    "whole food", "whole-food", "vitamin c", "vitamin d", "vitamin e",
+    "omega-3", "omega 3", "fish oil", "cod liver",
+)
 
 VALID_MODES = {"all", "herbal", "outlier"}
 
@@ -294,14 +320,16 @@ def _tag_result_modes(result: SourceResult) -> None:
     is active. 'herbal' / 'outlier' are set based on content.
     """
     tags = ["all"]
-    # Herbal / alt-med: keyword overlap against title+summary tokens
+    # Herbal / alt-med: check keyword tokens AND raw title+summary blob.
+    # Multi-word phrases ("vitamin c", "fish oil") never survive PULSE's alpha-
+    # token extractor, so the blob pass is mandatory — not a fallback.
     text_tokens = set((result.keywords or []))
-    if not text_tokens:
-        # Keywords may not be extracted yet; fall back to title/summary match
-        blob = f"{result.title or ''} {result.summary or ''}".lower()
-        if any(k in blob for k in _ALT_MED_KEYWORDS):
-            tags.append("herbal")
-    elif text_tokens & _ALT_MED_KEYWORDS:
+    blob = f"{result.title or ''} {result.summary or ''}".lower()
+    if (
+        (text_tokens & _ALT_MED_KEYWORDS)
+        or any(k in blob for k in _ALT_MED_KEYWORDS)
+        or any(p in blob for p in _ALT_MED_PHRASES)
+    ):
         tags.append("herbal")
     # Outlier: match against author list
     if is_outlier_result(result.authors or []):

@@ -52,6 +52,8 @@ export default function Home() {
   const [shareModal, setShareModal] = useState<{ isOpen: boolean; title?: string }>({ isOpen: false });
   // Result-mode multi-select: 'all' (default), 'herbal', 'outlier'. Multiple may be active.
   const [resultModes, setResultModes] = useState<ResultMode[]>(['all']);
+  const [modesOpen, setModesOpen] = useState(false);
+  const modesMenuRef = useRef<HTMLDivElement>(null);
 
   const toggleMode = (mode: ResultMode) => {
     setResultModes(prev => {
@@ -59,9 +61,25 @@ export default function Home() {
       let next: ResultMode[] = has ? prev.filter(m => m !== mode) : [...prev, mode];
       // If user deselects everything, fall back to 'all'
       if (next.length === 0) next = ['all'];
+      // 'all' is exclusive of the others — selecting 'all' clears filters;
+      // selecting a filter removes 'all'.
+      if (!has && mode === 'all') next = ['all'];
+      else if (!has && mode !== 'all') next = next.filter(m => m !== 'all');
       return next;
     });
   };
+
+  // Close mode dropdown on outside click
+  useEffect(() => {
+    if (!modesOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (modesMenuRef.current && !modesMenuRef.current.contains(e.target as Node)) {
+        setModesOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [modesOpen]);
   const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -395,36 +413,76 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            {/* Result-mode multi-select */}
-            <div
-              className="flex items-center gap-1 p-1 rounded-full border border-slate-200 bg-slate-50"
-              role="group"
-              aria-label="Result modes"
-              title="Select one or more lenses. PULSE scores within the selected scope."
-            >
-              {([
-                { id: 'all',     label: 'All',     short: 'All' },
-                { id: 'herbal',  label: 'Herbal / Alt', short: 'Herbal' },
-                { id: 'outlier', label: 'Outlier', short: 'Outlier' },
-              ] as { id: ResultMode; label: string; short: string }[]).map((m) => {
-                const active = resultModes.includes(m.id);
-                return (
+            {/* Result-mode checkbox dropdown (scalable for future filters) */}
+            {(() => {
+              const MODE_OPTIONS: { id: ResultMode; label: string; desc: string }[] = [
+                { id: 'all',     label: 'All results',   desc: 'Unfiltered corpus' },
+                { id: 'herbal',  label: 'Herbal / Alt',  desc: 'Supplements, botanicals, integrative' },
+                { id: 'outlier', label: 'Outlier',       desc: 'Heterodox peer-reviewed authors' },
+              ];
+              const activeNonAll = resultModes.filter(m => m !== 'all');
+              const buttonLabel =
+                resultModes.includes('all') && activeNonAll.length === 0
+                  ? 'All results'
+                  : activeNonAll.length === 1
+                    ? MODE_OPTIONS.find(o => o.id === activeNonAll[0])?.label ?? 'Filters'
+                    : `${activeNonAll.length} filters`;
+              return (
+                <div className="relative" ref={modesMenuRef}>
                   <button
-                    key={m.id}
-                    onClick={() => toggleMode(m.id)}
-                    aria-pressed={active}
-                    className={`px-2.5 py-1 rounded-full text-xs font-medium transition-all ${
-                      active
-                        ? 'bg-[#1B6B93] text-white shadow-sm'
-                        : 'text-slate-600 hover:text-slate-900 hover:bg-white'
-                    }`}
+                    type="button"
+                    onClick={() => setModesOpen(o => !o)}
+                    aria-haspopup="listbox"
+                    aria-expanded={modesOpen}
+                    title="PULSE scores within the selected scope."
+                    className="flex items-center gap-1.5 px-2.5 py-1.5 border border-slate-200 rounded-full text-xs font-medium text-slate-600 hover:text-slate-900 hover:border-lena-300 bg-white transition-all"
                   >
-                    <span className="hidden sm:inline">{m.label}</span>
-                    <span className="sm:hidden">{m.short}</span>
+                    <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                    </svg>
+                    <span className="hidden sm:inline">{buttonLabel}</span>
+                    <span className="sm:hidden">Filters</span>
+                    <svg className={`w-3 h-3 transition-transform ${modesOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+                    </svg>
                   </button>
-                );
-              })}
-            </div>
+                  {modesOpen && (
+                    <div
+                      role="listbox"
+                      aria-label="Result modes"
+                      className="absolute right-0 mt-1.5 w-64 bg-white border border-slate-200 rounded-lg shadow-lg z-50 overflow-hidden"
+                    >
+                      <div className="px-3 py-2 text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-100 bg-slate-50">
+                        Result lenses
+                      </div>
+                      {MODE_OPTIONS.map(opt => {
+                        const checked = resultModes.includes(opt.id);
+                        return (
+                          <label
+                            key={opt.id}
+                            className="flex items-start gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={checked}
+                              onChange={() => toggleMode(opt.id)}
+                              className="mt-0.5 w-4 h-4 text-lena-600 border-slate-300 rounded focus:ring-lena-500 focus:ring-1"
+                            />
+                            <span className="flex-1 min-w-0">
+                              <span className="block text-xs font-medium text-slate-800">{opt.label}</span>
+                              <span className="block text-[11px] text-slate-500">{opt.desc}</span>
+                            </span>
+                          </label>
+                        );
+                      })}
+                      <div className="px-3 py-2 border-t border-slate-100 bg-slate-50 text-[11px] text-slate-500">
+                        PULSE scores within your selected scope.
+                      </div>
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
 
             {/* Persona Selector */}
             <PersonaSelector />
