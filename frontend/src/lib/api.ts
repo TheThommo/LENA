@@ -216,7 +216,19 @@ export async function searchLiterature(
   }
 
   const response = await fetch(`${API_BASE}/search?${params}`, { headers });
-  if (!response.ok) throw new Error(`Search failed: ${response.statusText}`);
+  if (!response.ok) {
+    // HTTP/2 drops statusText, so read the JSON body (FastAPI returns {detail}).
+    let detail = '';
+    try {
+      const body = await response.json();
+      detail = body?.detail || '';
+    } catch {
+      // response body may not be JSON
+    }
+    throw new Error(
+      `Search failed (${response.status}): ${detail || response.statusText || 'Unknown error'}`,
+    );
+  }
   return response.json();
 }
 
