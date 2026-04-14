@@ -429,12 +429,13 @@ export default function ChatMessage({
   // changes the lens AFTER the search has already returned. 'all' (or no
   // selection) shows everything. Any other mode shows only results whose
   // matched_modes intersects the active selection.
-  const filterModes = (activeModes ?? ['all']).filter((m) => m !== 'all');
+  const filterModes: ResultMode[] = (activeModes ?? ['all']).filter((m) => m !== 'all');
+  const filterSet = new Set<string>(filterModes);
   const filteredResults =
     filterModes.length === 0
       ? allResults
       : allResults.filter(({ result }) =>
-          (result.matched_modes ?? []).some((m) => filterModes.includes(m as ResultMode)),
+          (result.matched_modes ?? []).some((m) => filterSet.has(m)),
         );
   const hiddenByFilter = allResults.length - filteredResults.length;
 
