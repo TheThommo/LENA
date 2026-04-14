@@ -46,10 +46,10 @@ class Settings(BaseSettings):
     # Authentication & JWT
     jwt_secret_key: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
-    jwt_expiration_minutes: int = 1440  # 24 hours
+    jwt_expiration_minutes: int = 480  # 8 hours (admin tokens live 8h, not 24h)
 
     # Freemium
-    free_search_limit: int = 2
+    free_search_limit: int = 5
 
     # Email (Resend)
     resend_api_key: Optional[str] = None

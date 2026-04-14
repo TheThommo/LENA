@@ -31,7 +31,9 @@ from app.models.enums import UserRole, PersonaType
 from app.core.auth import create_access_token, require_auth
 from app.core.config import settings
 from app.core.tenant import detect_tenant
+from app.core.rate_limit import check_rate_limit
 from app.services.funnel_tracker import track_funnel_stage
+from app.services.analytics_writer import log_audit_event, schedule_analytics_task
 
 router = APIRouter(tags=["auth"])
 
@@ -175,16 +177,30 @@ async def register(request: Request, body: RegisterRequest) -> RegisterResponse:
 )
 async def login(request: Request, body: LoginRequest) -> LoginResponse:
     """
-    Login with email and password.
+    Login with email and password. Returns JWT access token.
 
-    Returns JWT access token.
-
-    TODO: In production, verify password against Supabase Auth.
-    For now, this is a placeholder.
+    Server-side brute-force protection: 10 attempts per 5 minutes per IP.
+    All login attempts (success + failure) are recorded in audit_log.
     """
+    # Hard cap per-IP BEFORE touching the DB so credential stuffing can't DoS us
+    check_rate_limit(request, bucket="login", max_hits=10, window_seconds=300)
+
+    client_ip = request.headers.get("x-forwarded-for", "").split(",")[0].strip() \
+        or (request.client.host if request.client else "unknown")
+
     # Find user by email
     user = await UserRepository.get_by_email(body.email)
     if not user:
+        # Log failed attempt (unknown email)
+        schedule_analytics_task(log_audit_event(
+            user_id=None,
+            tenant_id="00000000-0000-0000-0000-000000000000",
+            action="login",
+            resource_type="auth",
+            resource_id=None,
+            details={"email": body.email, "outcome": "failed_unknown_email"},
+            ip_address=client_ip,
+        ))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
@@ -208,10 +224,35 @@ async def login(request: Request, body: LoginRequest) -> LoginResponse:
         body.password.encode("utf-8"),
         verify_hash.encode("utf-8"),
     ):
+        schedule_analytics_task(log_audit_event(
+            user_id=str(user.id),
+            tenant_id=str(user.tenant_id),
+            action="login",
+            resource_type="auth",
+            resource_id=str(user.id),
+            details={"email": body.email, "role": user.role.value, "outcome": "failed_bad_password"},
+            ip_address=client_ip,
+        ))
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Invalid email or password",
         )
+
+    # Log successful login — extra visibility for admin accounts
+    schedule_analytics_task(log_audit_event(
+        user_id=str(user.id),
+        tenant_id=str(user.tenant_id),
+        action="login",
+        resource_type="auth",
+        resource_id=str(user.id),
+        details={
+            "email": body.email,
+            "role": user.role.value,
+            "outcome": "success",
+            "is_admin": user.role.value == "platform_admin",
+        },
+        ip_address=client_ip,
+    ))
 
     # Update last login
     updated_user = await UserRepository.update_last_login(user.id)
@@ -312,13 +353,17 @@ def _hash_token(token: str) -> str:
     response_model=ForgotPasswordResponse,
     status_code=status.HTTP_200_OK,
 )
-async def forgot_password(body: ForgotPasswordRequest) -> ForgotPasswordResponse:
+async def forgot_password(request: Request, body: ForgotPasswordRequest) -> ForgotPasswordResponse:
     """
     Request a password reset email.
 
     Generates a secure token, stores its hash, and emails a reset link.
     Always returns success to prevent email enumeration.
+
+    Rate-limited: 3 requests per IP per 10 minutes.
     """
+    check_rate_limit(request, bucket="forgot-password", max_hits=3, window_seconds=600)
+
     # Always return same message to prevent email enumeration
     generic_msg = "If that email is registered, a reset link has been sent."
 
