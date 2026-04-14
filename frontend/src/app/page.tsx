@@ -88,12 +88,44 @@ export default function Home() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const currentSessionIdRef = useRef<string>(Date.now().toString());
 
-  // Load recent sessions from localStorage
+  // Load recent sessions from localStorage — only for authenticated users.
+  // Anonymous / signed-out visitors start with a clean slate (avoids leaking
+  // one user's history to another on shared devices).
   useEffect(() => {
+    if (!isAuthenticated) {
+      setRecentSessions([]);
+      return;
+    }
     try {
       const stored = localStorage.getItem('lena_recent_sessions');
       if (stored) setRecentSessions(JSON.parse(stored));
     } catch {}
+  }, [isAuthenticated]);
+
+  // Persist the full message thread for a session so clicking a recent
+  // session restores it locally instead of re-running the search (which
+  // would double-bill the backend / API tokens).
+  const persistSessionThread = useCallback((sessionId: string, thread: Message[]) => {
+    try {
+      const raw = localStorage.getItem('lena_session_threads');
+      const all: Record<string, Message[]> = raw ? JSON.parse(raw) : {};
+      all[sessionId] = thread;
+      localStorage.setItem('lena_session_threads', JSON.stringify(all));
+    } catch {}
+  }, []);
+
+  const loadSessionThread = useCallback((sessionId: string): Message[] | null => {
+    try {
+      const raw = localStorage.getItem('lena_session_threads');
+      if (!raw) return null;
+      const all: Record<string, Message[]> = JSON.parse(raw);
+      const thread = all[sessionId];
+      if (!thread) return null;
+      // Revive Date objects after JSON round-trip
+      return thread.map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
+    } catch {
+      return null;
+    }
   }, []);
 
   // Auto-scroll to bottom on new messages
@@ -109,8 +141,10 @@ export default function Home() {
     el.style.height = Math.min(el.scrollHeight, 130) + 'px';
   }, []);
 
-  // Save recent search — grouped by session
+  // Save recent search — grouped by session. Only persisted for authenticated
+  // users (anonymous visitors don't get a history trail).
   const addRecentSearch = useCallback((query: string) => {
+    if (!isAuthenticated) return;
     const sid = currentSessionIdRef.current;
     setRecentSessions(prev => {
       const existing = prev.find(s => s.id === sid);
@@ -132,7 +166,7 @@ export default function Home() {
       localStorage.setItem('lena_recent_sessions', JSON.stringify(updated));
       return updated;
     });
-  }, []);
+  }, [isAuthenticated]);
 
   // Handle search
   const handleSend = async (text?: string) => {
@@ -177,7 +211,15 @@ export default function Home() {
         response: result,
         timestamp: new Date(),
       };
-      setMessages(prev => [...prev, assistantMsg]);
+      setMessages(prev => {
+        const next = [...prev, assistantMsg];
+        // Persist so clicking this session in 'Recent Sessions' restores from
+        // local state without re-calling the backend (which would re-bill).
+        if (isAuthenticated) {
+          persistSessionThread(currentSessionIdRef.current, next);
+        }
+        return next;
+      });
       incrementSearch();
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
@@ -193,6 +235,23 @@ export default function Home() {
       setLoading(false);
     }
   };
+
+  // Restore a prior session's thread from localStorage without re-hitting the
+  // backend. Falls back to running a fresh search only if the thread is
+  // missing (e.g. storage cleared, cross-device).
+  const handleRecentSessionClick = useCallback((sessionId: string, fallbackQuery: string) => {
+    const thread = loadSessionThread(sessionId);
+    if (thread && thread.length > 0) {
+      currentSessionIdRef.current = sessionId;
+      setMessages(thread);
+      setError(null);
+      setActiveView('chat');
+      return;
+    }
+    // No persisted thread — run the query as a last resort
+    setActiveView('chat');
+    handleSend(fallbackQuery);
+  }, [loadSessionThread]);
 
   // Handle keyboard
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -389,7 +448,7 @@ export default function Home() {
           onViewChange={(v) => { setActiveView(v); if (window.innerWidth < 1024) setSidebarOpen(false); }}
           onNewSearch={() => { handleNewSearch(); if (window.innerWidth < 1024) setSidebarOpen(false); }}
           recentSessions={recentSessions}
-          onSearchClick={(q) => { setActiveView('chat'); handleSend(q); if (window.innerWidth < 1024) setSidebarOpen(false); }}
+          onSearchClick={(sid, q) => { handleRecentSessionClick(sid, q); if (window.innerWidth < 1024) setSidebarOpen(false); }}
           userName={session.name || user?.name}
           userEmail={user?.email}
           isAuthenticated={isAuthenticated}

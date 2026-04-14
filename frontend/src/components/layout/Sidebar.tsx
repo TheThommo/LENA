@@ -16,7 +16,9 @@ interface SidebarProps {
   onViewChange: (view: string) => void;
   onNewSearch: () => void;
   recentSessions: RecentSession[];
-  onSearchClick: (query: string) => void;
+  /** Called when a recent session is clicked. Passes the session id and a
+   *  fallback query (used only if the cached thread can't be restored). */
+  onSearchClick: (sessionId: string, fallbackQuery: string) => void;
   userName?: string;
   userEmail?: string;
   isAuthenticated?: boolean;
@@ -131,7 +133,7 @@ export function Sidebar({
               {recentSessions.map((sess) => (
                 <li key={sess.id}>
                   <button
-                    onClick={() => onSearchClick(sess.firstQuery)}
+                    onClick={() => onSearchClick(sess.id, sess.firstQuery)}
                     className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 transition-colors group"
                   >
                     <p className="text-sm text-gray-700 truncate group-hover:text-lena-500 transition-colors">
