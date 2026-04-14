@@ -63,12 +63,21 @@ export interface EmailCapturePayload {
   dataConsentAccepted: boolean;
 }
 
+export interface UnifiedCapturePayload {
+  name: string;
+  email: string;
+  disclaimerAccepted: boolean;
+  dataConsentAccepted: boolean;
+  institution?: string;
+}
+
 interface SessionContextType {
   session: SessionState;
   startSession: () => Promise<void>;
   captureName: (name: string) => Promise<void>;
   acceptDisclaimer: () => Promise<void>;
   captureEmail: (data: EmailCapturePayload) => Promise<void>;
+  captureAll: (data: UnifiedCapturePayload) => Promise<void>;
   skipEmail: () => void;
   incrementSearch: () => Promise<void>;
   setPersona: (persona: PersonaId) => void;
@@ -219,6 +228,38 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     }
   };
 
+  const captureAll = async (data: UnifiedCapturePayload) => {
+    const sid = await ensureSession();
+    if (!sid) throw new Error('Could not start session. Please try again.');
+
+    const res = await fetch(`${API_BASE}/session/${sid}/capture`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        name: data.name,
+        email: data.email,
+        disclaimer_accepted: data.disclaimerAccepted,
+        data_consent_accepted: data.dataConsentAccepted,
+        institution: data.institution,
+      }),
+    });
+
+    if (!res.ok) {
+      const body = await res.json().catch(() => null);
+      throw new Error(body?.detail || 'Unable to complete sign-up.');
+    }
+
+    const payload = await res.json();
+    setSession(prev => ({
+      ...prev,
+      name: data.name,
+      email: data.email,
+      disclaimerAccepted: true,
+      sessionToken: payload.session_token || prev.sessionToken,
+      funnelStage: 'email_captured',
+    }));
+  };
+
   const skipEmail = () => {
     setSession(prev => ({ ...prev, email: '_skipped', funnelStage: 'email_captured' }));
   };
@@ -243,6 +284,7 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
         captureName,
         acceptDisclaimer,
         captureEmail,
+        captureAll,
         skipEmail,
         incrementSearch,
         setPersona,

@@ -36,7 +36,7 @@ interface RecentSession {
 
 export default function Home() {
   const router = useRouter();
-  const { session, captureName, acceptDisclaimer, captureEmail, skipEmail, incrementSearch } = useSession();
+  const { session, captureAll, incrementSearch } = useSession();
   const { isAuthenticated, isLoading: authLoading, user, token: authToken, logout } = useAuth();
   const { tenant } = useTenant();
 
@@ -203,10 +203,7 @@ export default function Home() {
         isRegistered: isAuthenticated,
         brandName: tenant.brandName,
       }}
-      onNameSubmit={(name) => captureName(name)}
-      onDisclaimerAccept={() => acceptDisclaimer()}
-      onEmailSubmit={(data) => captureEmail(data)}
-      onEmailSkip={() => skipEmail()}
+      onCapture={(data) => captureAll(data)}
       onRegister={() => router.push(`/register?session_id=${session.sessionId || ''}`)}
       onLogin={() => router.push('/login')}
     />

@@ -1,9 +1,7 @@
 'use client';
 
 import React from 'react';
-import NameCaptureModal from './NameCaptureModal';
-import DisclaimerModal from './DisclaimerModal';
-import EmailCaptureModal, { type EmailCaptureData } from './EmailCaptureModal';
+import WelcomeCaptureModal, { type WelcomeCapturePayload } from './WelcomeCaptureModal';
 import SearchLimitModal from './SearchLimitModal';
 
 interface SessionState {
@@ -18,56 +16,32 @@ interface SessionState {
 
 interface FunnelManagerProps {
   sessionState: SessionState;
-  onNameSubmit: (name: string) => void;
-  onDisclaimerAccept: (timestamp: string) => void;
-  onEmailSubmit: (data: EmailCaptureData) => void;
-  onEmailSkip: () => void;
+  onCapture: (data: WelcomeCapturePayload) => Promise<void>;
   onRegister: () => void;
   onLogin: () => void;
 }
 
-export type FunnelStage =
-  | 'name'
-  | 'disclaimer'
-  | 'email'
-  | 'search-limit'
-  | 'none';
+export type FunnelStage = 'welcome' | 'search-limit' | 'none';
 
 export default function FunnelManager({
   sessionState,
-  onNameSubmit,
-  onDisclaimerAccept,
-  onEmailSubmit,
-  onEmailSkip,
+  onCapture,
   onRegister,
   onLogin,
 }: FunnelManagerProps) {
-  // Determine which funnel stage to show
   const getCurrentStage = (): FunnelStage => {
-    // Authenticated / registered users skip the entire funnel
-    if (sessionState.isRegistered) {
-      return 'none';
-    }
+    // Authenticated users skip the entire funnel
+    if (sessionState.isRegistered) return 'none';
 
-    // Name must be captured first
-    if (!sessionState.name) {
-      return 'name';
-    }
+    // First-time visitor: need name + email + disclaimer + data consent
+    const firstTimeCaptured =
+      !!sessionState.name &&
+      !!sessionState.email &&
+      !!sessionState.disclaimerAccepted;
+    if (!firstTimeCaptured) return 'welcome';
 
-    // Disclaimer must be accepted before any search
-    if (!sessionState.disclaimerAccepted) {
-      return 'disclaimer';
-    }
-
-    // After 1 search and no email, capture email
-    if (sessionState.searchCount === 1 && !sessionState.email) {
-      return 'email';
-    }
-
-    // After 5 searches and not registered, show search limit gate
-    if (sessionState.searchCount >= 5) {
-      return 'search-limit';
-    }
+    // After 5 free searches: require signup
+    if (sessionState.searchCount >= 5) return 'search-limit';
 
     return 'none';
   };
@@ -76,27 +50,12 @@ export default function FunnelManager({
 
   return (
     <>
-      {/* Stage 1: Name Capture */}
-      <NameCaptureModal
-        isOpen={currentStage === 'name'}
-        onSubmit={onNameSubmit}
+      <WelcomeCaptureModal
+        isOpen={currentStage === 'welcome'}
+        onSubmit={onCapture}
+        onLogin={onLogin}
         brandName={sessionState.brandName}
       />
-
-      {/* Stage 2: Medical Disclaimer */}
-      <DisclaimerModal
-        isOpen={currentStage === 'disclaimer'}
-        onAccept={onDisclaimerAccept}
-      />
-
-      {/* Stage 3: Email Capture */}
-      <EmailCaptureModal
-        isOpen={currentStage === 'email'}
-        onSubmit={onEmailSubmit}
-        onSkip={onEmailSkip}
-      />
-
-      {/* Stage 4: Search Limit Gate */}
       <SearchLimitModal
         isOpen={currentStage === 'search-limit'}
         onRegister={onRegister}

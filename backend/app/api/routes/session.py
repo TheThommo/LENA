@@ -18,8 +18,25 @@ from app.db.repositories.session_repo import SessionRepository
 from app.models import SessionCreate, SessionUpdate, SessionStatus
 from app.core.tenant import detect_tenant
 from app.services.funnel_tracker import track_funnel_stage
+from app.services.email_service import send_consent_confirmation_email
 
 router = APIRouter(tags=["session"])
+
+
+class UnifiedCaptureRequest(BaseModel):
+    """Single-step first-visit capture: name, email, disclaimer + data consent together."""
+    name: str = Field(..., min_length=1, max_length=255)
+    email: EmailStr
+    disclaimer_accepted: bool = Field(...)
+    data_consent_accepted: bool = Field(...)
+    institution: str | None = Field(None, max_length=255)
+
+
+class UnifiedCaptureResponse(BaseModel):
+    session_id: UUID
+    session_token: str
+    email_sent: bool
+    message: str
 
 
 class SessionStartRequest(BaseModel):
@@ -321,6 +338,73 @@ async def capture_email(
         name=updated_session.name,
         email=updated_session.email,
         disclaimer_accepted_at=updated_session.disclaimer_accepted_at,
+    )
+
+
+@router.post(
+    "/session/{session_id}/capture",
+    response_model=UnifiedCaptureResponse,
+    status_code=status.HTTP_200_OK,
+)
+async def unified_capture(
+    session_id: UUID,
+    body: UnifiedCaptureRequest,
+) -> UnifiedCaptureResponse:
+    """
+    Single-step first-visit capture.
+
+    Combines name, email, disclaimer + data-consent acceptance into one call so
+    the freemium onboarding is a single modal. Sends a confirmation email on
+    success and records consent timestamps against the session (admin-visible).
+    """
+    if not body.disclaimer_accepted or not body.data_consent_accepted:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Both the medical disclaimer and data-use consent must be accepted.",
+        )
+
+    session = await SessionRepository.get_by_id(session_id)
+    if not session:
+        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Session not found")
+
+    now = datetime.utcnow()
+    update_fields: dict = {
+        "name": body.name,
+        "email": body.email,
+        "disclaimer_accepted_at": now,
+        "data_consent_accepted_at": now,
+    }
+    if body.institution:
+        update_fields["institution"] = body.institution
+
+    updated = await SessionRepository.update(session_id, SessionUpdate(**update_fields))
+    if not updated:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Failed to record capture",
+        )
+
+    # Fire all relevant funnel stages so the admin funnel chart is consistent
+    for stage in ("name_captured", "disclaimer_accepted", "email_captured"):
+        await track_funnel_stage(
+            session_id=str(session_id),
+            tenant_id=str(session.tenant_id),
+            stage=stage,
+            metadata={"unified": True},
+        )
+
+    # Fire-and-forget confirmation email (do not block response on email delivery)
+    email_sent = False
+    try:
+        email_sent = await send_consent_confirmation_email(body.email, body.name)
+    except Exception:
+        email_sent = False
+
+    return UnifiedCaptureResponse(
+        session_id=session_id,
+        session_token=f"session_{session.id}_authorized",
+        email_sent=email_sent,
+        message="Welcome. Consent recorded.",
     )
 
 
