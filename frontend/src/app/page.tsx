@@ -314,6 +314,7 @@ export default function Home() {
                   type={msg.type}
                   content={msg.content}
                   response={msg.response}
+                  activeModes={resultModes}
                   onFollowUp={(q) => handleSend(q)}
                   onShare={(title) => setShareModal({ isOpen: true, title })}
                 />

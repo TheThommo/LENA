@@ -3,7 +3,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import Image from 'next/image';
 import { branding } from '@/config/branding';
-import type { SearchResponse, ValidatedResult } from '@/lib/api';
+import type { SearchResponse, ValidatedResult, ResultMode } from '@/lib/api';
 
 /* ────────────────────────────────────────
    Lightweight Markdown → JSX renderer
@@ -175,6 +175,9 @@ interface ChatMessageProps {
   type: 'user' | 'assistant';
   content: string;
   response?: SearchResponse;
+  /** Currently active result-mode filters; used for client-side filtering of
+   *  results returned by the backend. ['all'] (or missing) means show everything. */
+  activeModes?: ResultMode[];
   onFollowUp?: (query: string) => void;
   onShare?: (title?: string) => void;
 }
@@ -393,6 +396,7 @@ export default function ChatMessage({
   response,
   onFollowUp,
   onShare,
+  activeModes,
 }: ChatMessageProps) {
   if (type === 'user') {
     return (
@@ -420,6 +424,19 @@ export default function ChatMessage({
       allResults.push({ result: r, isEdge: true })
     );
   }
+
+  // Client-side mode filter: re-narrow a past result set when the user
+  // changes the lens AFTER the search has already returned. 'all' (or no
+  // selection) shows everything. Any other mode shows only results whose
+  // matched_modes intersects the active selection.
+  const filterModes = (activeModes ?? ['all']).filter((m) => m !== 'all');
+  const filteredResults =
+    filterModes.length === 0
+      ? allResults
+      : allResults.filter(({ result }) =>
+          (result.matched_modes ?? []).some((m) => filterModes.includes(m as ResultMode)),
+        );
+  const hiddenByFilter = allResults.length - filteredResults.length;
 
   return (
     <div className="mb-6 w-full">
@@ -500,8 +517,21 @@ export default function ChatMessage({
         )}
 
         {/* Source cards — collapsed by default, show top 3 */}
-        {allResults.length > 0 && (
-          <SourceCardList allResults={allResults} />
+        {filteredResults.length > 0 && (
+          <>
+            {hiddenByFilter > 0 && (
+              <p className="text-xs text-slate-500 italic">
+                Filter hiding {hiddenByFilter} result{hiddenByFilter === 1 ? '' : 's'} — select <span className="font-medium">All results</span> to see everything.
+              </p>
+            )}
+            <SourceCardList allResults={filteredResults} />
+          </>
+        )}
+        {filteredResults.length === 0 && allResults.length > 0 && (
+          <p className="text-sm text-slate-500 italic">
+            No results match the active filter ({filterModes.join(', ')}).
+            Select <span className="font-medium">All results</span> to see {allResults.length} hidden source{allResults.length === 1 ? '' : 's'}.
+          </p>
         )}
 
         {/* Follow-up suggestions */}
