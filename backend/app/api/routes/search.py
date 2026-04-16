@@ -103,7 +103,7 @@ async def search_literature(
         total_results = search_result.get("total_results", 0)
         pulse_status = search_result.get("pulse_report", {}).get("status", "pending")
 
-        # Log search event
+        # Log search event (includes LLM cost when the summary ran)
         schedule_analytics_task(
             log_search_event(
                 search_id=search_id,
@@ -117,6 +117,7 @@ async def search_literature(
                 sources_succeeded=sources_succeeded,
                 total_results=total_results,
                 pulse_status=pulse_status,
+                llm_usage=search_result.get("llm_usage"),
             )
         )
 

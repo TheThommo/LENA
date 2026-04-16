@@ -403,6 +403,10 @@ body {
       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z"/></svg>
       Leads
     </div>
+    <div class="sidebar-item" onclick="switchTab('costs',this)">
+      <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M12 8c-1.657 0-3 .895-3 2s1.343 2 3 2 3 .895 3 2-1.343 2-3 2m0-8c1.11 0 2.08.402 2.599 1M12 8V7m0 1v8m0 0v1m0-1c-1.11 0-2.08-.402-2.599-1M21 12a9 9 0 11-18 0 9 9 0 0118 0z"/></svg>
+      Costs
+    </div>
     <div class="sidebar-item" onclick="switchTab('health',this)">
       <svg fill="none" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z"/></svg>
       Health
@@ -603,6 +607,63 @@ body {
           </tr>
         </thead>
         <tbody><tr><td colspan="7" class="empty-state"><p>Loading...</p></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+</section>
+
+<!-- ── COSTS ───────────────────────────────────────────────────── -->
+<section id="costs" class="section">
+  <div class="section-header">
+    <div class="section-title">Cost Intelligence</div>
+    <div class="section-subtitle">LLM spend per user — calibrate pricing before you charge</div>
+  </div>
+  <div class="grid grid-4" style="margin-bottom:24px">
+    <div class="stat-card">
+      <div class="stat-label">Total Spend</div>
+      <div class="stat-value" id="cost-total">--</div>
+      <div class="stat-sub" id="cost-searches-sub">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Cost / User</div>
+      <div class="stat-value" id="cost-per-user" style="color:var(--lena-400)">--</div>
+      <div class="stat-sub" id="cost-users-sub">--</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Cost / Search</div>
+      <div class="stat-value" id="cost-per-search">--</div>
+      <div class="stat-sub">Average LLM call</div>
+    </div>
+    <div class="stat-card">
+      <div class="stat-label">Tokens Used</div>
+      <div class="stat-value" id="cost-tokens">--</div>
+      <div class="stat-sub" id="cost-tokens-split">in / out</div>
+    </div>
+  </div>
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Per-User Spend</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <input id="costsFilter" placeholder="Filter..." oninput="renderCostsTable()"
+          style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--text-primary);min-width:160px">
+        <button class="btn-sm" onclick="loadCosts()" style="background:var(--lena-500)">Refresh</button>
+      </div>
+    </div>
+    <div class="panel-body no-pad">
+      <table class="data-table" id="costsTable">
+        <thead>
+          <tr>
+            <th>User</th>
+            <th>Email</th>
+            <th style="text-align:right">Searches</th>
+            <th style="text-align:right">In Tokens</th>
+            <th style="text-align:right">Out Tokens</th>
+            <th style="text-align:right">Total $</th>
+            <th style="text-align:right">Avg / Search</th>
+            <th>Last Activity</th>
+          </tr>
+        </thead>
+        <tbody><tr><td colspan="8" class="empty-state"><p>Loading...</p></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -903,7 +964,9 @@ function destroyChart(id) {
 // ── Tab Switching ────────────────────────────────────────────────
 const tabTitles = {
   overview: 'Overview', funnel: 'Conversion Funnel', traffic: 'Traffic & Geography',
-  personas: 'User Personas', searches: 'Search Intelligence', leads: 'Lead Intelligence', health: 'System Health',
+  personas: 'User Personas', searches: 'Search Intelligence',
+  costs: 'Cost Intelligence',
+  leads: 'Lead Intelligence', health: 'System Health',
 };
 
 function toggleAdminSidebar() {
@@ -947,6 +1010,7 @@ async function loadAllData() {
       loadQueries(),
       loadVisitors(),
       loadQuestionsFeed(),
+      loadCosts(),
       loadLeads(),
       loadHealth(),
       loadTenants(),
@@ -1230,6 +1294,77 @@ async function loadQueries() {
       </tr>
     `).join('');
   } catch(e) { console.error('Queries error:', e); }
+}
+
+// Cost intelligence — per-user LLM spend so we can calibrate pricing.
+// Token costs are captured per search in search_logs.llm_cost_micros;
+// the backend aggregates by registered user (email) or anon session.
+let _costsCache = [];
+function fmtUSD(n) {
+  const v = Number(n) || 0;
+  if (v >= 1) return '$' + v.toFixed(2);
+  if (v >= 0.01) return '$' + v.toFixed(3);
+  return '$' + v.toFixed(5);
+}
+async function loadCosts() {
+  try {
+    const params = new URLSearchParams();
+    const s = document.getElementById('startDate').value;
+    const e = document.getElementById('endDate').value;
+    if (s) params.set('start_date', s);
+    if (e) params.set('end_date', e);
+    params.set('limit', '500');
+    const data = await apiFetch(`/dashboard/platform/costs?${params.toString()}`);
+    _costsCache = data.per_user || [];
+    document.getElementById('cost-total').textContent = fmtUSD(data.total_cost_usd);
+    document.getElementById('cost-searches-sub').textContent =
+      `${fmt(data.total_searches_with_llm || 0)} LLM calls`;
+    document.getElementById('cost-per-user').textContent = fmtUSD(data.avg_cost_per_user_usd);
+    document.getElementById('cost-users-sub').textContent =
+      `${fmt(data.distinct_users || 0)} distinct users`;
+    document.getElementById('cost-per-search').textContent = fmtUSD(data.avg_cost_per_search_usd);
+    const totalTokens = (data.total_prompt_tokens || 0) + (data.total_completion_tokens || 0);
+    document.getElementById('cost-tokens').textContent = fmt(totalTokens);
+    document.getElementById('cost-tokens-split').textContent =
+      `${fmt(data.total_prompt_tokens || 0)} in · ${fmt(data.total_completion_tokens || 0)} out`;
+    renderCostsTable();
+  } catch (err) { console.error('Costs error:', err); }
+}
+
+function renderCostsTable() {
+  const tbody = document.querySelector('#costsTable tbody');
+  const filter = (document.getElementById('costsFilter')?.value || '').toLowerCase();
+  let rows = _costsCache;
+  if (filter) {
+    rows = rows.filter(r =>
+      (r.email || '').toLowerCase().includes(filter) ||
+      (r.name || '').toLowerCase().includes(filter)
+    );
+  }
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><p>No cost data yet. Populates as soon as the next LLM-backed search runs.</p></td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(r => {
+    const registeredBadge = r.registered
+      ? '<span style="background:rgba(52,211,153,0.1);color:var(--accent-green);font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:6px">REG</span>'
+      : '<span style="background:rgba(148,163,184,0.1);color:var(--text-muted);font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:6px">ANON</span>';
+    const when = r.last_search_at ? new Date(r.last_search_at).toLocaleString('en-AU', {
+      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+    }) : '--';
+    return `
+      <tr>
+        <td style="color:var(--text-primary)">${escHtml(r.name || 'Anonymous')} ${registeredBadge}</td>
+        <td style="color:var(--text-muted);font-size:12px">${escHtml(r.email || '—')}</td>
+        <td style="font-family:'DM Mono',monospace;text-align:right">${fmt(r.searches)}</td>
+        <td style="font-family:'DM Mono',monospace;text-align:right;color:var(--text-muted)">${fmt(r.prompt_tokens)}</td>
+        <td style="font-family:'DM Mono',monospace;text-align:right;color:var(--text-muted)">${fmt(r.completion_tokens)}</td>
+        <td style="font-family:'DM Mono',monospace;text-align:right;color:var(--lena-400);font-weight:600">${fmtUSD(r.cost_usd)}</td>
+        <td style="font-family:'DM Mono',monospace;text-align:right;color:var(--text-muted)">${fmtUSD(r.avg_cost_per_search_usd)}</td>
+        <td style="color:var(--text-muted);font-size:11px;white-space:nowrap">${escHtml(when)}</td>
+      </tr>
+    `;
+  }).join('');
 }
 
 // Historic visitor feed — every session in the window. Sourced from the

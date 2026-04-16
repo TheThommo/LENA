@@ -74,6 +74,7 @@ async def log_search_event(
     total_results: int,
     pulse_status: str,
     user_id: Optional[str] = None,
+    llm_usage: Optional[dict] = None,
 ) -> None:
     """
     Log a search event to `search_logs` (detailed) and `searches` (rollup).
@@ -107,6 +108,13 @@ async def log_search_event(
     }
     if user_id:
         log_payload["user_id"] = user_id
+    if llm_usage:
+        # Migration add_cost_columns_to_search_logs added these columns.
+        # Writing them here is how the Cost Intelligence admin view gets data.
+        log_payload["llm_model"] = llm_usage.get("model")
+        log_payload["llm_prompt_tokens"] = llm_usage.get("prompt_tokens")
+        log_payload["llm_completion_tokens"] = llm_usage.get("completion_tokens")
+        log_payload["llm_cost_micros"] = llm_usage.get("cost_micros")
 
     try:
         client.table("search_logs").insert(log_payload).execute()

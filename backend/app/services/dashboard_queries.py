@@ -996,6 +996,152 @@ async def get_pulse_accuracy(
         }
 
 
+async def get_cost_intelligence(
+    tenant_id: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    limit: int = 100,
+) -> Dict[str, Any]:
+    """
+    Per-user LLM cost, total spend, token volumes, and top-spender ranking.
+
+    Costs are stored as USD millionths (llm_cost_micros) so arithmetic in
+    Python never drifts with float rounding. Dollars are only produced at
+    the response boundary.
+
+    Per-user key preference:
+      1. users.email (registered user) -> "jane@acme.com"
+      2. sessions.email (anon capture)  -> "lead@example.com"
+      3. session_id as fallback bucket  -> "anon:7ab2…"
+    """
+    try:
+        client = get_supabase_admin_client()
+        start, end = _get_date_range(start_date, end_date)
+
+        q = (
+            client.table("search_logs")
+            .select(
+                "id, user_id, session_id, tenant_id, query, persona, "
+                "llm_model, llm_prompt_tokens, llm_completion_tokens, "
+                "llm_cost_micros, created_at"
+            )
+            .gte("created_at", start.isoformat())
+            .lte("created_at", end.isoformat())
+            .not_.is_("llm_cost_micros", "null")
+            .order("created_at", desc=True)
+        )
+        if tenant_id:
+            q = q.eq("tenant_id", tenant_id)
+        res = q.execute()
+        rows = res.data or []
+
+        # Hydrate user + session email in two bulk calls.
+        user_ids = list({r["user_id"] for r in rows if r.get("user_id")})
+        session_ids = list({r["session_id"] for r in rows if r.get("session_id")})
+        users_map: Dict[str, dict] = {}
+        sessions_map: Dict[str, dict] = {}
+        if user_ids:
+            u = client.table("users").select("id, email, name").in_("id", user_ids).execute()
+            users_map = {row["id"]: row for row in (u.data or [])}
+        if session_ids:
+            s = client.table("sessions").select("id, name, email").in_("id", session_ids).execute()
+            sessions_map = {row["id"]: row for row in (s.data or [])}
+
+        by_user: Dict[str, dict] = {}
+        total_micros = 0
+        total_prompt = 0
+        total_completion = 0
+        total_searches = 0
+        for r in rows:
+            micros = int(r.get("llm_cost_micros") or 0)
+            pt = int(r.get("llm_prompt_tokens") or 0)
+            ct = int(r.get("llm_completion_tokens") or 0)
+            total_micros += micros
+            total_prompt += pt
+            total_completion += ct
+            total_searches += 1
+
+            u = users_map.get(r.get("user_id") or "", {})
+            s = sessions_map.get(r.get("session_id") or "", {})
+            key_email = u.get("email") or s.get("email")
+            key_name = u.get("name") or s.get("name")
+            if key_email:
+                key = key_email.lower()
+                display_name = key_name or key_email
+            else:
+                # Fallback bucket: one anon session == one "user".
+                key = f"anon:{r.get('session_id') or 'unknown'}"
+                display_name = "Anonymous visitor"
+
+            slot = by_user.setdefault(key, {
+                "key": key,
+                "email": key_email,
+                "name": display_name,
+                "registered": bool(r.get("user_id")),
+                "searches": 0,
+                "prompt_tokens": 0,
+                "completion_tokens": 0,
+                "cost_micros": 0,
+                "last_search_at": None,
+            })
+            slot["searches"] += 1
+            slot["prompt_tokens"] += pt
+            slot["completion_tokens"] += ct
+            slot["cost_micros"] += micros
+            ts = r.get("created_at")
+            if ts and (slot["last_search_at"] is None or ts > slot["last_search_at"]):
+                slot["last_search_at"] = ts
+
+        # Sort by cost desc for top spenders
+        per_user = sorted(by_user.values(), key=lambda x: x["cost_micros"], reverse=True)
+
+        # Convert to user-facing $ / cents here, preserving the raw micro counter
+        def enrich(entry: dict) -> dict:
+            cost_usd = entry["cost_micros"] / 1_000_000.0
+            entry["cost_usd"] = round(cost_usd, 4)
+            entry["cost_cents"] = round(cost_usd * 100, 2)
+            entry["avg_cost_per_search_usd"] = round(cost_usd / entry["searches"], 4) if entry["searches"] else 0
+            return entry
+
+        per_user = [enrich(e) for e in per_user]
+        top_spenders = per_user[:limit]
+
+        total_usd = total_micros / 1_000_000.0
+        avg_per_search_usd = total_usd / total_searches if total_searches else 0.0
+        distinct_users = len(per_user)
+
+        return {
+            "total_cost_usd": round(total_usd, 4),
+            "total_cost_cents": round(total_usd * 100, 2),
+            "total_searches_with_llm": total_searches,
+            "total_prompt_tokens": total_prompt,
+            "total_completion_tokens": total_completion,
+            "distinct_users": distinct_users,
+            "avg_cost_per_search_usd": round(avg_per_search_usd, 6),
+            "avg_cost_per_user_usd": round(total_usd / distinct_users, 4) if distinct_users else 0.0,
+            "top_spenders": top_spenders,
+            "per_user": per_user,
+            "period_start": start,
+            "period_end": end,
+        }
+    except Exception:
+        logger.error("Error getting cost intelligence", exc_info=True)
+        return {
+            "total_cost_usd": 0,
+            "total_cost_cents": 0,
+            "total_searches_with_llm": 0,
+            "total_prompt_tokens": 0,
+            "total_completion_tokens": 0,
+            "distinct_users": 0,
+            "avg_cost_per_search_usd": 0,
+            "avg_cost_per_user_usd": 0,
+            "top_spenders": [],
+            "per_user": [],
+            "period_start": start_date or date.today(),
+            "period_end": end_date or date.today(),
+        }
+
+
 async def get_session_activity(
     tenant_id: Optional[str] = None,
     start_date: Optional[date] = None,

@@ -9,11 +9,53 @@ Handles all LLM interactions:
 - Embedding generation for semantic search (future: pgvector)
 """
 
-from typing import Optional
+from typing import Optional, NamedTuple
 from openai import AsyncOpenAI
 
 from app.core.config import settings
 from app.core.persona import PersonaType, get_persona_config
+
+
+class LLMUsage(NamedTuple):
+    """Token + cost accounting for a single completion."""
+    model: str
+    prompt_tokens: int
+    completion_tokens: int
+    cost_micros: int  # USD millionths (1 USD == 1_000_000 micros)
+
+
+# OpenAI public pricing, USD per 1M tokens. Update when rates change.
+# Keyed by the prefix of the actual returned model id so fine-tune suffixes
+# still match (e.g. "gpt-4o-mini-2024-07-18" -> gpt-4o-mini rates).
+_MODEL_PRICING_USD_PER_M = {
+    "gpt-4o-mini": (0.15, 0.60),
+    "gpt-4o":       (2.50, 10.00),
+    "gpt-4-turbo":  (10.00, 30.00),
+    "gpt-4":        (30.00, 60.00),
+    "gpt-3.5-turbo": (0.50, 1.50),
+    "o1-mini":      (1.10, 4.40),
+    "o1-preview":   (15.00, 60.00),
+    "o1":           (15.00, 60.00),
+}
+
+
+def _price_for_model(model: str) -> tuple[float, float]:
+    """Return (input $/1M, output $/1M) — falls back to gpt-4o-mini."""
+    m = (model or "").lower()
+    # Longest-prefix match so "gpt-4o-mini-xyz" beats "gpt-4o" etc.
+    best = max(
+        (k for k in _MODEL_PRICING_USD_PER_M if m.startswith(k)),
+        key=len,
+        default="gpt-4o-mini",
+    )
+    return _MODEL_PRICING_USD_PER_M[best]
+
+
+def _compute_cost_micros(model: str, prompt_tokens: int, completion_tokens: int) -> int:
+    """Cost in USD millionths. 1 USD = 1_000_000 micros, so cents = micros / 10_000."""
+    in_rate, out_rate = _price_for_model(model)
+    dollars = (prompt_tokens * in_rate + completion_tokens * out_rate) / 1_000_000.0
+    return int(round(dollars * 1_000_000))
 
 # Will be initialized when keys are available
 _client: Optional[AsyncOpenAI] = None
@@ -55,18 +97,13 @@ async def generate_response(
     context: str,
     persona: PersonaType = PersonaType.GENERAL,
     model: str = "gpt-4o-mini",
-) -> str:
+) -> tuple[str, Optional[LLMUsage]]:
     """
     Generate a LENA response using OpenAI.
 
-    Args:
-        query: The user's question
-        context: Retrieved evidence/literature context
-        persona: The detected user persona
-        model: OpenAI model to use (gpt-4o-mini for cost efficiency)
-
     Returns:
-        Generated response string
+        (content, usage) — usage is None if the response didn't carry a .usage
+        block (rare, but safe). content is the generated text.
     """
     client = get_client()
     persona_config = get_persona_config(persona)
@@ -95,7 +132,19 @@ async def generate_response(
         max_tokens=2000,
     )
 
-    return response.choices[0].message.content or ""
+    content = response.choices[0].message.content or ""
+    usage: Optional[LLMUsage] = None
+    if getattr(response, "usage", None):
+        pt = int(response.usage.prompt_tokens or 0)
+        ct = int(response.usage.completion_tokens or 0)
+        actual_model = getattr(response, "model", None) or model
+        usage = LLMUsage(
+            model=actual_model,
+            prompt_tokens=pt,
+            completion_tokens=ct,
+            cost_micros=_compute_cost_micros(actual_model, pt, ct),
+        )
+    return content, usage
 
 
 async def test_connection() -> dict:

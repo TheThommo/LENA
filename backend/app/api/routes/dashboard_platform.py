@@ -42,6 +42,7 @@ from app.services.dashboard_queries import (
     get_leads,
     get_recent_questions,
     get_session_activity,
+    get_cost_intelligence,
 )
 
 router = APIRouter(
@@ -255,6 +256,26 @@ async def get_platform_leads(
     """
     data = await get_leads(tenant_id=None, start_date=start_date, end_date=end_date)
     return LeadsResponse(**data)
+
+
+@router.get("/costs")
+async def get_platform_costs(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    limit: int = Query(100, ge=1, le=500),
+    user=Depends(require_auth),
+):
+    """
+    LLM cost intelligence: total spend, cost per user, top spenders,
+    token volumes, average cost per search. Powers the pricing-calibration
+    view in the admin panel.
+    """
+    return await get_cost_intelligence(
+        tenant_id=None,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+    )
 
 
 @router.get("/visitors")

@@ -186,15 +186,18 @@ async def _generate_llm_summary(
     query: str,
     pulse_report: PULSEReport,
     persona_type: str = "general",
-) -> Optional[str]:
+) -> tuple[Optional[str], Optional[dict]]:
     """
     Use OpenAI to generate an intelligent, persona-aware summary from the
-    search results.  Returns None gracefully if the key is not configured or
-    the call fails so we never block the user.
+    search results.
+
+    Returns (summary, usage_dict). usage_dict has keys model, prompt_tokens,
+    completion_tokens, cost_micros — or None if the call was skipped/failed
+    so the caller knows there's no cost to record.
     """
     if not settings.openai_api_key:
         logger.debug("OpenAI key not set – skipping LLM summary")
-        return None
+        return None, None
 
     try:
         from app.services.openai_service import generate_response
@@ -229,16 +232,24 @@ async def _generate_llm_summary(
         except ValueError:
             persona_enum = PersonaType.GENERAL
 
-        summary = await generate_response(
+        summary, usage = await generate_response(
             query=query,
             context=context,
             persona=persona_enum,
             model="gpt-4o-mini",
         )
-        return summary
+        usage_dict = None
+        if usage is not None:
+            usage_dict = {
+                "model": usage.model,
+                "prompt_tokens": usage.prompt_tokens,
+                "completion_tokens": usage.completion_tokens,
+                "cost_micros": usage.cost_micros,
+            }
+        return summary, usage_dict
     except Exception as e:
         logger.warning(f"LLM summary generation failed (non-blocking): {e}")
-        return None
+        return None, None
 
 
 # ── Result-mode filter ───────────────────────────────────────────────
@@ -393,6 +404,9 @@ async def run_search(
     if cached:
         cached["response_time_ms"] = (time.time() - start_time) * 1000
         cached["from_cache"] = True
+        # Never re-report the original request's cost on cache hits — would
+        # double-count this user's LLM spend.
+        cached["llm_usage"] = None
         logger.info(f"Cache hit for query: '{query}'")
         return cached
 
@@ -424,7 +438,7 @@ async def run_search(
         _tag_result_modes(r)
 
     # Step 7: Generate LLM summary (non-blocking, best-effort)
-    llm_summary = await _generate_llm_summary(query, pulse_report, persona)
+    llm_summary, llm_usage = await _generate_llm_summary(query, pulse_report, persona)
 
     # Step 8: Build response
     response_time_ms = (time.time() - start_time) * 1000
@@ -439,11 +453,14 @@ async def run_search(
         "modes": modes,
         "pulse_report": pulse_report.to_dict(),
         "llm_summary": llm_summary,
+        "llm_usage": llm_usage,  # {model, prompt_tokens, completion_tokens, cost_micros} | None
         "response_time_ms": response_time_ms,
     }
 
-    # Cache the result for future identical queries
-    cache_result(query, result, sources, include_alt_medicine, modes)
+    # Cache the result for future identical queries. Strip llm_usage before
+    # storing so a subsequent cache hit can't accidentally re-bill anyone.
+    to_cache = {**result, "llm_usage": None}
+    cache_result(query, to_cache, sources, include_alt_medicine, modes)
     logger.info(f"Search completed: {len(pulse_report.validated_results)} validated results in {response_time_ms:.0f}ms")
 
     return result
