@@ -546,6 +546,35 @@ body {
       </div>
     </div>
   </div>
+
+  <!-- Every question, newest first — the live feed of what users are asking -->
+  <div class="panel">
+    <div class="panel-header">
+      <span class="panel-title">Every Question Asked</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="questions-count" style="font-size:11px;color:var(--text-muted)">--</span>
+        <input id="questionsFilter" placeholder="Filter..." oninput="renderQuestions()"
+          style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--text-primary);min-width:160px">
+        <button class="btn-sm" onclick="loadQuestionsFeed()" style="background:var(--lena-500)">Refresh</button>
+      </div>
+    </div>
+    <div class="panel-body no-pad">
+      <table class="data-table" id="questionsTable">
+        <thead>
+          <tr>
+            <th>When</th>
+            <th>Who</th>
+            <th>Location</th>
+            <th>Persona</th>
+            <th style="min-width:240px">Question</th>
+            <th>Results</th>
+            <th>PULSE</th>
+          </tr>
+        </thead>
+        <tbody><tr><td colspan="7" class="empty-state"><p>Loading...</p></td></tr></tbody>
+      </table>
+    </div>
+  </div>
 </section>
 
 <!-- ── LEADS ───────────────────────────────────────────────────── -->
@@ -885,6 +914,7 @@ async function loadAllData() {
       loadSearches(),
       loadPulse(),
       loadQueries(),
+      loadQuestionsFeed(),
       loadLeads(),
       loadHealth(),
       loadTenants(),
@@ -1168,6 +1198,67 @@ async function loadQueries() {
       </tr>
     `).join('');
   } catch(e) { console.error('Queries error:', e); }
+}
+
+// Raw feed of every question asked — newest first, with session/user identity.
+// Cached so the filter input is instant without re-hitting the backend.
+let _questionsCache = [];
+async function loadQuestionsFeed() {
+  try {
+    const params = new URLSearchParams();
+    const s = document.getElementById('startDate').value;
+    const e = document.getElementById('endDate').value;
+    if (s) params.set('start_date', s);
+    if (e) params.set('end_date', e);
+    params.set('limit', '500');
+    const data = await apiFetch(`/dashboard/platform/questions?${params.toString()}`);
+    _questionsCache = data.questions || [];
+    document.getElementById('questions-count').textContent =
+      `${_questionsCache.length} of ${fmt(data.total || _questionsCache.length)}`;
+    renderQuestions();
+  } catch (err) { console.error('Questions feed error:', err); }
+}
+
+function renderQuestions() {
+  const tbody = document.querySelector('#questionsTable tbody');
+  const filter = (document.getElementById('questionsFilter')?.value || '').toLowerCase();
+  let rows = _questionsCache;
+  if (filter) {
+    rows = rows.filter(q =>
+      (q.query || '').toLowerCase().includes(filter) ||
+      (q.user_email || '').toLowerCase().includes(filter) ||
+      (q.user_name || '').toLowerCase().includes(filter) ||
+      (q.geo_country || '').toLowerCase().includes(filter) ||
+      (q.geo_city || '').toLowerCase().includes(filter)
+    );
+  }
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><p>No questions yet — this populates on every search.</p></td></tr>';
+    return;
+  }
+  const pulseColor = { validated: 'var(--accent-green)', edge_case: '#FFB400', insufficient_validation: 'var(--accent-red)', pending: 'var(--text-muted)' };
+  tbody.innerHTML = rows.slice(0, 200).map(q => {
+    const who = q.user_name || q.user_email || (q.user_id ? 'Registered' : 'Anonymous');
+    const loc = [q.geo_city, q.geo_country].filter(Boolean).join(', ') || '—';
+    const when = q.created_at ? new Date(q.created_at).toLocaleString('en-AU', {
+      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+    }) : '--';
+    const status = q.pulse_status || 'pending';
+    return `
+      <tr>
+        <td style="color:var(--text-muted);white-space:nowrap;font-size:11px">${escHtml(when)}</td>
+        <td style="max-width:160px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          <div style="color:var(--text-primary)">${escHtml(who)}</div>
+          ${q.user_email && q.user_email !== who ? `<div style="color:var(--text-muted);font-size:11px">${escHtml(q.user_email)}</div>` : ''}
+        </td>
+        <td style="color:var(--text-muted);font-size:12px;white-space:nowrap">${escHtml(loc)}</td>
+        <td style="font-size:11px"><span style="background:var(--bg-elevated);padding:2px 8px;border-radius:10px">${escHtml(q.persona || '—')}</span></td>
+        <td style="color:var(--text-primary);max-width:320px">${escHtml(q.query || '')}</td>
+        <td style="font-family:'DM Mono',monospace;text-align:right">${q.total_results ?? '--'}</td>
+        <td><span style="color:${pulseColor[status] || 'var(--text-muted)'};font-size:11px;text-transform:uppercase;letter-spacing:0.04em">${escHtml(status)}</span></td>
+      </tr>
+    `;
+  }).join('');
 }
 
 function escHtml(s) {

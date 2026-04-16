@@ -121,7 +121,7 @@ async def get_overview_stats(
                 # Fetch plans for pricing
                 plan_ids = list(set(sub.get("plan_id") for sub in subs_response.data if sub.get("plan_id")))
                 if plan_ids:
-                    plans_response = client.table("plan_tiers").select("id, price_monthly").execute()
+                    plans_response = client.table("plan_tiers").select("id, monthly_price_cents").execute()
                     plans_map = {p["id"]: p.get("monthly_price_cents", 0) for p in plans_response.data or []}
                     mrr = sum(plans_map.get(sub.get("plan_id"), 0) for sub in subs_response.data)
 
@@ -977,6 +977,117 @@ async def get_pulse_accuracy(
         return {
             "total_results_validated": 0,
             "accuracy_metrics": [],
+            "period_start": start_date or date.today(),
+            "period_end": end_date or date.today(),
+        }
+
+
+async def get_recent_questions(
+    tenant_id: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    limit: int = 200,
+    offset: int = 0,
+) -> Dict[str, Any]:
+    """
+    Raw feed of what users actually asked.
+
+    One row per search, newest first, joined with session/user context so
+    the admin can see WHO asked WHAT and WHEN. Only the question text is
+    surfaced — no citations, no LLM responses (per product policy).
+
+    Returns:
+        {
+            'total': int,                 # total matching the filter
+            'questions': [{
+                'id', 'query', 'persona', 'created_at',
+                'session_id', 'user_id', 'user_email', 'user_name',
+                'geo_country', 'geo_city',
+                'response_time_ms', 'total_results', 'pulse_status',
+                'sources_succeeded', 'sources_queried',
+            }, ...],
+            'period_start', 'period_end',
+        }
+    """
+    try:
+        client = get_supabase_admin_client()
+        start, end = _get_date_range(start_date, end_date)
+
+        q = client.table("search_logs").select(
+            "id, query, persona, response_time_ms, total_results, pulse_status, "
+            "sources_queried, sources_succeeded, session_id, user_id, tenant_id, created_at",
+            count="exact",
+        )
+        if tenant_id:
+            q = q.eq("tenant_id", tenant_id)
+        q = (
+            q.gte("created_at", start.isoformat())
+             .lte("created_at", end.isoformat())
+             .order("created_at", desc=True)
+             .range(offset, offset + limit - 1)
+        )
+        res = q.execute()
+        rows = res.data or []
+        total = res.count or len(rows)
+
+        # Hydrate session and user context in 2 bulk lookups (no N+1).
+        session_ids = [r["session_id"] for r in rows if r.get("session_id")]
+        user_ids = [r["user_id"] for r in rows if r.get("user_id")]
+
+        sessions_map: Dict[str, dict] = {}
+        if session_ids:
+            s_res = (
+                client.table("sessions")
+                .select("id, name, email, geo_country, geo_city")
+                .in_("id", list(set(session_ids)))
+                .execute()
+            )
+            sessions_map = {s["id"]: s for s in (s_res.data or [])}
+
+        users_map: Dict[str, dict] = {}
+        if user_ids:
+            u_res = (
+                client.table("users")
+                .select("id, email, name")
+                .in_("id", list(set(user_ids)))
+                .execute()
+            )
+            users_map = {u["id"]: u for u in (u_res.data or [])}
+
+        questions = []
+        for r in rows:
+            s = sessions_map.get(r.get("session_id") or "", {})
+            u = users_map.get(r.get("user_id") or "", {})
+            questions.append({
+                "id": r.get("id"),
+                "query": r.get("query"),
+                "persona": r.get("persona"),
+                "created_at": r.get("created_at"),
+                "session_id": r.get("session_id"),
+                "user_id": r.get("user_id"),
+                # Prefer registered-user identity, fall back to anon session fields
+                "user_email": u.get("email") or s.get("email"),
+                "user_name": u.get("name") or s.get("name"),
+                "geo_country": s.get("geo_country"),
+                "geo_city": s.get("geo_city"),
+                "response_time_ms": r.get("response_time_ms"),
+                "total_results": r.get("total_results"),
+                "pulse_status": r.get("pulse_status"),
+                "sources_queried": r.get("sources_queried") or [],
+                "sources_succeeded": r.get("sources_succeeded") or [],
+            })
+
+        return {
+            "total": total,
+            "questions": questions,
+            "period_start": start,
+            "period_end": end,
+        }
+    except Exception as e:
+        logger.error("Error getting recent questions", exc_info=True)
+        return {
+            "total": 0,
+            "questions": [],
             "period_start": start_date or date.today(),
             "period_end": end_date or date.today(),
         }

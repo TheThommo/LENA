@@ -52,9 +52,11 @@ async def search_literature(
     source_list = sources.split(",") if sources else None
     mode_list = [m.strip() for m in modes.split(",")] if modes else None
 
-    # Step 3: Generate search ID for tracking
+    # Step 3: Generate search ID for tracking.
+    # session_id stays None for authenticated (JWT) users — the analytics
+    # writer validates it against the sessions table before insert so a
+    # stale/random UUID no longer breaks the FK.
     search_id = str(uuid.uuid4())
-    session_id = session_id or str(uuid.uuid4())
 
     # ── Resolve tenant_id & user_id from middleware state ──
     # SearchGateMiddleware puts the session object or user_id onto

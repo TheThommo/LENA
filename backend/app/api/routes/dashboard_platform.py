@@ -40,6 +40,7 @@ from app.services.dashboard_queries import (
     get_persona_distribution,
     get_pulse_accuracy,
     get_leads,
+    get_recent_questions,
 )
 
 router = APIRouter(
@@ -253,3 +254,27 @@ async def get_platform_leads(
     """
     data = await get_leads(tenant_id=None, start_date=start_date, end_date=end_date)
     return LeadsResponse(**data)
+
+
+@router.get("/questions")
+async def get_platform_questions(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    limit: int = Query(200, ge=1, le=1000),
+    offset: int = Query(0, ge=0),
+    user=Depends(require_auth),
+):
+    """
+    Raw feed of every question users asked.
+
+    Newest first, joined with session/user identity so admins can see
+    who asked what and when. Only the question text is returned — no
+    LLM response, no citations (product policy).
+    """
+    return await get_recent_questions(
+        tenant_id=None,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+        offset=offset,
+    )
