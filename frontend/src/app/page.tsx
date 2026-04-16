@@ -270,6 +270,36 @@ export default function Home() {
     inputRef.current?.focus();
   };
 
+  // Bind hardware/browser Back to view navigation so leaving "How It Works"
+  // (or any non-chat view) returns to chat instead of exiting the page.
+  const popInProgressRef = useRef(false);
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    // Baseline history entry for the chat view
+    if (!window.history.state || !window.history.state.lenaView) {
+      window.history.replaceState({ lenaView: 'chat' }, '');
+    }
+    const onPop = (e: PopStateEvent) => {
+      const v = (e.state && e.state.lenaView) || 'chat';
+      popInProgressRef.current = true;
+      setActiveView(v);
+    };
+    window.addEventListener('popstate', onPop);
+    return () => window.removeEventListener('popstate', onPop);
+  }, []);
+
+  useEffect(() => {
+    if (typeof window === 'undefined') return;
+    if (popInProgressRef.current) {
+      // This view change came from a Back nav — don't push another entry.
+      popInProgressRef.current = false;
+      return;
+    }
+    const current = window.history.state && window.history.state.lenaView;
+    if (current === activeView) return;
+    window.history.pushState({ lenaView: activeView }, '');
+  }, [activeView]);
+
   // Auto-open research panel on first result
   const responseCount = messages.filter(m => m.response).length;
   const panelOpenRef = useRef(panelOpen);

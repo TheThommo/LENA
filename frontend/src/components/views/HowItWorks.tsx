@@ -67,7 +67,8 @@ export default function HowItWorks({}: HowItWorksProps) {
   };
 
   return (
-    <div className="max-w-2xl mx-auto px-4 py-8">
+    <div className="flex-1 overflow-y-auto">
+      <div className="max-w-2xl mx-auto px-4 py-8">
       {/* Page Header */}
       <div className="text-center mb-10">
         <h1 className="text-2xl font-bold text-gray-900 mb-2">How It Works</h1>
@@ -133,6 +134,7 @@ export default function HowItWorks({}: HowItWorksProps) {
             </div>
           ))}
         </div>
+      </div>
       </div>
     </div>
   );
