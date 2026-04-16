@@ -29,6 +29,13 @@
   --brand-name: 'LENA';
 }
 
+html, body {
+  /* Prevent iOS pull-to-refresh and rubber-band scroll fighting in-app scroll regions */
+  overscroll-behavior-y: contain;
+  /* Smoother momentum scrolling on iOS */
+  -webkit-text-size-adjust: 100%;
+}
+
 body {
   color: rgb(var(--brand-text));
   background: rgb(var(--brand-bg));

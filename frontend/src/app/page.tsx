@@ -424,7 +424,7 @@ export default function Home() {
         </div>
 
         {/* Bottom search input */}
-        <div className="border-t border-slate-200 bg-white p-4">
+        <div className="border-t border-slate-200 bg-white p-4 pb-[max(1rem,env(safe-area-inset-bottom))]">
           <div className="max-w-3xl mx-auto">
             <div className="flex items-end gap-3 bg-slate-50 border border-slate-200 rounded-2xl px-4 py-3 focus-within:border-lena-400 focus-within:ring-2 focus-within:ring-lena-100 transition-all">
               <textarea
@@ -457,7 +457,7 @@ export default function Home() {
   };
 
   return (
-    <div className="h-screen flex bg-warm-50 overflow-hidden">
+    <div className="h-[100dvh] flex bg-warm-50 overflow-hidden">
       {funnelOverlay}
 
       {/* Mobile sidebar backdrop */}

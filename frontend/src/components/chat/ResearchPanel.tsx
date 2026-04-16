@@ -879,7 +879,7 @@ export default function ResearchPanel({ messages, persona, onClose }: ResearchPa
         </div>
 
         {/* Citation cards */}
-        <div className="space-y-1.5 max-h-[calc(100vh-320px)] overflow-y-auto pr-0.5">
+        <div className="space-y-1.5 max-h-[calc(100dvh-320px)] overflow-y-auto pr-0.5">
           {filteredCitations.length === 0 && (
             <p className="text-xs text-slate-400 text-center py-4">
               {citationFilter === 'starred' ? 'No starred citations yet. Star references you want to highlight in your export.' : 'No citations match this filter.'}
