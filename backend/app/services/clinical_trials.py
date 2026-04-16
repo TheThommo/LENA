@@ -73,6 +73,7 @@ async def search_trials(
             f"{BASE_URL}/studies",
             params=params,
             timeout=30,
+            headers={"User-Agent": "LENA-Research-Agent/1.0 (clinical-research-platform)"},
         )
         resp.raise_for_status()
         return resp.json()

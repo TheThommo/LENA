@@ -87,7 +87,7 @@ async def search_cdc_data(
             "limit": min(max_results, 20),
         }
 
-    async with httpx.AsyncClient(timeout=30.0) as client:
+    async with httpx.AsyncClient(timeout=30.0, follow_redirects=True) as client:
         response = await client.get(url, params=params, headers=headers)
         response.raise_for_status()
         data = response.json()

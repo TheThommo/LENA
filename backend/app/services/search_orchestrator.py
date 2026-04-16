@@ -31,128 +31,103 @@ ALL_SOURCES = ["pubmed", "clinical_trials", "cochrane", "who_iris", "cdc", "open
 
 async def _query_pubmed(query: str, max_results: int) -> list[SourceResult]:
     """Query PubMed and convert to SourceResult objects."""
-    try:
-        pmids = await pubmed.search_pubmed(query, max_results=max_results)
-        if not pmids:
-            return []
-        articles = await pubmed.fetch_articles(pmids)
-        return [
-            SourceResult(
-                source_name="pubmed",
-                title=a.title,
-                summary=a.abstract,
-                url=a.url,
-                doi=a.doi,
-                year=a.year,
-                authors=list(a.authors or []),
-            )
-            for a in articles
-        ]
-    except Exception as e:
-        # Log but don't fail the whole search
-        logger.warning(f"PubMed query failed: {e}")
+    pmids = await pubmed.search_pubmed(query, max_results=max_results)
+    if not pmids:
         return []
+    articles = await pubmed.fetch_articles(pmids)
+    return [
+        SourceResult(
+            source_name="pubmed",
+            title=a.title,
+            summary=a.abstract,
+            url=a.url,
+            doi=a.doi,
+            year=a.year,
+            authors=list(a.authors or []),
+        )
+        for a in articles
+    ]
 
 
 async def _query_clinical_trials(query: str, max_results: int) -> list[SourceResult]:
     """Query ClinicalTrials.gov and convert to SourceResult objects."""
-    try:
-        trials = await clinical_trials.search_trials(query, max_results=max_results)
-        return [
-            SourceResult(
-                source_name="clinical_trials",
-                title=t.title,
-                summary=t.summary,
-                url=t.url,
-                year=int(t.start_date[:4]) if t.start_date and len(t.start_date) >= 4 else None,
-            )
-            for t in trials
-        ]
-    except Exception as e:
-        logger.warning(f"ClinicalTrials.gov query failed: {e}")
-        return []
+    trials = await clinical_trials.search_trials(query, max_results=max_results)
+    return [
+        SourceResult(
+            source_name="clinical_trials",
+            title=t.title,
+            summary=t.summary,
+            url=t.url,
+            year=int(t.start_date[:4]) if t.start_date and len(t.start_date) >= 4 else None,
+        )
+        for t in trials
+    ]
 
 
 async def _query_cochrane(query: str, max_results: int) -> list[SourceResult]:
     """Query Cochrane reviews (via PubMed) and convert to SourceResult objects."""
-    try:
-        pmids = await cochrane.search_cochrane(query, max_results=max_results)
-        if not pmids:
-            return []
-        reviews = await cochrane.fetch_cochrane_reviews(pmids)
-        return [
-            SourceResult(
-                source_name="cochrane",
-                title=r.title,
-                summary=r.abstract,
-                url=r.cochrane_url or r.pubmed_url,
-                doi=r.doi,
-                year=r.year,
-                authors=list(getattr(r, "authors", []) or []),
-            )
-            for r in reviews
-        ]
-    except Exception as e:
-        logger.warning(f"Cochrane query failed: {e}")
+    pmids = await cochrane.search_cochrane(query, max_results=max_results)
+    if not pmids:
         return []
+    reviews = await cochrane.fetch_cochrane_reviews(pmids)
+    return [
+        SourceResult(
+            source_name="cochrane",
+            title=r.title,
+            summary=r.abstract,
+            url=r.cochrane_url or r.pubmed_url,
+            doi=r.doi,
+            year=r.year,
+            authors=list(getattr(r, "authors", []) or []),
+        )
+        for r in reviews
+    ]
 
 
 async def _query_who_iris(query: str, max_results: int) -> list[SourceResult]:
     """Query WHO IRIS and convert to SourceResult objects."""
-    try:
-        docs = await who_iris.search_who_iris(query, max_results=max_results)
-        return [
-            SourceResult(
-                source_name="who_iris",
-                title=d.title,
-                summary=d.description,
-                url=d.url,
-                year=d.year,
-            )
-            for d in docs
-        ]
-    except Exception as e:
-        logger.warning(f"WHO IRIS query failed: {e}")
-        return []
+    docs = await who_iris.search_who_iris(query, max_results=max_results)
+    return [
+        SourceResult(
+            source_name="who_iris",
+            title=d.title,
+            summary=d.description,
+            url=d.url,
+            year=d.year,
+        )
+        for d in docs
+    ]
 
 
 async def _query_cdc(query: str, max_results: int) -> list[SourceResult]:
     """Query CDC Open Data and convert to SourceResult objects."""
-    try:
-        results = await cdc.search_cdc_data(query, max_results=max_results)
-        return [
-            SourceResult(
-                source_name="cdc",
-                title=r.get("name", "CDC Dataset"),
-                summary=r.get("description", ""),
-                url=r.get("url", ""),
-            )
-            for r in results
-        ]
-    except Exception as e:
-        logger.warning(f"CDC query failed: {e}")
-        return []
+    results = await cdc.search_cdc_data(query, max_results=max_results)
+    return [
+        SourceResult(
+            source_name="cdc",
+            title=r.get("name", "CDC Dataset"),
+            summary=r.get("description", ""),
+            url=r.get("url", ""),
+        )
+        for r in results
+    ]
 
 
 async def _query_openalex(query: str, max_results: int) -> list[SourceResult]:
     """Query OpenAlex and convert to SourceResult objects."""
-    try:
-        works = await openalex.search_openalex(query, max_results=max_results)
-        return [
-            SourceResult(
-                source_name="openalex",
-                title=w.title,
-                summary=w.abstract,
-                url=w.url,
-                doi=w.doi,
-                year=w.year,
-                authors=list(getattr(w, "authors", []) or []),
-            )
-            for w in works
-        ]
-    except Exception as e:
-        logger.warning(f"OpenAlex query failed: {e}")
-        return []
+    works = await openalex.search_openalex(query, max_results=max_results)
+    return [
+        SourceResult(
+            source_name="openalex",
+            title=w.title,
+            summary=w.abstract,
+            url=w.url,
+            doi=w.doi,
+            year=w.year,
+            authors=list(getattr(w, "authors", []) or []),
+        )
+        for w in works
+    ]
 
 
 # Map source names to their query functions
