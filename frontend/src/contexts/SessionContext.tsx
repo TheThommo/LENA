@@ -30,7 +30,17 @@ function savePersistedSession(s: PersistedSession) {
 
 export type FunnelStage = 'landing' | 'name_captured' | 'disclaimer_accepted' | 'searching' | 'email_captured' | 'registered';
 
-export type PersonaId = 'medical_student' | 'clinician' | 'pharmacist' | 'researcher' | 'lecturer' | 'physiotherapist' | 'patient' | 'general';
+export type PersonaId =
+  | 'medical_student'
+  | 'clinician'
+  | 'pharmacist'
+  | 'researcher'
+  | 'lecturer'
+  | 'physiotherapist'
+  | 'neuroscientist'
+  | 'alternative_practitioner'
+  | 'patient'
+  | 'general';
 
 export const PERSONAS: { id: PersonaId; label: string; icon: string }[] = [
   { id: 'medical_student', label: 'Medical Student', icon: '🎓' },
@@ -39,6 +49,8 @@ export const PERSONAS: { id: PersonaId; label: string; icon: string }[] = [
   { id: 'researcher', label: 'Researcher', icon: '🔬' },
   { id: 'lecturer', label: 'Lecturer', icon: '📚' },
   { id: 'physiotherapist', label: 'Physiotherapist', icon: '🏃' },
+  { id: 'neuroscientist', label: 'Neuroscientist', icon: '🧠' },
+  { id: 'alternative_practitioner', label: 'Alternative Practitioner', icon: '🌿' },
   { id: 'patient', label: 'Patient', icon: '❤️' },
   { id: 'general', label: 'General', icon: '🌐' },
 ];

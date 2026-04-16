@@ -26,6 +26,8 @@ class PersonaType(str, Enum):
     RESEARCHER = "researcher"
     LECTURER = "lecturer"
     PHYSIOTHERAPIST = "physiotherapist"
+    NEUROSCIENTIST = "neuroscientist"
+    ALTERNATIVE_PRACTITIONER = "alternative_practitioner"
     PATIENT = "patient"
     GENERAL = "general"
 
@@ -106,6 +108,31 @@ PERSONA_CONFIGS: dict[PersonaType, PersonaConfig] = {
             "return-to-function metrics."
         ),
     ),
+    PersonaType.NEUROSCIENTIST: PersonaConfig(
+        persona_type=PersonaType.NEUROSCIENTIST,
+        display_name="Neuroscientist",
+        tone="analytical and mechanistically focused",
+        depth="systems-level detail with circuit and molecular context",
+        system_prompt_modifier=(
+            "The user is a neuroscientist. Focus on mechanism, neural "
+            "circuitry, molecular pathways, neuroimaging findings, and "
+            "translational implications. Include effect sizes, model "
+            "systems, and methodological rigour where relevant."
+        ),
+    ),
+    PersonaType.ALTERNATIVE_PRACTITIONER: PersonaConfig(
+        persona_type=PersonaType.ALTERNATIVE_PRACTITIONER,
+        display_name="Alternative & Integrative Practitioner",
+        tone="balanced, integrative, mechanism-aware",
+        depth="cross-references conventional and complementary evidence",
+        system_prompt_modifier=(
+            "The user is an alternative or integrative health practitioner. "
+            "Surface evidence across both conventional and complementary "
+            "sources (botanicals, nutraceuticals, mind-body interventions). "
+            "Be transparent about evidence quality — never inflate confidence "
+            "for any modality. Note interactions with conventional therapies."
+        ),
+    ),
     PersonaType.PATIENT: PersonaConfig(
         persona_type=PersonaType.PATIENT,
         display_name="Patient / Public",
@@ -162,6 +189,16 @@ PERSONA_DETECTION_KEYWORDS: dict[PersonaType, list[str]] = {
     PersonaType.PHYSIOTHERAPIST: [
         "rehab", "rehabilitation", "physiotherapy", "physical therapy",
         "range of motion", "functional outcome", "exercise protocol",
+    ],
+    PersonaType.NEUROSCIENTIST: [
+        "neuroscience", "neuroimaging", "fmri", "eeg", "neuroplasticity",
+        "synaptic", "neurotransmitter", "neural circuit", "neurogenesis",
+        "brain connectivity", "neurodegeneration",
+    ],
+    PersonaType.ALTERNATIVE_PRACTITIONER: [
+        "naturopath", "naturopathic", "herbalist", "herbal medicine",
+        "integrative medicine", "complementary medicine", "tcm",
+        "ayurveda", "homeopathy", "acupuncture", "functional medicine",
     ],
     PersonaType.PATIENT: [
         "i have", "i was diagnosed", "my doctor said", "should i take",

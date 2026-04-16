@@ -1,6 +1,41 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
+import { useSession, PersonaId } from '@/contexts/SessionContext';
+
+// Map MyBrain specialty -> top-bar PersonaSelector default.
+// The top-right selector controls only LENA's response style — so we map
+// each specialty to the closest persona prompt template.
+const SPECIALTY_TO_PERSONA: Record<string, PersonaId> = {
+  'Cardiology': 'clinician',
+  'Oncology': 'clinician',
+  'Neurology': 'clinician',
+  'Neuroscience': 'neuroscientist',
+  'Psychiatry': 'clinician',
+  'Endocrinology': 'clinician',
+  'Pulmonology': 'clinician',
+  'Gastroenterology': 'clinician',
+  'Nephrology': 'clinician',
+  'Rheumatology': 'clinician',
+  'Dermatology': 'clinician',
+  'Infectious Disease': 'clinician',
+  'Emergency Medicine': 'clinician',
+  'Critical Care': 'clinician',
+  'Paediatrics': 'clinician',
+  'Obstetrics & Gynaecology': 'clinician',
+  'Orthopaedics': 'clinician',
+  'Radiology': 'clinician',
+  'Pathology': 'researcher',
+  'Anaesthesiology': 'clinician',
+  'General Practice': 'clinician',
+  'Public Health': 'researcher',
+  'Pharmacology': 'pharmacist',
+  'Physiotherapy': 'physiotherapist',
+  'Nursing': 'clinician',
+  'Nutrition & Dietetics': 'general',
+  'Alternative & Integrative Medicine': 'alternative_practitioner',
+  'Other': 'general',
+};
 
 interface UserProfile {
   specialty: string;
@@ -45,15 +80,17 @@ const COMMUNICATION_STYLES = [
 ];
 
 const SPECIALTIES = [
-  'Cardiology', 'Oncology', 'Neurology', 'Psychiatry', 'Endocrinology',
+  'Cardiology', 'Oncology', 'Neurology', 'Neuroscience', 'Psychiatry', 'Endocrinology',
   'Pulmonology', 'Gastroenterology', 'Nephrology', 'Rheumatology', 'Dermatology',
   'Infectious Disease', 'Emergency Medicine', 'Critical Care', 'Paediatrics',
   'Obstetrics & Gynaecology', 'Orthopaedics', 'Radiology', 'Pathology',
   'Anaesthesiology', 'General Practice', 'Public Health', 'Pharmacology',
-  'Physiotherapy', 'Nursing', 'Nutrition & Dietetics', 'Other',
+  'Physiotherapy', 'Nursing', 'Nutrition & Dietetics',
+  'Alternative & Integrative Medicine', 'Other',
 ];
 
 export default function MyBrain() {
+  const { setPersona } = useSession();
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [saved, setSaved] = useState(false);
   const [focusInput, setFocusInput] = useState('');
@@ -61,8 +98,18 @@ export default function MyBrain() {
   useEffect(() => {
     try {
       const stored = localStorage.getItem(LS_KEY);
-      if (stored) setProfile(JSON.parse(stored));
+      if (stored) {
+        const parsed: UserProfile = JSON.parse(stored);
+        setProfile(parsed);
+        // Restore the top-bar persona to match the saved specialty so the
+        // selector reflects what the user signed up as on first paint.
+        if (parsed.specialty && SPECIALTY_TO_PERSONA[parsed.specialty]) {
+          setPersona(SPECIALTY_TO_PERSONA[parsed.specialty]);
+        }
+      }
     } catch {}
+  // setPersona is stable from context; intentionally only run on mount.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const saveProfile = useCallback(() => {
@@ -172,7 +219,14 @@ export default function MyBrain() {
                 <label className="block text-xs font-medium text-slate-600 mb-1.5">Specialty</label>
                 <select
                   value={profile.specialty}
-                  onChange={e => updateField('specialty', e.target.value)}
+                  onChange={e => {
+                    const v = e.target.value;
+                    updateField('specialty', v);
+                    // Update the top-bar persona selector default to match
+                    if (v && SPECIALTY_TO_PERSONA[v]) {
+                      setPersona(SPECIALTY_TO_PERSONA[v]);
+                    }
+                  }}
                   className="w-full text-sm border border-slate-200 rounded-lg px-3 py-2 focus:outline-none focus:border-[#1B6B93] focus:ring-2 focus:ring-[#1B6B93]/10 transition-all"
                 >
                   <option value="">Select specialty...</option>
