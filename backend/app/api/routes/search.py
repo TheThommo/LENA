@@ -2,7 +2,7 @@
 Search routes - the core LENA query endpoint.
 """
 
-from fastapi import APIRouter, Query
+from fastapi import APIRouter, Query, Request
 from typing import Optional
 import uuid
 
@@ -20,6 +20,7 @@ router = APIRouter(prefix="/search", tags=["search"])
 
 @router.get("")
 async def search_literature(
+    request: Request,
     q: str = Query(..., description="Search query"),
     persona: Optional[PersonaType] = Query(None, description="User persona override"),
     sources: Optional[str] = Query(None, description="Comma-separated source filter"),
@@ -30,7 +31,6 @@ async def search_literature(
         description="Comma-separated result modes: all,herbal,outlier (defaults to 'all')",
     ),
     session_id: Optional[str] = Query(None, description="Session identifier for analytics"),
-    tenant_id: Optional[str] = Query("default", description="Tenant identifier"),
 ):
     """
     Search medical literature across all sources.
@@ -56,6 +56,32 @@ async def search_literature(
     search_id = str(uuid.uuid4())
     session_id = session_id or str(uuid.uuid4())
 
+    # ── Resolve tenant_id & user_id from middleware state ──
+    # SearchGateMiddleware puts the session object or user_id onto
+    # request.state before we arrive here.
+    resolved_tenant_id: Optional[str] = None
+    resolved_user_id: Optional[str] = None
+
+    # Authenticated path (JWT)
+    if hasattr(request.state, "user_id") and request.state.user_id:
+        resolved_user_id = str(request.state.user_id)
+        # Look up user's default tenant from user_tenants
+        try:
+            from app.db.repositories.user_repo import UserTenantRepository
+            from uuid import UUID as _UUID
+            memberships = await UserTenantRepository.get_by_user_id(_UUID(resolved_user_id))
+            if memberships:
+                resolved_tenant_id = str(memberships[0].tenant_id)
+        except Exception:
+            pass
+
+    # Anonymous session path
+    if not resolved_tenant_id:
+        session_obj = getattr(request.state, "session", None)
+        if session_obj and hasattr(session_obj, "tenant_id"):
+            resolved_tenant_id = str(session_obj.tenant_id)
+            session_id = str(session_obj.id)
+
     # Step 4: Run the full search pipeline (guardrail + parallel queries + PULSE + caching)
     search_result = await run_search(
         query=q,
@@ -67,7 +93,7 @@ async def search_literature(
     )
 
     # Step 5: Log analytics (fire-and-forget, never blocks)
-    if not search_result.get("guardrail_triggered"):
+    if not search_result.get("guardrail_triggered") and resolved_tenant_id:
         response_time_ms = search_result.get("response_time_ms", 0)
         sources_queried = search_result.get("sources_queried", [])
         sources_failed = search_result.get("sources_failed", {})
@@ -82,7 +108,8 @@ async def search_literature(
                 session_id=session_id,
                 query=q,
                 persona=detected_persona.value,
-                tenant_id=tenant_id,
+                tenant_id=resolved_tenant_id,
+                user_id=resolved_user_id,
                 response_time_ms=response_time_ms,
                 sources_queried=sources_queried,
                 sources_succeeded=sources_succeeded,

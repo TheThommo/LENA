@@ -50,7 +50,7 @@ async def log_session_start(
         logger.info(f"Session enriched: {session_id} from {geo_data.get('city') if geo_data else 'unknown'}")
 
     except Exception as e:
-        logger.error(f"Failed to enrich session: {e}")
+        logger.error("Failed to enrich session", exc_info=True)
 
 
 async def log_search_event(
@@ -64,15 +64,17 @@ async def log_search_event(
     sources_succeeded: list[str],
     total_results: int,
     pulse_status: str,
+    user_id: Optional[str] = None,
 ) -> None:
     """
-    Log a search event to both `searches` and `search_logs` tables.
+    Log a search event to both `search_logs` and `searches` tables.
+    user_id is None for anonymous (pre-registration) searches.
     """
+    # 1. Write to search_logs (detailed analytics)
     try:
         client = get_supabase_admin_client()
 
-        # 1. Write to search_logs (detailed analytics)
-        log_payload = {
+        log_payload: dict[str, Any] = {
             "id": search_id,
             "session_id": session_id,
             "tenant_id": tenant_id,
@@ -84,18 +86,20 @@ async def log_search_event(
             "total_results": total_results,
             "pulse_status": pulse_status,
         }
+        if user_id:
+            log_payload["user_id"] = user_id
 
         client.table("search_logs").insert(log_payload).execute()
         logger.info(f"Search logged: {search_id} ({len(sources_succeeded)}/{len(sources_queried)} sources, {total_results} results in {response_time_ms:.0f}ms)")
 
     except Exception as e:
-        logger.error(f"Failed to log search event: {e}")
+        logger.error("Failed to log search event to search_logs", exc_info=True)
 
     # 2. Also write to searches table (for dashboard overview counts)
     try:
         client = get_supabase_admin_client()
 
-        search_payload = {
+        search_payload: dict[str, Any] = {
             "id": search_id,
             "tenant_id": tenant_id,
             "query_text": query,
@@ -104,12 +108,14 @@ async def log_search_event(
             "duration_ms": int(response_time_ms),
             "status": pulse_status,
         }
+        if user_id:
+            search_payload["user_id"] = user_id
 
         client.table("searches").insert(search_payload).execute()
         logger.debug(f"Search record created: {search_id}")
 
     except Exception as e:
-        logger.error(f"Failed to write searches record: {e}")
+        logger.error("Failed to write searches record", exc_info=True)
 
 
 async def log_usage_event(
@@ -139,7 +145,7 @@ async def log_usage_event(
         logger.info(f"Event logged: {action} (user={user_id}, session={payload.get('session_id')})")
 
     except Exception as e:
-        logger.error(f"Failed to log usage event: {e}")
+        logger.error("Failed to log usage event", exc_info=True)
 
 
 async def log_audit_event(
@@ -171,7 +177,7 @@ async def log_audit_event(
         logger.debug(f"Audit event logged: {action} on {resource_type} {resource_id} by {user_id}")
 
     except Exception as e:
-        logger.error(f"Failed to log audit event: {e}")
+        logger.error("Failed to log audit event", exc_info=True)
 
 
 def schedule_analytics_task(coro) -> None:
@@ -182,4 +188,4 @@ def schedule_analytics_task(coro) -> None:
     try:
         asyncio.create_task(coro)
     except Exception as e:
-        logger.error(f"Failed to schedule analytics task: {e}")
+        logger.error("Failed to schedule analytics task", exc_info=True)
