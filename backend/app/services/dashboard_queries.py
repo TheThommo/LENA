@@ -71,13 +71,27 @@ async def get_overview_stats(
         users_result = users_query.execute()
         total_users = users_result.count or 0
 
-        # Total searches
+        # Total searches. Primary source is the searches table. Fallback:
+        # sum(sessions.search_count) — so historic visits that pre-date the
+        # persona-enum fix (when searches inserts were silently rejected)
+        # still register a number in the admin KPI instead of the
+        # misleading "0".
         searches_query = client.table("searches").select("id", count="exact")
         if tenant_id:
             searches_query = searches_query.eq("tenant_id", tenant_id)
         searches_query = searches_query.gte("created_at", start_date.isoformat()).lte("created_at", end_date.isoformat())
         searches_result = searches_query.execute()
         total_searches = searches_result.count or 0
+
+        if total_searches == 0:
+            # Fallback: sum the per-session counter that SearchGateMiddleware
+            # increments for every anonymous search.
+            fb_q = client.table("sessions").select("search_count")
+            if tenant_id:
+                fb_q = fb_q.eq("tenant_id", tenant_id)
+            fb_q = fb_q.gte("started_at", start_date.isoformat()).lte("started_at", end_date.isoformat())
+            fb_res = fb_q.execute()
+            total_searches = sum((r.get("search_count") or 0) for r in (fb_res.data or []))
 
         # Active sessions (in the period)
         sessions_query = client.table("sessions").select("id", count="exact")
@@ -977,6 +991,82 @@ async def get_pulse_accuracy(
         return {
             "total_results_validated": 0,
             "accuracy_metrics": [],
+            "period_start": start_date or date.today(),
+            "period_end": end_date or date.today(),
+        }
+
+
+async def get_session_activity(
+    tenant_id: Optional[str] = None,
+    start_date: Optional[date] = None,
+    end_date: Optional[date] = None,
+    limit: int = 500,
+) -> Dict[str, Any]:
+    """
+    Every visitor session in the period, newest first, regardless of whether
+    they submitted their email or completed a search. This surfaces the
+    complete visitor story — not just "leads" — and is what the admin needs
+    to see WHO showed up when a specific demo happened.
+
+    Does NOT expose what they asked (that's /questions, which requires a
+    successful search_logs insert that today may or may not have happened).
+    """
+    try:
+        client = get_supabase_admin_client()
+        start, end = _get_date_range(start_date, end_date)
+
+        q = (
+            client.table("sessions")
+            .select(
+                "id, name, email, institution, phone, geo_country, geo_city, "
+                "utm_source, referrer, search_count, started_at, "
+                "disclaimer_accepted_at, data_consent_accepted_at, user_id",
+                count="exact",
+            )
+            .gte("started_at", start.isoformat())
+            .lte("started_at", end.isoformat())
+            .order("started_at", desc=True)
+            .limit(limit)
+        )
+        if tenant_id:
+            q = q.eq("tenant_id", tenant_id)
+        res = q.execute()
+        rows = res.data or []
+        total = res.count or len(rows)
+
+        sessions_out: List[dict] = []
+        total_searches_inferred = 0
+        for s in rows:
+            sc = s.get("search_count") or 0
+            total_searches_inferred += sc
+            sessions_out.append({
+                "session_id": s.get("id"),
+                "user_id": s.get("user_id"),
+                "name": s.get("name"),
+                "email": s.get("email"),
+                "institution": s.get("institution"),
+                "country": s.get("geo_country"),
+                "city": s.get("geo_city"),
+                "search_count": sc,
+                "started_at": s.get("started_at"),
+                "disclaimer_accepted": s.get("disclaimer_accepted_at") is not None,
+                "registered": s.get("user_id") is not None,
+                "source": s.get("utm_source") or s.get("referrer") or "Direct",
+            })
+
+        return {
+            "total_sessions": total,
+            "total_searches_inferred": total_searches_inferred,
+            "sessions": sessions_out,
+            "period_start": start,
+            "period_end": end,
+        }
+    except Exception:
+        logger.error("Error getting session activity", exc_info=True)
+        return {
+            "total_sessions": 0,
+            "total_searches_inferred": 0,
+            "sessions": [],
             "period_start": start_date or date.today(),
             "period_end": end_date or date.today(),
         }

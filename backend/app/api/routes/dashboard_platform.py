@@ -41,6 +41,7 @@ from app.services.dashboard_queries import (
     get_pulse_accuracy,
     get_leads,
     get_recent_questions,
+    get_session_activity,
 )
 
 router = APIRouter(
@@ -254,6 +255,30 @@ async def get_platform_leads(
     """
     data = await get_leads(tenant_id=None, start_date=start_date, end_date=end_date)
     return LeadsResponse(**data)
+
+
+@router.get("/visitors")
+async def get_platform_visitors(
+    start_date: Optional[date] = Query(None),
+    end_date: Optional[date] = Query(None),
+    limit: int = Query(500, ge=1, le=2000),
+    user=Depends(require_auth),
+):
+    """
+    Every visitor session in the window, regardless of whether they captured
+    an email or completed a search. Surfaces all historic activity from the
+    sessions table — the piece admins need to verify "who showed up on
+    the day we ran the demo".
+
+    Includes inferred total_searches (sum of per-session search_count) so
+    demos that pre-date the persona-enum fix still show activity numbers.
+    """
+    return await get_session_activity(
+        tenant_id=None,
+        start_date=start_date,
+        end_date=end_date,
+        limit=limit,
+    )
 
 
 @router.get("/questions")

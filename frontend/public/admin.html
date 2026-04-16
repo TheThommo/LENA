@@ -547,6 +547,37 @@ body {
     </div>
   </div>
 
+  <!-- Visitor Activity — every session in range, regardless of search_count. -->
+  <!-- Populated from sessions table so historic demos (Lauren et al.) appear -->
+  <!-- even for days before the question-logging bug was fixed.               -->
+  <div class="panel" style="margin-bottom:24px">
+    <div class="panel-header">
+      <span class="panel-title">Visitor Activity</span>
+      <div style="display:flex;gap:8px;align-items:center">
+        <span id="visitors-count" style="font-size:11px;color:var(--text-muted)">--</span>
+        <input id="visitorsFilter" placeholder="Filter..." oninput="renderVisitors()"
+          style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--text-primary);min-width:160px">
+        <button class="btn-sm" onclick="loadVisitors()" style="background:var(--lena-500)">Refresh</button>
+      </div>
+    </div>
+    <div class="panel-body no-pad">
+      <table class="data-table" id="visitorsTable">
+        <thead>
+          <tr>
+            <th>Started</th>
+            <th>Visitor</th>
+            <th>Email</th>
+            <th>Location</th>
+            <th style="text-align:right">Searches</th>
+            <th>Status</th>
+            <th>Source</th>
+          </tr>
+        </thead>
+        <tbody><tr><td colspan="7" class="empty-state"><p>Loading...</p></td></tr></tbody>
+      </table>
+    </div>
+  </div>
+
   <!-- Every question, newest first — the live feed of what users are asking -->
   <div class="panel">
     <div class="panel-header">
@@ -914,6 +945,7 @@ async function loadAllData() {
       loadSearches(),
       loadPulse(),
       loadQueries(),
+      loadVisitors(),
       loadQuestionsFeed(),
       loadLeads(),
       loadHealth(),
@@ -1198,6 +1230,72 @@ async function loadQueries() {
       </tr>
     `).join('');
   } catch(e) { console.error('Queries error:', e); }
+}
+
+// Historic visitor feed — every session in the window. Sourced from the
+// sessions table (not search_logs) so demos that happened BEFORE the
+// persona-enum fix still appear here with their identity and geo.
+let _visitorsCache = [];
+async function loadVisitors() {
+  try {
+    const params = new URLSearchParams();
+    const s = document.getElementById('startDate').value;
+    const e = document.getElementById('endDate').value;
+    if (s) params.set('start_date', s);
+    if (e) params.set('end_date', e);
+    params.set('limit', '1000');
+    const data = await apiFetch(`/dashboard/platform/visitors?${params.toString()}`);
+    _visitorsCache = data.sessions || [];
+    document.getElementById('visitors-count').textContent =
+      `${_visitorsCache.length} visitors · ${fmt(data.total_searches_inferred || 0)} searches`;
+    renderVisitors();
+  } catch (err) { console.error('Visitors error:', err); }
+}
+
+function renderVisitors() {
+  const tbody = document.querySelector('#visitorsTable tbody');
+  const filter = (document.getElementById('visitorsFilter')?.value || '').toLowerCase();
+  let rows = _visitorsCache;
+  if (filter) {
+    rows = rows.filter(v =>
+      (v.name || '').toLowerCase().includes(filter) ||
+      (v.email || '').toLowerCase().includes(filter) ||
+      (v.country || '').toLowerCase().includes(filter) ||
+      (v.city || '').toLowerCase().includes(filter) ||
+      (v.institution || '').toLowerCase().includes(filter)
+    );
+  }
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><p>No sessions yet.</p></td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(v => {
+    const when = v.started_at ? new Date(v.started_at).toLocaleString('en-AU', {
+      day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
+    }) : '--';
+    const loc = [v.city, v.country].filter(Boolean).join(', ') || '—';
+    const who = v.name || '—';
+    const email = v.email || (v.registered ? '<span style="color:var(--text-muted)">registered</span>' : '<span style="color:var(--text-muted)">anonymous</span>');
+    let status = 'Landed';
+    let color = 'var(--text-muted)';
+    if (v.registered) { status = 'Registered'; color = 'var(--accent-green)'; }
+    else if (v.email) { status = 'Lead captured'; color = 'var(--lena-400)'; }
+    else if (v.disclaimer_accepted) { status = 'Disclaimer OK'; color = '#FFB400'; }
+    const searchCell = v.search_count > 0
+      ? `<span style="color:var(--text-primary);font-weight:600">${v.search_count}</span>`
+      : '<span style="color:var(--text-muted)">0</span>';
+    return `
+      <tr>
+        <td style="color:var(--text-muted);font-size:11px;white-space:nowrap">${escHtml(when)}</td>
+        <td style="color:var(--text-primary)">${escHtml(who)}</td>
+        <td style="color:var(--text-muted);font-size:12px">${email}</td>
+        <td style="color:var(--text-muted);font-size:12px;white-space:nowrap">${escHtml(loc)}</td>
+        <td style="font-family:'DM Mono',monospace;text-align:right">${searchCell}</td>
+        <td><span style="color:${color};font-size:11px;text-transform:uppercase;letter-spacing:0.04em">${status}</span></td>
+        <td style="color:var(--text-muted);font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(v.source || 'Direct')}</td>
+      </tr>
+    `;
+  }).join('');
 }
 
 // Raw feed of every question asked — newest first, with session/user identity.
