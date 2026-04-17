@@ -365,34 +365,40 @@ async def get_funnel_metrics(
         client = get_supabase_admin_client()
         start_date, end_date = _get_date_range(start_date, end_date)
 
-        # Fetch usage analytics for funnel events
+        # Infer funnel from sessions table instead of event_log.
+        # Every milestone is already stored as a column (name, email,
+        # disclaimer_accepted_at, search_count, user_id) so the funnel
+        # works even when the event_log is empty (it has been since launch
+        # because the numeric-column bug dropped every write).
+        q_base = client.table("sessions").select(
+            "id, name, email, disclaimer_accepted_at, search_count, user_id",
+        ).gte("started_at", start_date.isoformat()).lte("started_at", end_date.isoformat())
+        if tenant_id:
+            q_base = q_base.eq("tenant_id", tenant_id)
+        all_sessions = (q_base.execute()).data or []
+
+        # Count each milestone
+        landed = len(all_sessions)
+        named = sum(1 for s in all_sessions if s.get("name"))
+        disclaimed = sum(1 for s in all_sessions if s.get("disclaimer_accepted_at"))
+        first_search = sum(1 for s in all_sessions if (s.get("search_count") or 0) >= 1)
+        emailed = sum(1 for s in all_sessions if s.get("email") and s["email"] != "_skipped")
+        second_search = sum(1 for s in all_sessions if (s.get("search_count") or 0) >= 2)
+        registered = sum(1 for s in all_sessions if s.get("user_id"))
+
         funnel_actions = [
-            "landed",
-            "name_captured",
-            "disclaimer_accepted",
-            "first_search",
-            "email_captured",
-            "second_search",
-            "signup_cta_shown",
-            "registered",
+            ("landed", landed),
+            ("name_captured", named),
+            ("disclaimer_accepted", disclaimed),
+            ("first_search", first_search),
+            ("email_captured", emailed),
+            ("second_search", second_search),
+            ("registered", registered),
         ]
 
-        stage_counts = {}
-        for action in funnel_actions:
-            analytics_query = client.table("event_log").select("id", count="exact")
-            analytics_query = analytics_query.eq("event_name", "funnel_stage")
-            analytics_query = analytics_query.eq("value", action)
-            if tenant_id:
-                analytics_query = analytics_query.eq("tenant_id", tenant_id)
-            analytics_query = analytics_query.gte("created_at", start_date.isoformat()).lte("created_at", end_date.isoformat())
-            analytics_response = analytics_query.execute()
-            stage_counts[action] = analytics_response.count or 0
-
-        # Calculate conversion rates between consecutive stages
         stages = []
         prev_count = None
-        for action in funnel_actions:
-            count = stage_counts[action]
+        for action, count in funnel_actions:
             conversion_rate = None
             if prev_count is not None and prev_count > 0:
                 conversion_rate = (count / prev_count * 100)
@@ -403,10 +409,9 @@ async def get_funnel_metrics(
             })
             prev_count = count
 
-        # Overall conversion (registered / landed)
         overall_conversion = 0.0
-        if stage_counts.get("landed", 0) > 0:
-            overall_conversion = (stage_counts.get("registered", 0) / stage_counts["landed"] * 100)
+        if landed > 0:
+            overall_conversion = (registered / landed * 100)
 
         return {
             "stages": stages,
@@ -689,7 +694,7 @@ async def get_tenant_comparison(
             active_subscriptions = len(subs)
 
             # Get plan pricing
-            plans_response = client.table("plan_tiers").select("id, price_monthly").execute()
+            plans_response = client.table("plan_tiers").select("id, monthly_price_cents").execute()
             plans_map = {p["id"]: p.get("monthly_price_cents", 0) for p in plans_response.data or []}
             mrr = sum(plans_map.get(sub.get("plan_id"), 0) for sub in subs)
 
