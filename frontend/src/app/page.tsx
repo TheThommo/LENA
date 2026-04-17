@@ -90,35 +90,40 @@ export default function Home() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const currentSessionIdRef = useRef<string>(Date.now().toString());
 
-  // Load recent sessions from localStorage — only for authenticated users.
-  // Anonymous / signed-out visitors start with a clean slate (avoids leaking
-  // one user's history to another on shared devices).
+  // Load recent sessions from localStorage — namespaced per user so
+  // signing in as a different account on the same browser never leaks
+  // another user's search history.
+  const sessionsKey = user?.id ? `lena_recent_sessions_${user.id}` : null;
+  const threadsKey = user?.id ? `lena_session_threads_${user.id}` : null;
+
   useEffect(() => {
-    if (!isAuthenticated) {
+    if (!isAuthenticated || !sessionsKey) {
       setRecentSessions([]);
       return;
     }
     try {
-      const stored = localStorage.getItem('lena_recent_sessions');
+      const stored = localStorage.getItem(sessionsKey);
       if (stored) setRecentSessions(JSON.parse(stored));
     } catch {}
-  }, [isAuthenticated]);
+  }, [isAuthenticated, sessionsKey]);
 
   // Persist the full message thread for a session so clicking a recent
   // session restores it locally instead of re-running the search (which
   // would double-bill the backend / API tokens).
   const persistSessionThread = useCallback((sessionId: string, thread: Message[]) => {
+    if (!threadsKey) return;
     try {
-      const raw = localStorage.getItem('lena_session_threads');
+      const raw = localStorage.getItem(threadsKey);
       const all: Record<string, Message[]> = raw ? JSON.parse(raw) : {};
       all[sessionId] = thread;
-      localStorage.setItem('lena_session_threads', JSON.stringify(all));
+      localStorage.setItem(threadsKey, JSON.stringify(all));
     } catch {}
-  }, []);
+  }, [threadsKey]);
 
   const loadSessionThread = useCallback((sessionId: string): Message[] | null => {
+    if (!threadsKey) return null;
     try {
-      const raw = localStorage.getItem('lena_session_threads');
+      const raw = localStorage.getItem(threadsKey);
       if (!raw) return null;
       const all: Record<string, Message[]> = JSON.parse(raw);
       const thread = all[sessionId];
@@ -128,7 +133,7 @@ export default function Home() {
     } catch {
       return null;
     }
-  }, []);
+  }, [threadsKey]);
 
   // Auto-scroll to bottom on new messages
   useEffect(() => {
@@ -165,10 +170,12 @@ export default function Home() {
         ];
       }
       updated = updated.slice(0, 8);
-      localStorage.setItem('lena_recent_sessions', JSON.stringify(updated));
+      if (sessionsKey) {
+        localStorage.setItem(sessionsKey, JSON.stringify(updated));
+      }
       return updated;
     });
-  }, [isAuthenticated]);
+  }, [isAuthenticated, sessionsKey]);
 
   // Handle search
   const handleSend = async (text?: string) => {

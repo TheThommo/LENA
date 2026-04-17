@@ -90,10 +90,35 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
         if bearer and not bearer.startswith("session_"):
             jwt_payload = _try_decode_jwt(bearer)
             if jwt_payload and jwt_payload.get("user_id"):
-                # Authenticated registered user — bypass search counter
-                request.state.session_id = None
-                request.state.session = None
+                # Authenticated registered user — bypass the FREE search
+                # limit, but still try to link the session so search_count
+                # increments (needed for admin Visitor Activity and the
+                # funnel stage counts).
                 request.state.user_id = jwt_payload["user_id"]
+
+                # Try to find and increment the user's session
+                session_id = extract_session_id(request)
+                if session_id:
+                    try:
+                        session = await SessionRepository.get_by_id(UUID(session_id))
+                        if session:
+                            new_count = (session.search_count or 0) + 1
+                            await SessionRepository.update(
+                                UUID(session_id),
+                                SessionUpdate(search_count=new_count),
+                            )
+                            request.state.session_id = session_id
+                            request.state.session = session
+                        else:
+                            request.state.session_id = None
+                            request.state.session = None
+                    except Exception:
+                        request.state.session_id = None
+                        request.state.session = None
+                else:
+                    request.state.session_id = None
+                    request.state.session = None
+
                 return await call_next(request)
 
         # ── Anonymous / session-based flow ──

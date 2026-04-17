@@ -879,16 +879,21 @@ async def get_leads(
     end_date: Optional[date] = None,
 ) -> Dict[str, Any]:
     """
-    Get sessions with captured emails (leads).
-    Classifies emails as corporate vs generic.
+    Get leads from TWO sources and merge:
+      1. Sessions where email was captured (anonymous + pre-registration)
+      2. Registered users (from users table) — covers sign-ups that went
+         straight to /register without the session email-capture step.
+
+    Deduplicates by email (lowercase). Classifies as corporate vs generic.
     """
     try:
         client = get_supabase_admin_client()
         start_date, end_date = _get_date_range(start_date, end_date)
 
+        # Source 1: sessions with email
         sessions_query = client.table("sessions").select(
             "id, name, email, institution, phone, geo_country, geo_city, utm_source, referrer, "
-            "search_count, started_at, disclaimer_accepted_at, data_consent_accepted_at"
+            "search_count, started_at, disclaimer_accepted_at, data_consent_accepted_at, user_id"
         )
         sessions_query = sessions_query.not_.is_("email", "null")
         if tenant_id:
@@ -897,20 +902,41 @@ async def get_leads(
         sessions_query = sessions_query.order("started_at", desc=True)
         sessions_response = sessions_query.execute()
 
+        # Source 2: registered users
+        users_query = client.table("users").select("id, email, name, created_at")
+        if tenant_id:
+            users_query = users_query.eq("tenant_id", tenant_id)
+        users_query = users_query.gte("created_at", start_date.isoformat()).lte("created_at", end_date.isoformat())
+        users_response = users_query.execute()
+
+        seen_emails: set[str] = set()
         leads = []
         corporate_count = 0
+
+        def classify(email_str: str) -> tuple[str, bool]:
+            domain = email_str.split("@")[-1].lower() if "@" in email_str else ""
+            is_corp = domain not in GENERIC_EMAIL_DOMAINS and domain != ""
+            return domain, is_corp
+
+        # Process sessions first (richer context: geo, search_count, etc.)
         for s in sessions_response.data or []:
-            email = s.get("email", "")
-            domain = email.split("@")[-1].lower() if "@" in email else ""
-            is_corporate = domain not in GENERIC_EMAIL_DOMAINS and domain != ""
-            if is_corporate:
+            email = (s.get("email") or "").strip()
+            if not email or email == "_skipped":
+                continue
+            key = email.lower()
+            if key in seen_emails:
+                continue
+            seen_emails.add(key)
+            domain, is_corp = classify(email)
+            if is_corp:
                 corporate_count += 1
             leads.append({
                 "session_id": s.get("id"),
                 "name": s.get("name"),
                 "email": email,
                 "domain": domain,
-                "is_corporate": is_corporate,
+                "is_corporate": is_corp,
+                "registered": s.get("user_id") is not None,
                 "institution": s.get("institution"),
                 "phone": s.get("phone"),
                 "country": s.get("geo_country"),
@@ -920,6 +946,36 @@ async def get_leads(
                 "started_at": s.get("started_at"),
                 "disclaimer_accepted": s.get("disclaimer_accepted_at") is not None,
                 "data_consent": s.get("data_consent_accepted_at") is not None,
+            })
+
+        # Merge registered users not already covered by a session
+        for u in users_response.data or []:
+            email = (u.get("email") or "").strip()
+            if not email:
+                continue
+            key = email.lower()
+            if key in seen_emails:
+                continue
+            seen_emails.add(key)
+            domain, is_corp = classify(email)
+            if is_corp:
+                corporate_count += 1
+            leads.append({
+                "session_id": None,
+                "name": u.get("name"),
+                "email": email,
+                "domain": domain,
+                "is_corporate": is_corp,
+                "registered": True,
+                "institution": None,
+                "phone": None,
+                "country": None,
+                "city": None,
+                "source": "Registration",
+                "search_count": 0,
+                "started_at": u.get("created_at"),
+                "disclaimer_accepted": True,
+                "data_consent": False,
             })
 
         total = len(leads)
