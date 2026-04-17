@@ -147,9 +147,25 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
         session_id = extract_session_id(request)
 
         if not session_id:
+            # No session and no JWT — user hasn't gone through the funnel.
+            # Return a friendly guardrail-style response (not a raw 401)
+            # so the frontend renders LENA's voice, not an error banner.
             return JSONResponse(
-                status_code=401,
-                content={"detail": "Session required. Complete the medical disclaimer first."},
+                status_code=200,
+                content={
+                    "guardrail_triggered": True,
+                    "guardrail_type": "auth_required",
+                    "guardrail_message": (
+                        "Great question! I'd love to dive into the research on that for you.\n\n"
+                        "To get started, **sign up for free** or **log in** if you already have an account. "
+                        "It only takes a moment, and you'll get access to 250 million+ peer-reviewed papers "
+                        "across 6 biomedical databases.\n\n"
+                        "Your first searches are on us!"
+                    ),
+                    "query": query_param,
+                    "pulse_report": None,
+                    "response_time_ms": 0,
+                },
             )
 
         try:
@@ -157,15 +173,37 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
             session = await SessionRepository.get_by_id(UUID(session_id))
             if not session:
                 return JSONResponse(
-                    status_code=401,
-                    content={"detail": "Invalid session."},
+                    status_code=200,
+                    content={
+                        "guardrail_triggered": True,
+                        "guardrail_type": "auth_required",
+                        "guardrail_message": (
+                            "It looks like your session has expired. **Log in** or **sign up for free** "
+                            "to continue your research — it only takes a moment!"
+                        ),
+                        "query": query_param,
+                        "pulse_report": None,
+                        "response_time_ms": 0,
+                    },
                 )
 
             # Check if disclaimer has been accepted
             if not session.disclaimer_accepted_at:
                 return JSONResponse(
-                    status_code=401,
-                    content={"detail": "Medical disclaimer must be accepted before searching."},
+                    status_code=200,
+                    content={
+                        "guardrail_triggered": True,
+                        "guardrail_type": "disclaimer_required",
+                        "guardrail_message": (
+                            "Before I can search for you, I need you to accept the medical disclaimer. "
+                            "This is a quick one-time step to make sure you understand that LENA provides "
+                            "research evidence, not medical advice.\n\n"
+                            "Please complete the disclaimer to continue."
+                        ),
+                        "query": query_param,
+                        "pulse_report": None,
+                        "response_time_ms": 0,
+                    },
                 )
 
             # Check if user is registered (has user_id)
@@ -183,8 +221,20 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
                     )
 
                     return JSONResponse(
-                        status_code=403,
-                        content={"detail": "You've used your 5 free searches today. Sign up for Pro to continue."},
+                        status_code=200,
+                        content={
+                            "guardrail_triggered": True,
+                            "guardrail_type": "free_limit",
+                            "guardrail_message": (
+                                "You've used your **5 free searches** — and I hope they were useful!\n\n"
+                                "To keep researching, **create a free account** or **upgrade to Pro** "
+                                "for unlimited searches, saved results, and project folders.\n\n"
+                                "Your research deserves more than 5 questions a day."
+                            ),
+                            "query": query_param,
+                            "pulse_report": None,
+                            "response_time_ms": 0,
+                        },
                     )
 
                 # Increment search counter
