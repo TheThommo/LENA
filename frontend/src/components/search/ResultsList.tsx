@@ -91,8 +91,12 @@ export default function ResultsList({
     );
   }
 
-  const validatedResults = response.pulse_report.validated_results;
-  const edgeCases = response.pulse_report.edge_cases;
+  if (!response.pulse_report) {
+    return null;
+  }
+
+  const validatedResults = response.pulse_report.validated_results || [];
+  const edgeCases = response.pulse_report.edge_cases || [];
 
   return (
     <div className={`space-y-${compact ? '3' : '8'}`}>

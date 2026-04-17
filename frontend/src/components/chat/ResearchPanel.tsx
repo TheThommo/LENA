@@ -267,7 +267,11 @@ export default function ResearchPanel({ messages, persona, onClose }: ResearchPa
   // ---------------------------------------------------------------------------
 
   const analysis = useMemo(() => {
-    const responses = messages.filter(m => m.response).map(m => m.response!);
+    // Filter out guardrail responses (null pulse_report) so the panel
+    // never crashes on .validated_results / .consensus_keywords / etc.
+    const responses = messages
+      .filter(m => m.response && m.response.pulse_report)
+      .map(m => m.response!);
     const userQueries = messages.filter(m => m.type === 'user').map(m => m.content);
 
     // Collect all citations

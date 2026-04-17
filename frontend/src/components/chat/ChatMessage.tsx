@@ -266,7 +266,8 @@ function extractFollowUps(summary: string): { cleanSummary: string; followUps: s
  * doesn't include them (e.g. cached responses, non-LLM summaries).
  */
 function generateFollowUpsFallback(response: SearchResponse): string[] {
-  const keywords = response.pulse_report.consensus_keywords.slice(0, 3);
+  if (!response.pulse_report) return [];
+  const keywords = (response.pulse_report.consensus_keywords || []).slice(0, 3);
   const query = response.query;
   const suggestions: string[] = [];
 
@@ -520,8 +521,8 @@ export default function ChatMessage({
       <div className="ml-10 space-y-4">
         <FormattedContent text={summary} />
 
-        {/* PULSE status badge */}
-        {response && (
+        {/* PULSE status badge — only when pulse_report exists (not for guardrail responses) */}
+        {response && response.pulse_report && (
           <div className="flex items-center gap-2 flex-wrap">
             <span
               className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
@@ -534,10 +535,10 @@ export default function ChatMessage({
                   : 'bg-slate-100 text-slate-700'
               }`}
             >
-              PULSE: {response.pulse_report.status.replace(/_/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase())}
+              PULSE: {(response.pulse_report.status || 'pending').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
             </span>
             <span className="text-xs text-slate-500">
-              {Math.round(response.pulse_report.confidence_ratio * 100)}% confidence
+              {Math.round((response.pulse_report.confidence_ratio || 0) * 100)}% confidence
               &middot; {response.response_time_ms}ms
             </span>
           </div>

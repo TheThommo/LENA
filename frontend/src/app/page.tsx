@@ -813,14 +813,20 @@ export default function Home() {
 
 // Generate natural language summary from search results
 function generateSummary(result: SearchResponse): string {
-  const { pulse_report, total_results, sources_queried, response_time_ms, persona } = result;
-
   if (result.guardrail_triggered && result.guardrail_message) {
     return result.guardrail_message;
   }
 
-  const sourceCount = sources_queried.length;
-  const confidence = Math.round(pulse_report.confidence_ratio * 100);
+  const { pulse_report, total_results, sources_queried, response_time_ms } = result;
+
+  if (!pulse_report) {
+    return total_results
+      ? `Found ${total_results} results across ${(sources_queried || []).length} databases.`
+      : 'No results found for this query.';
+  }
+
+  const sourceCount = (sources_queried || []).length;
+  const confidence = Math.round((pulse_report.confidence_ratio || 0) * 100);
   const statusLabel = {
     validated: 'strong consensus',
     edge_case: 'mixed evidence',
