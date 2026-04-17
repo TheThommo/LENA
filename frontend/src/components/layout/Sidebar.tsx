@@ -3,6 +3,7 @@
 import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { branding } from '@/config/branding';
+import { useProjects } from '@/contexts/ProjectsContext';
 
 interface RecentSession {
   id: string;
@@ -119,6 +120,13 @@ export function Sidebar({
             );
           })}
         </ul>
+
+        {/* Projects */}
+        <ProjectsSection
+          isAuthenticated={!!isAuthenticated}
+          onOpenProject={(id) => { onViewChange('projects'); /* id is set by the section */ void id; }}
+          onSignIn={onSignIn}
+        />
 
         {/* Recent Sessions */}
         {recentSessions.length > 0 && (
@@ -473,5 +481,149 @@ function LogOutIcon({ className }: { className?: string }) {
       <path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4" /><polyline points="16 17 21 12 16 7" />
       <line x1="21" y1="12" x2="9" y2="12" />
     </svg>
+  );
+}
+
+function PlusIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <line x1="12" y1="5" x2="12" y2="19" /><line x1="5" y1="12" x2="19" y2="12" />
+    </svg>
+  );
+}
+
+/**
+ * ProjectsSection — lists the user's active projects and supports inline
+ * create. Clicking a project makes it active (affects subsequent searches)
+ * and navigates to the Projects view.
+ *
+ * Anonymous users see a soft CTA that opens the signup flow — projects
+ * require registration because they have to persist across devices.
+ */
+function ProjectsSection({
+  isAuthenticated,
+  onOpenProject,
+  onSignIn,
+}: {
+  isAuthenticated: boolean;
+  onOpenProject: (projectId: string) => void;
+  onSignIn?: () => void;
+}) {
+  const { projects, activeProjectId, setActiveProjectId, createNew, error } = useProjects();
+  const [creating, setCreating] = useState(false);
+  const [newName, setNewName] = useState('');
+  const [submitting, setSubmitting] = useState(false);
+  const [inlineErr, setInlineErr] = useState<string | null>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+
+  const active = projects.filter(p => !p.archived_at);
+
+  useEffect(() => {
+    if (creating) inputRef.current?.focus();
+  }, [creating]);
+
+  const submit = async () => {
+    const name = newName.trim();
+    if (!name) return;
+    setSubmitting(true);
+    setInlineErr(null);
+    try {
+      const p = await createNew({ name });
+      setActiveProjectId(p.id);
+      onOpenProject(p.id);
+      setNewName('');
+      setCreating(false);
+    } catch (e) {
+      setInlineErr(e instanceof Error ? e.message : 'Could not create project');
+    } finally {
+      setSubmitting(false);
+    }
+  };
+
+  return (
+    <div className="mt-6 px-2">
+      <div className="flex items-center justify-between mb-3">
+        <div className="flex items-center gap-2">
+          <FolderIcon className="w-3.5 h-3.5 text-gray-400" />
+          <h3 className="text-[11px] font-semibold text-gray-400 uppercase tracking-wider">
+            Projects
+          </h3>
+        </div>
+        {isAuthenticated && !creating && (
+          <button
+            onClick={() => setCreating(true)}
+            className="p-1 text-gray-400 hover:text-lena-500 rounded transition-colors"
+            title="New project"
+          >
+            <PlusIcon className="w-3.5 h-3.5" />
+          </button>
+        )}
+      </div>
+
+      {!isAuthenticated && (
+        <button
+          onClick={onSignIn}
+          className="w-full text-left px-2 py-2 text-xs text-gray-500 hover:text-lena-500 rounded hover:bg-gray-50 transition-colors"
+        >
+          Sign up to save research to projects
+        </button>
+      )}
+
+      {isAuthenticated && creating && (
+        <div className="mb-2">
+          <input
+            ref={inputRef}
+            value={newName}
+            onChange={e => setNewName(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') submit();
+              if (e.key === 'Escape') { setCreating(false); setNewName(''); setInlineErr(null); }
+            }}
+            placeholder="e.g. SGLT2 in HFpEF"
+            disabled={submitting}
+            className="w-full text-sm border border-lena-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-lena-200 bg-white"
+          />
+          <div className="flex items-center justify-between mt-1.5">
+            <span className="text-[10px] text-gray-400">Enter to save · Esc to cancel</span>
+            {inlineErr && (
+              <span className="text-[10px] text-red-500 truncate ml-2" title={inlineErr}>{inlineErr}</span>
+            )}
+          </div>
+        </div>
+      )}
+
+      {isAuthenticated && active.length === 0 && !creating && (
+        <p className="text-xs text-gray-400 px-2">
+          No projects yet. Click + to group your research.
+        </p>
+      )}
+
+      <ul className="space-y-0.5">
+        {active.map(p => {
+          const isActive = activeProjectId === p.id;
+          return (
+            <li key={p.id}>
+              <button
+                onClick={() => { setActiveProjectId(p.id); onOpenProject(p.id); }}
+                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors group
+                  ${isActive ? 'bg-lena-50 text-lena-700' : 'text-gray-700 hover:bg-gray-50'}`}
+              >
+                <span className="text-[13px] flex-shrink-0">{p.emoji || '📁'}</span>
+                <span className="truncate flex-1 text-left">{p.name}</span>
+                {p.search_count > 0 && (
+                  <span className="text-[10px] text-gray-400 flex-shrink-0">{p.search_count}</span>
+                )}
+              </button>
+            </li>
+          );
+        })}
+      </ul>
+
+      {isAuthenticated && error && (
+        <p className="text-[10px] text-red-500 px-2 mt-2" title={error}>
+          {error.length > 60 ? error.slice(0, 60) + '…' : error}
+        </p>
+      )}
+    </div>
   );
 }

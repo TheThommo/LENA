@@ -15,9 +15,10 @@ import HowItWorks from '@/components/views/HowItWorks';
 import MyDocuments from '@/components/views/MyDocuments';
 import MyBrain from '@/components/views/MyBrain';
 import { useSession } from '@/contexts/SessionContext';
+import { useProjects } from '@/contexts/ProjectsContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
-import { searchLiterature, SearchResponse, ResultMode } from '@/lib/api';
+import { searchLiterature, SearchResponse, ResultMode, listProjectSearches, type ProjectSearch } from '@/lib/api';
 
 interface Message {
   id: string;
@@ -37,6 +38,7 @@ interface RecentSession {
 export default function Home() {
   const router = useRouter();
   const { session, captureAll, incrementSearch } = useSession();
+  const { activeProject, activeProjectId, setActiveProjectId, refresh: refreshProjects } = useProjects();
   const { isAuthenticated, isLoading: authLoading, user, token: authToken, logout } = useAuth();
   const { tenant } = useTenant();
 
@@ -199,6 +201,9 @@ export default function Home() {
         sessionToken: authToken || session.sessionToken || undefined,
         tenantId: tenant.id,
         persona: session.persona,
+        // File this search under the active project (auth-only; backend
+        // silently drops project_id for anon callers).
+        projectId: isAuthenticated && activeProjectId ? activeProjectId : undefined,
       });
 
       // Prefer LLM-generated summary from backend, fall back to local generation
@@ -221,6 +226,10 @@ export default function Home() {
         return next;
       });
       incrementSearch();
+      // Update the project's search_count badge in the sidebar
+      if (isAuthenticated && activeProjectId) {
+        refreshProjects();
+      }
     } catch (err) {
       const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
       setError(errorMessage);
@@ -342,6 +351,8 @@ export default function Home() {
         return <MyDocuments />;
       case 'brain':
         return <MyBrain />;
+      case 'projects':
+        return renderProjectView();
       default:
         return renderChat();
     }
@@ -381,6 +392,116 @@ export default function Home() {
             ))}
           </div>
         )}
+      </div>
+    );
+  };
+
+  // Project detail view — shows all searches filed under the active project
+  const [projectSearches, setProjectSearches] = useState<ProjectSearch[]>([]);
+  const [projectLoading, setProjectLoading] = useState(false);
+
+  useEffect(() => {
+    if (activeView !== 'projects' || !activeProjectId || !authToken) {
+      setProjectSearches([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      setProjectLoading(true);
+      try {
+        const data = await listProjectSearches(authToken, activeProjectId);
+        if (!cancelled) setProjectSearches(data.searches || []);
+      } catch { /* logged by caller */ }
+      if (!cancelled) setProjectLoading(false);
+    })();
+    return () => { cancelled = true; };
+  }, [activeView, activeProjectId, authToken]);
+
+  const renderProjectView = () => {
+    if (!isAuthenticated) {
+      return (
+        <div className="flex-1 overflow-y-auto p-6 text-center py-20">
+          <p className="text-slate-400">Sign in to manage research projects.</p>
+        </div>
+      );
+    }
+
+    if (!activeProject) {
+      return (
+        <div className="flex-1 overflow-y-auto p-6 text-center py-20">
+          <p className="text-slate-500 mb-2">No project selected.</p>
+          <p className="text-sm text-slate-400">Click a project in the sidebar to view its searches, or create a new one with the + button.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="flex-1 overflow-y-auto p-6">
+        <div className="max-w-3xl mx-auto">
+          {/* Project header */}
+          <div className="flex items-start gap-4 mb-8">
+            <div className="text-3xl">{activeProject.emoji || '📁'}</div>
+            <div className="flex-1">
+              <h2 className="text-xl font-bold text-slate-900">{activeProject.name}</h2>
+              {activeProject.description && (
+                <p className="text-sm text-slate-500 mt-1">{activeProject.description}</p>
+              )}
+              <div className="flex items-center gap-4 mt-2 text-xs text-slate-400">
+                <span>{activeProject.search_count} search{activeProject.search_count !== 1 ? 'es' : ''}</span>
+                <span>Created {new Date(activeProject.created_at).toLocaleDateString()}</span>
+              </div>
+            </div>
+            <button
+              onClick={() => { setActiveProjectId(activeProject.id); setActiveView('chat'); }}
+              className="px-3 py-1.5 bg-lena-500 text-white text-xs font-medium rounded-lg hover:bg-lena-600 transition-colors"
+            >
+              Search in project
+            </button>
+          </div>
+
+          {/* Search threads */}
+          {projectLoading && (
+            <div className="text-center py-8 text-slate-400 text-sm">Loading searches...</div>
+          )}
+          {!projectLoading && projectSearches.length === 0 && (
+            <div className="text-center py-12 text-slate-400">
+              <p>No searches filed under this project yet.</p>
+              <p className="text-xs mt-1">Run a search while this project is active to see it here.</p>
+            </div>
+          )}
+          {!projectLoading && projectSearches.length > 0 && (
+            <div className="space-y-2">
+              {projectSearches.map((s) => (
+                <div
+                  key={s.id}
+                  className="w-full text-left p-4 bg-white border border-slate-200 rounded-xl hover:border-lena-300 transition-colors"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="w-8 h-8 rounded-lg bg-lena-50 flex items-center justify-center flex-shrink-0">
+                      <svg className="w-4 h-4 text-lena-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                      </svg>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-slate-800">{s.query}</p>
+                      <div className="flex items-center gap-3 mt-1 text-xs text-slate-400">
+                        <span>{new Date(s.created_at).toLocaleString()}</span>
+                        {s.persona && <span className="bg-slate-100 px-1.5 py-0.5 rounded">{s.persona}</span>}
+                        {s.total_results != null && <span>{s.total_results} results</span>}
+                        {s.pulse_status && (
+                          <span className={`uppercase tracking-wide ${
+                            s.pulse_status === 'validated' ? 'text-emerald-500' :
+                            s.pulse_status === 'edge_case' ? 'text-amber-500' : 'text-slate-400'
+                          }`}>{s.pulse_status}</span>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </div>
       </div>
     );
   };
@@ -503,6 +624,27 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap justify-end">
+            {/* Active-project chip — shows which project new searches file under */}
+            {isAuthenticated && activeProject && (
+              <button
+                onClick={() => setActiveView('projects')}
+                className="flex items-center gap-1.5 px-2.5 py-1.5 border border-lena-300 bg-lena-50 rounded-full text-xs font-medium text-lena-700 hover:bg-lena-100 transition-all max-w-[200px] truncate"
+                title={`Searches file under "${activeProject.name}". Click to open project.`}
+              >
+                <span>{activeProject.emoji || '📁'}</span>
+                <span className="truncate">{activeProject.name}</span>
+                <button
+                  onClick={(e) => { e.stopPropagation(); setActiveProjectId(null); }}
+                  className="ml-0.5 text-lena-400 hover:text-lena-700"
+                  title="Stop filing searches under this project"
+                >
+                  <svg className="w-3 h-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </button>
+            )}
+
             {/* Result-mode checkbox dropdown (scalable for future filters) */}
             {(() => {
               const MODE_OPTIONS: { id: ResultMode; label: string; desc: string }[] = [

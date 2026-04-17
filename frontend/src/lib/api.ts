@@ -194,6 +194,7 @@ export async function searchLiterature(
     sessionId?: string;
     sessionToken?: string;
     tenantId?: string;
+    projectId?: string;
   }
 ): Promise<SearchResponse> {
   const params = new URLSearchParams({ q: query });
@@ -207,6 +208,7 @@ export async function searchLiterature(
     params.set('modes', options.modes.join(','));
   }
   if (options?.tenantId) params.set('tenant_id', options.tenantId);
+  if (options?.projectId) params.set('project_id', options.projectId);
 
   const headers: Record<string, string> = {};
   if (options?.sessionToken) {
@@ -236,4 +238,107 @@ export async function checkHealth(): Promise<HealthStatus> {
   const response = await fetch(`${API_BASE}/health/connections`);
   if (!response.ok) throw new Error(`Health check failed: ${response.statusText}`);
   return response.json();
+}
+
+// ── Projects ────────────────────────────────────────────────────────────
+// Research folders grouping multiple search threads. Auth required.
+
+export interface Project {
+  id: string;
+  name: string;
+  description: string | null;
+  color: string | null;
+  emoji: string | null;
+  archived_at: string | null;
+  created_at: string;
+  updated_at: string;
+  search_count: number;
+}
+
+export interface ProjectSearch {
+  id: string;
+  query: string;
+  persona: string | null;
+  response_time_ms: number | null;
+  total_results: number | null;
+  pulse_status: string | null;
+  sources_queried: string[] | null;
+  sources_succeeded: string[] | null;
+  session_id: string | null;
+  created_at: string;
+}
+
+function authHeaders(token: string): Record<string, string> {
+  return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
+}
+
+async function readJsonOrThrow(response: Response, action: string) {
+  if (!response.ok) {
+    let detail = '';
+    try { detail = (await response.json())?.detail || ''; } catch {}
+    throw new Error(`${action} failed (${response.status}): ${detail || 'Unknown error'}`);
+  }
+  if (response.status === 204) return null;
+  return response.json();
+}
+
+export async function listProjects(token: string): Promise<Project[]> {
+  const r = await fetch(`${API_BASE}/projects`, { headers: authHeaders(token) });
+  return (await readJsonOrThrow(r, 'List projects')) as Project[];
+}
+
+export async function createProject(
+  token: string,
+  body: { name: string; description?: string; color?: string; emoji?: string },
+): Promise<Project> {
+  const r = await fetch(`${API_BASE}/projects`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(body),
+  });
+  return (await readJsonOrThrow(r, 'Create project')) as Project;
+}
+
+export async function updateProject(
+  token: string,
+  projectId: string,
+  body: Partial<{ name: string; description: string; color: string; emoji: string; archived: boolean }>,
+): Promise<Project> {
+  const r = await fetch(`${API_BASE}/projects/${projectId}`, {
+    method: 'PATCH',
+    headers: authHeaders(token),
+    body: JSON.stringify(body),
+  });
+  return (await readJsonOrThrow(r, 'Update project')) as Project;
+}
+
+export async function deleteProject(token: string, projectId: string): Promise<void> {
+  const r = await fetch(`${API_BASE}/projects/${projectId}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  });
+  await readJsonOrThrow(r, 'Delete project');
+}
+
+export async function listProjectSearches(
+  token: string,
+  projectId: string,
+): Promise<{ project_id: string; searches: ProjectSearch[] }> {
+  const r = await fetch(`${API_BASE}/projects/${projectId}/searches`, {
+    headers: authHeaders(token),
+  });
+  return (await readJsonOrThrow(r, 'List project searches')) as { project_id: string; searches: ProjectSearch[] };
+}
+
+export async function assignSearchToProject(
+  token: string,
+  searchId: string,
+  projectId: string | null,
+): Promise<void> {
+  const r = await fetch(`${API_BASE}/projects/searches/${searchId}/assign`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ project_id: projectId }),
+  });
+  await readJsonOrThrow(r, 'Assign search to project');
 }

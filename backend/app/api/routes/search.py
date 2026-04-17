@@ -31,6 +31,7 @@ async def search_literature(
         description="Comma-separated result modes: all,herbal,outlier (defaults to 'all')",
     ),
     session_id: Optional[str] = Query(None, description="Session identifier for analytics"),
+    project_id: Optional[str] = Query(None, description="File this search under a project (auth users only)"),
 ):
     """
     Search medical literature across all sources.
@@ -103,6 +104,27 @@ async def search_literature(
         total_results = search_result.get("total_results", 0)
         pulse_status = search_result.get("pulse_report", {}).get("status", "pending")
 
+        # Project filing: only allowed for authenticated callers, and only
+        # if they own the project. Silently drop the hint for anon users so
+        # a forged query param can't forge project membership.
+        resolved_project_id: Optional[str] = None
+        if project_id and resolved_user_id:
+            try:
+                from app.db.supabase import get_supabase_admin_client
+                admin_client = get_supabase_admin_client()
+                owned = (
+                    admin_client.table("projects")
+                    .select("id")
+                    .eq("id", project_id)
+                    .eq("user_id", resolved_user_id)
+                    .limit(1)
+                    .execute()
+                )
+                if owned.data:
+                    resolved_project_id = project_id
+            except Exception:
+                logger.warning("project_id ownership check failed", exc_info=True)
+
         # Log search event (includes LLM cost when the summary ran)
         schedule_analytics_task(
             log_search_event(
@@ -118,6 +140,7 @@ async def search_literature(
                 total_results=total_results,
                 pulse_status=pulse_status,
                 llm_usage=search_result.get("llm_usage"),
+                project_id=resolved_project_id,
             )
         )
 
