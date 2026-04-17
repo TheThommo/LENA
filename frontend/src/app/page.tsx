@@ -112,22 +112,30 @@ export default function Home() {
     } catch {}
   }, []);
 
+  const prevUserIdRef = useRef<string | null>(null);
   useEffect(() => {
+    const uid = user?.id || null;
     // HARD RULE: not authenticated → empty. No stale data, no exceptions.
-    if (!isAuthenticated || !user?.id || !sessionsKey) {
-      setRecentSessions([]);
-      // Also clear the chat window on logout so a new visitor / user
-      // doesn't see the previous user's conversation.
-      setMessages([]);
-      setError(null);
+    if (!isAuthenticated || !uid || !sessionsKey) {
+      // Only clear if we previously had a user (avoids infinite re-render
+      // from setting new [] references on every render cycle).
+      if (prevUserIdRef.current !== null) {
+        setRecentSessions([]);
+        setMessages([]);
+        setError(null);
+      }
+      prevUserIdRef.current = null;
       return;
     }
-    try {
-      const stored = localStorage.getItem(sessionsKey);
-      if (stored) setRecentSessions(JSON.parse(stored));
-      else setRecentSessions([]);
-    } catch {
-      setRecentSessions([]);
+    // User changed (login / switch account) — load their sessions
+    if (prevUserIdRef.current !== uid) {
+      prevUserIdRef.current = uid;
+      try {
+        const stored = localStorage.getItem(sessionsKey);
+        setRecentSessions(stored ? JSON.parse(stored) : []);
+      } catch {
+        setRecentSessions([]);
+      }
     }
   }, [isAuthenticated, user?.id, sessionsKey]);
 

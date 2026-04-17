@@ -25,6 +25,37 @@ from app.services.funnel_tracker import track_funnel_stage
 logger = logging.getLogger(__name__)
 
 
+def _guardrail_response(
+    guardrail_type: str,
+    guardrail_msg: str,
+    query: str,
+) -> JSONResponse:
+    """
+    Build a complete guardrail response that satisfies the frontend
+    SearchResponse interface. Every field the frontend might access
+    (sources_queried, sources_failed, total_results, etc.) must be
+    present to avoid "Cannot read properties of undefined" crashes.
+    """
+    return JSONResponse(
+        status_code=200,
+        content={
+            "search_id": None,
+            "session_id": None,
+            "query": query,
+            "persona": {"detected": "general", "display_name": "General", "tone": "", "depth": ""},
+            "guardrail_triggered": True,
+            "guardrail_type": guardrail_type,
+            "guardrail_message": guardrail_msg,
+            "llm_summary": None,
+            "pulse_report": None,
+            "sources_queried": [],
+            "sources_failed": {},
+            "total_results": 0,
+            "response_time_ms": 0,
+        },
+    )
+
+
 def _extract_bearer_token(request: Request) -> Optional[str]:
     """Extract the raw Bearer token from the Authorization header."""
     auth_header = request.headers.get("Authorization", "")
@@ -95,17 +126,7 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
             from app.core.guardrails import run_all_guardrails
             guardrail_type, guardrail_msg = run_all_guardrails(query_param)
             if guardrail_type and guardrail_type != "medical_advice":
-                return JSONResponse(
-                    status_code=200,
-                    content={
-                        "guardrail_triggered": True,
-                        "guardrail_type": guardrail_type,
-                        "guardrail_message": guardrail_msg,
-                        "query": query_param,
-                        "pulse_report": None,
-                        "response_time_ms": 0,
-                    },
-                )
+                return _guardrail_response(guardrail_type, guardrail_msg, query_param)
 
         # ── Check for authenticated user (JWT) first ──
         bearer = _extract_bearer_token(request)
@@ -147,63 +168,36 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
         session_id = extract_session_id(request)
 
         if not session_id:
-            # No session and no JWT — user hasn't gone through the funnel.
-            # Return a friendly guardrail-style response (not a raw 401)
-            # so the frontend renders LENA's voice, not an error banner.
-            return JSONResponse(
-                status_code=200,
-                content={
-                    "guardrail_triggered": True,
-                    "guardrail_type": "auth_required",
-                    "guardrail_message": (
-                        "Great question! I'd love to dive into the research on that for you.\n\n"
-                        "To get started, **sign up for free** or **log in** if you already have an account. "
-                        "It only takes a moment, and you'll get access to 250 million+ peer-reviewed papers "
-                        "across 6 biomedical databases.\n\n"
-                        "Your first searches are on us!"
-                    ),
-                    "query": query_param,
-                    "pulse_report": None,
-                    "response_time_ms": 0,
-                },
+            return _guardrail_response(
+                "auth_required",
+                "Great question! I'd love to dive into the research on that for you.\n\n"
+                "To get started, **sign up for free** or **log in** if you already have an account. "
+                "It only takes a moment, and you'll get access to 250 million+ peer-reviewed papers "
+                "across 6 biomedical databases.\n\n"
+                "Your first searches are on us!",
+                query_param,
             )
 
         try:
             # Get session
             session = await SessionRepository.get_by_id(UUID(session_id))
             if not session:
-                return JSONResponse(
-                    status_code=200,
-                    content={
-                        "guardrail_triggered": True,
-                        "guardrail_type": "auth_required",
-                        "guardrail_message": (
-                            "It looks like your session has expired. **Log in** or **sign up for free** "
-                            "to continue your research — it only takes a moment!"
-                        ),
-                        "query": query_param,
-                        "pulse_report": None,
-                        "response_time_ms": 0,
-                    },
+                return _guardrail_response(
+                    "auth_required",
+                    "It looks like your session has expired. **Log in** or **sign up for free** "
+                    "to continue your research — it only takes a moment!",
+                    query_param,
                 )
 
             # Check if disclaimer has been accepted
             if not session.disclaimer_accepted_at:
-                return JSONResponse(
-                    status_code=200,
-                    content={
-                        "guardrail_triggered": True,
-                        "guardrail_type": "disclaimer_required",
-                        "guardrail_message": (
-                            "Before I can search for you, I need you to accept the medical disclaimer. "
-                            "This is a quick one-time step to make sure you understand that LENA provides "
-                            "research evidence, not medical advice.\n\n"
-                            "Please complete the disclaimer to continue."
-                        ),
-                        "query": query_param,
-                        "pulse_report": None,
-                        "response_time_ms": 0,
-                    },
+                return _guardrail_response(
+                    "disclaimer_required",
+                    "Before I can search for you, I need you to accept the medical disclaimer. "
+                    "This is a quick one-time step to make sure you understand that LENA provides "
+                    "research evidence, not medical advice.\n\n"
+                    "Please complete the disclaimer to continue.",
+                    query_param,
                 )
 
             # Check if user is registered (has user_id)
@@ -220,21 +214,13 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
                         stage="signup_cta_shown",
                     )
 
-                    return JSONResponse(
-                        status_code=200,
-                        content={
-                            "guardrail_triggered": True,
-                            "guardrail_type": "free_limit",
-                            "guardrail_message": (
-                                "You've used your **5 free searches** — and I hope they were useful!\n\n"
-                                "To keep researching, **create a free account** or **upgrade to Pro** "
-                                "for unlimited searches, saved results, and project folders.\n\n"
-                                "Your research deserves more than 5 questions a day."
-                            ),
-                            "query": query_param,
-                            "pulse_report": None,
-                            "response_time_ms": 0,
-                        },
+                    return _guardrail_response(
+                        "free_limit",
+                        "You've used your **5 free searches** — and I hope they were useful!\n\n"
+                        "To keep researching, **create a free account** or **upgrade to Pro** "
+                        "for unlimited searches, saved results, and project folders.\n\n"
+                        "Your research deserves more than 5 questions a day.",
+                        query_param,
                     )
 
                 # Increment search counter

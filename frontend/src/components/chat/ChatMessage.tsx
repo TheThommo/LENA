@@ -544,8 +544,8 @@ export default function ChatMessage({
           </div>
         )}
 
-        {/* Source status indicators */}
-        {response && (
+        {/* Source status indicators — only when sources exist (not for guardrail responses) */}
+        {response && response.sources_queried && response.sources_queried.length > 0 && (
           <div className="flex items-center gap-1.5 flex-wrap">
             {response.sources_queried.map((src) => {
               const style = getSourceStyle(src);
@@ -555,7 +555,7 @@ export default function ChatMessage({
                 </span>
               );
             })}
-            {Object.keys(response.sources_failed).map((src) => {
+            {Object.keys(response.sources_failed || {}).map((src) => {
               const style = getSourceStyle(src);
               return (
                 <span key={src} className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-red-50 text-red-400 line-through">
