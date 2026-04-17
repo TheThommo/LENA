@@ -128,8 +128,9 @@ export function Sidebar({
           onSignIn={onSignIn}
         />
 
-        {/* Recent Sessions */}
-        {recentSessions.length > 0 && (
+        {/* Recent Sessions — only for authenticated users. Anonymous visitors
+            NEVER see search history, even if stale state briefly exists. */}
+        {isAuthenticated && recentSessions.length > 0 && (
           <div className="mt-6 px-2">
             <div className="flex items-center gap-2 mb-3">
               <ClockIcon className="w-3.5 h-3.5 text-gray-400" />

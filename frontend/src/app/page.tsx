@@ -90,22 +90,46 @@ export default function Home() {
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const currentSessionIdRef = useRef<string>(Date.now().toString());
 
-  // Load recent sessions from localStorage — namespaced per user so
-  // signing in as a different account on the same browser never leaks
-  // another user's search history.
+  // ── Recent sessions: per-user, auth-gated, zero-leak ──────────────
+  //
+  // Rules:
+  //   1. NOT logged in → recentSessions is ALWAYS empty. No exceptions.
+  //   2. Logged in → data keyed to `lena_recent_sessions_{userId}`.
+  //      Different user = different key = different history.
+  //   3. On first load, nuke the old global keys (pre-fix orphaned data)
+  //      so they can never surface during auth transitions.
+
   const sessionsKey = user?.id ? `lena_recent_sessions_${user.id}` : null;
   const threadsKey = user?.id ? `lena_session_threads_${user.id}` : null;
 
+  // One-time cleanup: remove pre-fix un-namespaced keys so they can never
+  // flash on screen during auth state transitions.
   useEffect(() => {
-    if (!isAuthenticated || !sessionsKey) {
+    if (typeof window === 'undefined') return;
+    try {
+      localStorage.removeItem('lena_recent_sessions');
+      localStorage.removeItem('lena_session_threads');
+    } catch {}
+  }, []);
+
+  useEffect(() => {
+    // HARD RULE: not authenticated → empty. No stale data, no exceptions.
+    if (!isAuthenticated || !user?.id || !sessionsKey) {
       setRecentSessions([]);
+      // Also clear the chat window on logout so a new visitor / user
+      // doesn't see the previous user's conversation.
+      setMessages([]);
+      setError(null);
       return;
     }
     try {
       const stored = localStorage.getItem(sessionsKey);
       if (stored) setRecentSessions(JSON.parse(stored));
-    } catch {}
-  }, [isAuthenticated, sessionsKey]);
+      else setRecentSessions([]);
+    } catch {
+      setRecentSessions([]);
+    }
+  }, [isAuthenticated, user?.id, sessionsKey]);
 
   // Persist the full message thread for a session so clicking a recent
   // session restores it locally instead of re-running the search (which
