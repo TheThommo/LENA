@@ -156,6 +156,37 @@ def get_warm_redirect(query: str) -> str:
     )
 
 
+# ── Greetings ────────────────────────────────────────────────────────────
+
+_GREETING_PATTERNS = {
+    "hi", "hello", "hey", "howdy", "hiya", "yo", "sup",
+    "good morning", "good afternoon", "good evening",
+    "hi there", "hello there", "hey there",
+    "hi lena", "hello lena", "hey lena",
+    "what's up", "whats up",
+    "how are you", "how r u",
+    "greetings",
+}
+
+
+def check_greeting(query: str) -> tuple[bool, Optional[str]]:
+    """Detect casual greetings and respond warmly like a person would."""
+    q = query.lower().strip().rstrip("!?.,:;")
+    if q in _GREETING_PATTERNS:
+        return True, (
+            "Hey there! Welcome to LENA.\n\n"
+            "I'm your research companion — I help people navigate the world of "
+            "medical and health-science evidence. Whether you're a clinician, "
+            "a student, a researcher, or just someone who wants solid answers "
+            "about their health, I've got you.\n\n"
+            "To start searching, **sign up for free** or **log in** if you "
+            "already have an account. It only takes a moment, and your first "
+            "searches are on us.\n\n"
+            "What would you like to explore today?"
+        )
+    return False, None
+
+
 # ── Off-Topic ────────────────────────────────────────────────────────────
 
 # Broad categories that are clearly NOT healthcare / biomedical.
@@ -235,6 +266,10 @@ def run_all_guardrails(query: str) -> tuple[Optional[str], Optional[str]]:
     triggered, msg = check_profanity(query)
     if triggered:
         return "profanity", msg
+
+    triggered, msg = check_greeting(query)
+    if triggered:
+        return "greeting", msg
 
     triggered, msg = check_off_topic(query)
     if triggered:

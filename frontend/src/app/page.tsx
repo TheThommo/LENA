@@ -355,15 +355,17 @@ export default function Home() {
     window.history.pushState({ lenaView: activeView }, '');
   }, [activeView]);
 
-  // Auto-open research panel on first result
-  const responseCount = messages.filter(m => m.response).length;
+  // Auto-open research panel on first REAL result (not guardrail responses)
+  const realResponseCount = messages.filter(
+    m => m.response && m.response.pulse_report && !m.response.guardrail_triggered
+  ).length;
   const panelOpenRef = useRef(panelOpen);
   panelOpenRef.current = panelOpen;
   useEffect(() => {
-    if (responseCount === 1 && !panelOpenRef.current) {
+    if (realResponseCount === 1 && !panelOpenRef.current) {
       setPanelOpen(true);
     }
-  }, [responseCount]);
+  }, [realResponseCount]);
 
   // Funnel overlay — don't render while auth is still loading (prevents flash for signed-in users)
   const funnelOverlay = authLoading ? null : (
