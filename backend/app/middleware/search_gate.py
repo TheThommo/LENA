@@ -85,6 +85,28 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
         if not request.url.path.startswith("/api/search") or request.method == "OPTIONS":
             return await call_next(request)
 
+        # ── Pre-auth guardrails ──────────────────────────────────────
+        # Self-harm, profanity, and off-topic checks run BEFORE session
+        # validation so they work for anonymous visitors who haven't
+        # completed the disclaimer. These are hard blocks — no search
+        # runs, no session needed.
+        query_param = request.query_params.get("q", "")
+        if query_param:
+            from app.core.guardrails import run_all_guardrails
+            guardrail_type, guardrail_msg = run_all_guardrails(query_param)
+            if guardrail_type and guardrail_type != "medical_advice":
+                return JSONResponse(
+                    status_code=200,
+                    content={
+                        "guardrail_triggered": True,
+                        "guardrail_type": guardrail_type,
+                        "guardrail_message": guardrail_msg,
+                        "query": query_param,
+                        "pulse_report": None,
+                        "response_time_ms": 0,
+                    },
+                )
+
         # ── Check for authenticated user (JWT) first ──
         bearer = _extract_bearer_token(request)
         if bearer and not bearer.startswith("session_"):

@@ -237,8 +237,11 @@ export default function Home() {
         projectId: isAuthenticated && activeProjectId ? activeProjectId : undefined,
       });
 
-      // Prefer LLM-generated summary from backend, fall back to local generation
-      const summary = result.llm_summary || generateSummary(result);
+      // Guardrail responses (off-topic, profanity, self-harm) have no
+      // pulse_report or llm_summary — show the guardrail message directly.
+      const summary = result.guardrail_triggered && result.guardrail_message
+        ? result.guardrail_message
+        : (result.llm_summary || generateSummary(result));
 
       const assistantMsg: Message = {
         id: `assistant-${Date.now()}`,
@@ -256,7 +259,11 @@ export default function Home() {
         }
         return next;
       });
-      incrementSearch();
+      // Don't count guardrail blocks as a search (they don't cost anything
+      // and shouldn't burn the user's free-tier allowance).
+      if (!result.guardrail_triggered) {
+        incrementSearch();
+      }
       // Update the project's search_count badge in the sidebar
       if (isAuthenticated && activeProjectId) {
         refreshProjects();

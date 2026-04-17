@@ -449,20 +449,26 @@ export default function ChatMessage({
     );
   }
 
+  // Guardrail responses have no pulse_report / llm_summary — show the
+  // guardrail message directly and skip all results rendering.
+  const isGuardrail = response?.guardrail_triggered && response?.guardrail_message;
+
   // Assistant message — prefer LLM summary from backend, fall back to local generation
-  const rawSummary = response?.llm_summary || (response ? generateSummary(response) : content);
+  const rawSummary = isGuardrail
+    ? response!.guardrail_message!
+    : (response?.llm_summary || (response ? generateSummary(response) : content));
 
   // Parse LLM-generated follow-ups from the markdown and strip them from the body
   const { cleanSummary: summary, followUps: llmFollowUps } = extractFollowUps(rawSummary);
   // Fall back to keyword-based suggestions if the LLM didn't generate any
-  const followUps = llmFollowUps.length > 0 ? llmFollowUps : (response ? generateFollowUpsFallback(response) : []);
+  const followUps = isGuardrail ? [] : (llmFollowUps.length > 0 ? llmFollowUps : (response ? generateFollowUpsFallback(response) : []));
   const allResults: { result: ValidatedResult; isEdge: boolean }[] = [];
 
-  if (response) {
-    response.pulse_report.validated_results.forEach((r) =>
+  if (response && response.pulse_report) {
+    (response.pulse_report.validated_results || []).forEach((r) =>
       allResults.push({ result: r, isEdge: false })
     );
-    response.pulse_report.edge_cases.forEach((r) =>
+    (response.pulse_report.edge_cases || []).forEach((r) =>
       allResults.push({ result: r, isEdge: true })
     );
   }
