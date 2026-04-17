@@ -227,7 +227,45 @@ function generateSummary(response: SearchResponse): string {
   return summary;
 }
 
-function generateFollowUps(response: SearchResponse): string[] {
+/**
+ * Extract follow-up suggestions from the LLM response markdown.
+ *
+ * The system prompt instructs the LLM to end every response with:
+ *   ## Suggested Follow-Ups
+ *   - [question 1]
+ *   - [question 2]
+ *   - [question 3]
+ *
+ * We parse them out so they render as clickable chips, and strip the
+ * section from the main summary body (it would look odd as rendered markdown).
+ */
+function extractFollowUps(summary: string): { cleanSummary: string; followUps: string[] } {
+  // Match the follow-ups section at the end of the markdown
+  const marker = /##\s*Suggested Follow[- ]?Ups?\s*\n([\s\S]*?)$/i;
+  const match = summary.match(marker);
+
+  if (!match) {
+    return { cleanSummary: summary, followUps: [] };
+  }
+
+  const cleanSummary = summary.slice(0, match.index).trimEnd();
+  const block = match[1];
+
+  // Each follow-up is a markdown list item: "- question text"
+  const followUps = block
+    .split('\n')
+    .map(line => line.replace(/^[-*]\s*/, '').trim())
+    .filter(line => line.length > 10) // skip empty / too-short lines
+    .slice(0, 3);
+
+  return { cleanSummary, followUps };
+}
+
+/**
+ * Fallback: generate basic follow-ups from PULSE keywords when the LLM
+ * doesn't include them (e.g. cached responses, non-LLM summaries).
+ */
+function generateFollowUpsFallback(response: SearchResponse): string[] {
   const keywords = response.pulse_report.consensus_keywords.slice(0, 3);
   const query = response.query;
   const suggestions: string[] = [];
@@ -412,8 +450,12 @@ export default function ChatMessage({
   }
 
   // Assistant message — prefer LLM summary from backend, fall back to local generation
-  const summary = response?.llm_summary || (response ? generateSummary(response) : content);
-  const followUps = response ? generateFollowUps(response) : [];
+  const rawSummary = response?.llm_summary || (response ? generateSummary(response) : content);
+
+  // Parse LLM-generated follow-ups from the markdown and strip them from the body
+  const { cleanSummary: summary, followUps: llmFollowUps } = extractFollowUps(rawSummary);
+  // Fall back to keyword-based suggestions if the LLM didn't generate any
+  const followUps = llmFollowUps.length > 0 ? llmFollowUps : (response ? generateFollowUpsFallback(response) : []);
   const allResults: { result: ValidatedResult; isEdge: boolean }[] = [];
 
   if (response) {

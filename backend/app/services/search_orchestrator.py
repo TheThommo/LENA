@@ -11,7 +11,7 @@ import time
 from typing import Optional
 
 from app.core.pulse_engine import SourceResult, run_pulse_validation, PULSEReport
-from app.core.guardrails import check_for_advice_request, get_warm_redirect
+from app.core.guardrails import run_all_guardrails
 from app.core.logging import get_logger
 from app.core.config import settings
 from app.services import pubmed, clinical_trials, cochrane, who_iris, cdc, openalex
@@ -388,16 +388,22 @@ async def run_search(
     start_time = time.time()
     logger.info(f"Starting search: query='{query}', modes={modes}")
 
-    # Step 1: Check medical advice guardrail
-    if check_for_advice_request(query):
-        logger.debug("Medical advice guardrail triggered")
+    # Step 1: Content guardrails (self-harm > profanity > off-topic > advice)
+    guardrail_type, guardrail_msg = run_all_guardrails(query)
+    if guardrail_type and guardrail_type != "medical_advice":
+        # Hard block — no search runs, show the guardrail message only
+        logger.info(f"Guardrail BLOCK ({guardrail_type}): '{query[:80]}'")
         return {
             "guardrail_triggered": True,
-            "guardrail_message": get_warm_redirect(query),
+            "guardrail_type": guardrail_type,
+            "guardrail_message": guardrail_msg,
             "query": query,
             "pulse_report": None,
             "response_time_ms": (time.time() - start_time) * 1000,
         }
+    # Medical-advice guardrail: search still runs, but the message is
+    # prepended to the LLM summary so the user sees the redirect context.
+    advice_preamble = guardrail_msg if guardrail_type == "medical_advice" else None
 
     # Step 2: Check cache
     cached = get_cached_result(query, sources, include_alt_medicine, modes)
@@ -452,7 +458,7 @@ async def run_search(
         "include_alt_medicine": include_alt_medicine,
         "modes": modes,
         "pulse_report": pulse_report.to_dict(),
-        "llm_summary": llm_summary,
+        "llm_summary": (advice_preamble + "\n\n" + llm_summary) if advice_preamble and llm_summary else llm_summary,
         "llm_usage": llm_usage,  # {model, prompt_tokens, completion_tokens, cost_micros} | None
         "response_time_ms": response_time_ms,
     }
