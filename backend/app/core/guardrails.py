@@ -195,19 +195,40 @@ def check_greeting(query: str) -> tuple[bool, Optional[str]]:
 # this because they have a health angle. Only fire for queries that
 # are unambiguously non-medical.
 _OFFTOPIC_PHRASES = [
-    "football score", "soccer score", "basketball score",
-    "stock price", "crypto price", "bitcoin price",
+    # Sports
+    "football score", "soccer score", "basketball score", "cricket score",
+    "tennis score", "golf score", "golf leaderboard", "golf today",
+    "who won the game", "who won the match", "what team",
+    "premier league", "champions league", "world cup score",
+    "nba", "nfl", "formula 1", "f1 results",
+    # Weather
+    "what's the weather", "whats the weather", "weather like in",
+    "weather forecast", "weather today", "is it raining",
+    "temperature in", "will it rain",
+    # Finance
+    "stock price", "crypto price", "bitcoin price", "share price",
+    "market today", "forex",
+    # Coding / tech
     "write me a poem", "write me code", "write a script",
+    "fix my code", "debug this", "python error", "javascript error",
+    "build a website", "create an app",
+    # Cooking
     "recipe for", "how to cook", "baking instructions",
+    "best restaurant", "food delivery",
+    # Maths / homework
     "solve this equation", "math homework", "calculus problem",
-    "who won the", "what team", "premier league",
-    "fix my code", "debug this", "python error",
-    "tell me a joke", "tell me a story",
-    "what's the weather", "weather forecast",
+    "algebra help",
+    # Entertainment
+    "tell me a joke", "tell me a story", "sing me",
+    "movie recommendation", "book recommendation", "netflix",
+    "what should i watch", "best movies",
+    # Translation
     "translate this", "translate to",
+    # Travel (non-health)
     "travel itinerary", "flight to", "hotel in",
-    "movie recommendation", "book recommendation",
-    "how to hack", "crack password",
+    "best places to visit", "tourist attractions",
+    # Hacking / illegal
+    "how to hack", "crack password", "bypass security",
 ]
 
 # Healthcare-adjacent terms — if any of these appear alongside an
@@ -225,15 +246,22 @@ _HEALTH_RESCUE_TOKENS = {
 }
 
 
+def _normalize(text: str) -> str:
+    """Strip apostrophes/smart-quotes so 'what's' matches 'whats'."""
+    return text.replace("'", "").replace("'", "").replace("'", "").replace("`", "")
+
+
 def check_off_topic(query: str) -> tuple[bool, Optional[str]]:
     """Detect clearly non-healthcare queries."""
     q = query.lower()
+    q_norm = _normalize(q)
 
     # If any health-rescue token is present, assume good intent
     if any(token in q for token in _HEALTH_RESCUE_TOKENS):
         return False, None
 
-    if any(phrase in q for phrase in _OFFTOPIC_PHRASES):
+    # Check both raw and apostrophe-normalized forms
+    if any(_normalize(phrase) in q_norm for phrase in _OFFTOPIC_PHRASES):
         return True, (
             "Ha — I appreciate the creative question, but my expertise is "
             "strictly in medical and health-science research. For that one, "
