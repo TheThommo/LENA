@@ -190,6 +190,8 @@ interface ChatMessageProps {
   projects?: ProjectOption[];
   /** Called when user picks a project to file this search under */
   onAddToProject?: (searchId: string, projectId: string) => void;
+  /** Create a new project inline. When provided, picker shows "+ New project". */
+  onCreateProject?: (name: string) => Promise<ProjectOption>;
 }
 
 const SOURCE_COLORS: Record<string, { border: string; bg: string; text: string; label: string }> = {
@@ -448,9 +450,14 @@ export default function ChatMessage({
   activeModes,
   projects,
   onAddToProject,
+  onCreateProject,
 }: ChatMessageProps) {
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const [projectSaved, setProjectSaved] = useState<string | null>(null);
+  const [creatingProject, setCreatingProject] = useState(false);
+  const [newProjectName, setNewProjectName] = useState('');
+  const [creatingBusy, setCreatingBusy] = useState(false);
+  const [createError, setCreateError] = useState<string | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
 
   // Close picker on outside click
@@ -459,6 +466,9 @@ export default function ChatMessage({
     const handler = (e: MouseEvent) => {
       if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
         setProjectPickerOpen(false);
+        setCreatingProject(false);
+        setNewProjectName('');
+        setCreateError(null);
       }
     };
     document.addEventListener('mousedown', handler);
@@ -533,14 +543,14 @@ export default function ChatMessage({
 
         <div className="flex items-center gap-2">
           {/* Add to Project */}
-          {response && response.search_id && onAddToProject && projects && projects.length > 0 && !response.guardrail_triggered && (
+          {response && response.search_id && onAddToProject && !response.guardrail_triggered && (
             <div className="relative" ref={pickerRef}>
               {projectSaved ? (
                 <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 rounded-md">
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                   </svg>
-                  Saved
+                  Saved to {projectSaved}
                 </span>
               ) : (
                 <button
@@ -555,11 +565,11 @@ export default function ChatMessage({
               )}
 
               {projectPickerOpen && (
-                <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-slate-200/80 rounded-lg shadow-xl shadow-slate-900/5 z-50 overflow-hidden">
+                <div className="absolute right-0 top-full mt-1 w-64 bg-white border border-slate-200/80 rounded-lg shadow-xl shadow-slate-900/5 z-50 overflow-hidden">
                   <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-100 bg-slate-50/80 font-medium">
                     Save to project
                   </div>
-                  {projects.map(p => (
+                  {(projects || []).map(p => (
                     <button
                       key={p.id}
                       onClick={() => {
@@ -575,6 +585,81 @@ export default function ChatMessage({
                       <span className="truncate">{p.name}</span>
                     </button>
                   ))}
+
+                  {onCreateProject && !creatingProject && (
+                    <button
+                      onClick={() => {
+                        setCreatingProject(true);
+                        setCreateError(null);
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-lena-600 hover:bg-lena-50 transition-colors border-t border-slate-100"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
+                      </svg>
+                      <span>{(projects && projects.length > 0) ? 'New project' : 'Create your first project'}</span>
+                    </button>
+                  )}
+
+                  {onCreateProject && creatingProject && (
+                    <form
+                      onSubmit={async (e) => {
+                        e.preventDefault();
+                        const name = newProjectName.trim();
+                        if (!name || creatingBusy) return;
+                        setCreatingBusy(true);
+                        setCreateError(null);
+                        try {
+                          const created = await onCreateProject(name);
+                          if (response.search_id) {
+                            onAddToProject(response.search_id, created.id);
+                            setProjectSaved(created.name);
+                          }
+                          setProjectPickerOpen(false);
+                          setCreatingProject(false);
+                          setNewProjectName('');
+                        } catch (err) {
+                          setCreateError(err instanceof Error ? err.message : 'Failed to create project');
+                        } finally {
+                          setCreatingBusy(false);
+                        }
+                      }}
+                      className="border-t border-slate-100 p-2 bg-slate-50/60"
+                    >
+                      <input
+                        autoFocus
+                        type="text"
+                        value={newProjectName}
+                        onChange={(e) => setNewProjectName(e.target.value)}
+                        placeholder="Project name"
+                        maxLength={80}
+                        className="w-full px-2.5 py-1.5 text-[13px] bg-white border border-slate-200 rounded-md outline-none focus:border-lena-400 focus:ring-2 focus:ring-lena-100 text-slate-800 placeholder-slate-400"
+                      />
+                      {createError && (
+                        <p className="text-[11px] text-red-600 mt-1.5 px-0.5">{createError}</p>
+                      )}
+                      <div className="flex items-center gap-2 mt-2">
+                        <button
+                          type="submit"
+                          disabled={!newProjectName.trim() || creatingBusy}
+                          className="flex-1 px-2.5 py-1 text-[12px] font-medium text-white bg-lena-600 rounded-md hover:bg-lena-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                        >
+                          {creatingBusy ? 'Creating…' : 'Create & save'}
+                        </button>
+                        <button
+                          type="button"
+                          onClick={() => {
+                            setCreatingProject(false);
+                            setNewProjectName('');
+                            setCreateError(null);
+                          }}
+                          className="px-2.5 py-1 text-[12px] font-medium text-slate-600 hover:bg-slate-100 rounded-md transition-colors"
+                        >
+                          Cancel
+                        </button>
+                      </div>
+                    </form>
+                  )}
                 </div>
               )}
             </div>

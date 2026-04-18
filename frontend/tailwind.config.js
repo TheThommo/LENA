@@ -31,6 +31,11 @@ module.exports = {
           100: '#FFF7E0',
           200: '#FFEFC2',
         },
+        canvas: {
+          50: '#ECF4F1',
+          100: '#DDEBE6',
+          200: '#C3DCD4',
+        },
       },
       fontFamily: {
         sans: ['Inter', '-apple-system', 'BlinkMacSystemFont', "'Segoe UI'", 'sans-serif'],

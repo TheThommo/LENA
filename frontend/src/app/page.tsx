@@ -39,7 +39,7 @@ interface RecentSession {
 export default function Home() {
   const router = useRouter();
   const { session, captureAll, incrementSearch } = useSession();
-  const { activeProject, activeProjectId, setActiveProjectId, refresh: refreshProjects, projects, assignSearch } = useProjects();
+  const { activeProject, activeProjectId, setActiveProjectId, refresh: refreshProjects, projects, assignSearch, createNew: createNewProject } = useProjects();
   const { isAuthenticated, isLoading: authLoading, user, token: authToken, logout } = useAuth();
   const { tenant } = useTenant();
 
@@ -542,6 +542,10 @@ export default function Home() {
                   onAddToProject={isAuthenticated ? (searchId, projectId) => {
                     assignSearch(searchId, projectId);
                   } : undefined}
+                  onCreateProject={isAuthenticated ? async (name) => {
+                    const p = await createNewProject({ name });
+                    return { id: p.id, name: p.name, emoji: p.emoji };
+                  } : undefined}
                 />
               ))}
               {loading && (
@@ -593,7 +597,7 @@ export default function Home() {
   };
 
   return (
-    <div className="h-[100dvh] flex bg-warm-50 overflow-hidden">
+    <div className="h-[100dvh] flex bg-canvas-50 overflow-hidden">
       {funnelOverlay}
 
       {/* Mobile sidebar backdrop */}
