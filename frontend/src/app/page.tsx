@@ -39,7 +39,7 @@ interface RecentSession {
 export default function Home() {
   const router = useRouter();
   const { session, captureAll, incrementSearch } = useSession();
-  const { activeProject, activeProjectId, setActiveProjectId, refresh: refreshProjects } = useProjects();
+  const { activeProject, activeProjectId, setActiveProjectId, refresh: refreshProjects, projects, assignSearch } = useProjects();
   const { isAuthenticated, isLoading: authLoading, user, token: authToken, logout } = useAuth();
   const { tenant } = useTenant();
 
@@ -394,8 +394,6 @@ export default function Home() {
         return <ComingSoon {...CONTRIBUTION_CONFIG} />;
       case 'how-it-works':
         return <HowItWorks />;
-      case 'research':
-        return renderMyResearch();
       case 'documents':
         return <MyDocuments />;
       case 'brain':
@@ -405,44 +403,6 @@ export default function Home() {
       default:
         return renderChat();
     }
-  };
-
-  // My Research view
-  const renderMyResearch = () => {
-    const searchHistory = messages.filter(m => m.type === 'user');
-    return (
-      <div className="flex-1 overflow-y-auto p-6">
-        <h2 className="text-xl font-bold text-slate-900 mb-1">My Research</h2>
-        <p className="text-sm text-slate-500 mb-6">Your recent search conversations</p>
-        {searchHistory.length === 0 ? (
-          <div className="text-center py-12 text-slate-400">
-            <p>No searches yet. Start a conversation to see your history here.</p>
-          </div>
-        ) : (
-          <div className="space-y-2">
-            {searchHistory.map((msg) => (
-              <button
-                key={msg.id}
-                onClick={() => { setActiveView('chat'); }}
-                className="w-full text-left p-4 bg-white border border-slate-200 rounded-xl hover:border-lena-300 transition-colors group"
-              >
-                <div className="flex items-center gap-3">
-                  <div className="w-8 h-8 rounded-lg bg-lena-50 flex items-center justify-center flex-shrink-0">
-                    <svg className="w-4 h-4 text-lena-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-                    </svg>
-                  </div>
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium text-slate-800 truncate group-hover:text-lena-600 transition-colors">{msg.content}</p>
-                    <p className="text-xs text-slate-400 mt-0.5">{msg.timestamp.toLocaleDateString()}</p>
-                  </div>
-                </div>
-              </button>
-            ))}
-          </div>
-        )}
-      </div>
-    );
   };
 
   // Project detail view — shows all searches filed under the active project
@@ -576,6 +536,12 @@ export default function Home() {
                   activeModes={resultModes}
                   onFollowUp={(q) => handleSend(q)}
                   onShare={(title) => setShareModal({ isOpen: true, title })}
+                  projects={isAuthenticated ? projects.filter(p => !p.archived_at).map(p => ({
+                    id: p.id, name: p.name, emoji: p.emoji,
+                  })) : undefined}
+                  onAddToProject={isAuthenticated ? (searchId, projectId) => {
+                    assignSearch(searchId, projectId);
+                  } : undefined}
                 />
               ))}
               {loading && (

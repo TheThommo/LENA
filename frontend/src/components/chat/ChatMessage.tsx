@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo, useEffect } from 'react';
+import { useState, useMemo, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { branding } from '@/config/branding';
 import type { SearchResponse, ValidatedResult, ResultMode } from '@/lib/api';
@@ -171,6 +171,12 @@ function FormattedContent({ text }: { text: string }) {
   return <div className="space-y-2">{rendered}</div>;
 }
 
+interface ProjectOption {
+  id: string;
+  name: string;
+  emoji: string | null;
+}
+
 interface ChatMessageProps {
   type: 'user' | 'assistant';
   content: string;
@@ -180,6 +186,10 @@ interface ChatMessageProps {
   activeModes?: ResultMode[];
   onFollowUp?: (query: string) => void;
   onShare?: (title?: string) => void;
+  /** Available projects for "Add to Project" action */
+  projects?: ProjectOption[];
+  /** Called when user picks a project to file this search under */
+  onAddToProject?: (searchId: string, projectId: string) => void;
 }
 
 const SOURCE_COLORS: Record<string, { border: string; bg: string; text: string; label: string }> = {
@@ -436,7 +446,24 @@ export default function ChatMessage({
   onFollowUp,
   onShare,
   activeModes,
+  projects,
+  onAddToProject,
 }: ChatMessageProps) {
+  const [projectPickerOpen, setProjectPickerOpen] = useState(false);
+  const [projectSaved, setProjectSaved] = useState<string | null>(null);
+  const pickerRef = useRef<HTMLDivElement>(null);
+
+  // Close picker on outside click
+  useEffect(() => {
+    if (!projectPickerOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (pickerRef.current && !pickerRef.current.contains(e.target as Node)) {
+        setProjectPickerOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [projectPickerOpen]);
   if (type === 'user') {
     return (
       <div className="flex justify-end mb-4">
@@ -504,17 +531,68 @@ export default function ChatMessage({
           <span className="text-sm font-semibold text-slate-700">{branding.name}</span>
         </div>
 
-        {response && onShare && (
-          <button
-            onClick={() => onShare(response.query)}
-            className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
-          >
-            <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-            </svg>
-            Share All
-          </button>
-        )}
+        <div className="flex items-center gap-2">
+          {/* Add to Project */}
+          {response && response.search_id && onAddToProject && projects && projects.length > 0 && !response.guardrail_triggered && (
+            <div className="relative" ref={pickerRef}>
+              {projectSaved ? (
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                  </svg>
+                  Saved
+                </span>
+              ) : (
+                <button
+                  onClick={() => setProjectPickerOpen(!projectPickerOpen)}
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+                >
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  </svg>
+                  Add to Project
+                </button>
+              )}
+
+              {projectPickerOpen && (
+                <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
+                  <div className="px-3 py-2 text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-100 bg-slate-50">
+                    Save to project
+                  </div>
+                  {projects.map(p => (
+                    <button
+                      key={p.id}
+                      onClick={() => {
+                        if (response.search_id) {
+                          onAddToProject(response.search_id, p.id);
+                          setProjectSaved(p.name);
+                          setProjectPickerOpen(false);
+                        }
+                      }}
+                      className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                    >
+                      <span className="text-[13px]">{p.emoji || '📁'}</span>
+                      <span className="truncate">{p.name}</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* Share */}
+          {response && onShare && (
+            <button
+              onClick={() => onShare(response.query)}
+              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+              </svg>
+              Share
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Natural language summary */}

@@ -29,7 +29,6 @@ interface SidebarProps {
 
 const navItems = [
   { id: 'chat', label: 'Chat', icon: ChatIcon },
-  { id: 'research', label: 'My Research', icon: BarChartIcon },
   { id: 'documents', label: 'My Documents', icon: FolderIcon },
   { id: 'brain', label: 'My Brain', icon: BrainIcon },
   { id: 'community', label: 'Community', icon: UsersIcon, badge: 'SOON' },
