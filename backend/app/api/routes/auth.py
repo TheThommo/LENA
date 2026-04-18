@@ -157,6 +157,22 @@ async def register(request: Request, body: RegisterRequest) -> RegisterResponse:
                 user_id=str(user.id),
             )
 
+    # Stamp anon fingerprint as converted so we can measure the funnel
+    # and so the IP+UA row stops counting against the anon quota.
+    try:
+        from app.db.repositories.anon_fingerprint_repo import (
+            AnonFingerprintRepository,
+            compute_fingerprint,
+        )
+        ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+        if not ip:
+            ip = request.headers.get("X-Real-IP") or (request.client.host if request.client else "")
+        ua = request.headers.get("User-Agent", "")
+        fp_hash = compute_fingerprint(ip, ua)
+        await AnonFingerprintRepository.mark_converted(fp_hash, str(user.id))
+    except Exception:
+        pass
+
     # Create JWT token
     access_token = create_access_token(
         user_id=str(user.id),

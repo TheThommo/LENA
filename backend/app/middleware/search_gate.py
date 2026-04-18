@@ -1,16 +1,23 @@
 """
 Search Gate Middleware
 
-Enforces freemium search limits on the /api/search/ endpoints.
+Enforces demo freemium limits on the /api/search/ endpoints.
 
-Rules:
-- Authenticated user (valid JWT)? → Allow (registered users bypass counter)
-- No session token? → 401 (must complete disclaimer first)
-- Search count >= 5 AND not registered? → 403 (signup required)
-- Otherwise: Allow, and increment search counter
+Rules (demo mode 2026-04-18):
+- Authenticated user: allow up to free_search_limit_registered per rolling
+  24h. Above limit -> pro_required CTA. (Pro cap is enforced by billing
+  once Stripe is live - not by this middleware.)
+- Anonymous visitor: identified by an IP+UA fingerprint hash, plus the
+  JS session cookie when present. Allowed: 1 free search AFTER
+  acknowledging the disclaimer inline. The fingerprint makes the gate
+  refresh / incognito resistant.
+- No session token at all: the very first /api/search lands here. We
+  auto-create a fingerprint row and return a disclaimer_required
+  guardrail the frontend renders as a LENA chat message.
 """
 
 import logging
+from datetime import datetime, timedelta, timezone
 from uuid import UUID
 from typing import Callable, Optional
 
@@ -19,10 +26,48 @@ from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.responses import Response, JSONResponse
 
 from app.db.repositories.session_repo import SessionRepository
+from app.db.repositories.anon_fingerprint_repo import (
+    AnonFingerprintRepository,
+    compute_fingerprint,
+)
+from app.db.supabase import get_supabase_admin_client
 from app.models import SessionUpdate
 from app.services.funnel_tracker import track_funnel_stage
 
 logger = logging.getLogger(__name__)
+
+
+def _client_ip(request: Request) -> str:
+    """Best-effort client IP extraction. Honours X-Forwarded-For then falls
+    back to the direct socket. Railway/edge proxies set XFF, so prefer it."""
+    xff = request.headers.get("X-Forwarded-For", "")
+    if xff:
+        return xff.split(",")[0].strip()
+    real_ip = request.headers.get("X-Real-IP", "")
+    if real_ip:
+        return real_ip.strip()
+    if request.client and request.client.host:
+        return request.client.host
+    return ""
+
+
+async def _registered_search_count_last_24h(user_id: str) -> int:
+    """Count registered user's searches in the last 24h window via
+    search_logs. Cheap: indexed on (user_id, created_at)."""
+    client = get_supabase_admin_client()
+    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    try:
+        resp = (
+            client.table("search_logs")
+            .select("id", count="exact")
+            .eq("user_id", user_id)
+            .gte("created_at", cutoff)
+            .execute()
+        )
+        return resp.count or 0
+    except Exception as e:
+        logger.warning(f"registered 24h count failed (non-blocking): {e}")
+        return 0
 
 
 def _guardrail_response(
@@ -116,6 +161,8 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
         if not request.url.path.startswith("/api/search") or request.method == "OPTIONS":
             return await call_next(request)
 
+        from app.core.config import settings as _settings
+
         # ── Pre-auth guardrails ──────────────────────────────────────
         # Self-harm, profanity, and off-topic checks run BEFORE session
         # validation so they work for anonymous visitors who haven't
@@ -128,18 +175,27 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
             if guardrail_type and guardrail_type != "medical_advice":
                 return _guardrail_response(guardrail_type, guardrail_msg, query_param)
 
-        # ── Check for authenticated user (JWT) first ──
+        # ── Authenticated (JWT) path ──
         bearer = _extract_bearer_token(request)
         if bearer and not bearer.startswith("session_"):
             jwt_payload = _try_decode_jwt(bearer)
             if jwt_payload and jwt_payload.get("user_id"):
-                # Authenticated registered user — bypass the FREE search
-                # limit, but still try to link the session so search_count
-                # increments (needed for admin Visitor Activity and the
-                # funnel stage counts).
-                request.state.user_id = jwt_payload["user_id"]
+                user_id_str = str(jwt_payload["user_id"])
+                request.state.user_id = user_id_str
 
-                # Try to find and increment the user's session
+                # 24h rolling quota for registered (demo free tier).
+                used = await _registered_search_count_last_24h(user_id_str)
+                reg_limit = _settings.free_search_limit_registered
+                if used >= reg_limit:
+                    return _guardrail_response(
+                        "registered_limit",
+                        f"You've used your **{reg_limit} free searches** in the last 24 hours.\n\n"
+                        "Upgrade to **Pro** for unlimited searches, saved results, project folders, "
+                        "and export. Your free tier resets daily - come back tomorrow if you'd like.",
+                        query_param,
+                    )
+
+                # Link session if present (so admin funnel counts stay accurate).
                 session_id = extract_session_id(request)
                 if session_id:
                     try:
@@ -164,100 +220,92 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
 
                 return await call_next(request)
 
-        # ── Anonymous / session-based flow ──
-        session_id = extract_session_id(request)
+        # ── Anonymous path ──
+        # Build the IP+UA fingerprint first. Even if the visitor has no
+        # session cookie (first-hit), this gives us a stable row to count
+        # against. Refresh / incognito / cleared localStorage all resolve
+        # here.
+        ip = _client_ip(request)
+        ua = request.headers.get("User-Agent", "")
+        fp_hash = compute_fingerprint(ip, ua)
 
-        if not session_id:
+        try:
+            fp_row = await AnonFingerprintRepository.get_or_create(
+                fingerprint_hash=fp_hash, ip_address=ip, user_agent=ua
+            )
+        except Exception as e:
+            logger.warning(f"fingerprint lookup failed (non-blocking): {e}")
+            fp_row = {"search_count": 0, "disclaimer_accepted_at": None}
+
+        fp_search_count = int(fp_row.get("search_count") or 0)
+        fp_disclaimer = fp_row.get("disclaimer_accepted_at")
+
+        # Session lookup (may be absent on very first hit)
+        session_id = extract_session_id(request)
+        session = None
+        if session_id:
+            try:
+                session = await SessionRepository.get_by_id(UUID(session_id))
+            except Exception:
+                session = None
+
+        disclaimer_ok = bool(
+            (session and session.disclaimer_accepted_at) or fp_disclaimer
+        )
+
+        # Disclaimer required first. Return a LENA-style chat message the
+        # frontend renders inline with an "I accept" action.
+        if not disclaimer_ok:
             return _guardrail_response(
-                "auth_required",
-                "Great question! I'd love to dive into the research on that for you.\n\n"
-                "To get started, **sign up for free** or **log in** if you already have an account. "
-                "It only takes a moment, and you'll get access to 250 million+ peer-reviewed papers "
-                "across 6 biomedical databases.\n\n"
-                "Your first searches are on us!",
+                "disclaimer_required",
+                "Before I dive in, a quick note: I share **research evidence**, not medical "
+                "advice. Accept the disclaimer and I'll run your first search on the house.",
                 query_param,
             )
 
+        # Free anon quota already spent -> signup CTA.
+        anon_limit = _settings.free_search_limit_anon
+        if fp_search_count >= anon_limit:
+            if session:
+                await track_funnel_stage(
+                    session_id=str(session.id),
+                    tenant_id=str(session.tenant_id),
+                    stage="signup_cta_shown",
+                )
+            return _guardrail_response(
+                "signup_required",
+                "That was your free preview - hope it was useful!\n\n"
+                "**Create a free account** (takes 30 seconds) to keep searching. "
+                "You'll get 5 searches a day, saved history, and project folders.",
+                query_param,
+            )
+
+        # Allowed: increment the fingerprint counter AND the session counter.
         try:
-            # Get session
-            session = await SessionRepository.get_by_id(UUID(session_id))
-            if not session:
-                return _guardrail_response(
-                    "auth_required",
-                    "It looks like your session has expired. **Log in** or **sign up for free** "
-                    "to continue your research — it only takes a moment!",
-                    query_param,
+            new_fp_count = await AnonFingerprintRepository.increment_search(fp_hash)
+        except Exception as e:
+            logger.warning(f"fp increment failed (non-blocking): {e}")
+            new_fp_count = fp_search_count + 1
+
+        if session:
+            try:
+                new_session_count = (session.search_count or 0) + 1
+                await SessionRepository.update(
+                    UUID(session_id),
+                    SessionUpdate(search_count=new_session_count),
                 )
-
-            # Check if disclaimer has been accepted
-            if not session.disclaimer_accepted_at:
-                return _guardrail_response(
-                    "disclaimer_required",
-                    "Before I can search for you, I need you to accept the medical disclaimer. "
-                    "This is a quick one-time step to make sure you understand that LENA provides "
-                    "research evidence, not medical advice.\n\n"
-                    "Please complete the disclaimer to continue.",
-                    query_param,
-                )
-
-            # Check if user is registered (has user_id)
-            # If not registered, enforce the free search limit
-            if not session.user_id:
-                search_count = session.search_count or 0
-
-                # Free tier limit from config - not hardcoded
-                from app.core.config import settings as _settings
-                _limit = _settings.free_search_limit
-                if search_count >= _limit:
-                    # Track funnel stage
-                    await track_funnel_stage(
-                        session_id=str(session.id),
-                        tenant_id=str(session.tenant_id),
-                        stage="signup_cta_shown",
-                    )
-
-                    return _guardrail_response(
-                        "free_limit",
-                        f"You've used your **{_limit} free searches** - and I hope they were useful!\n\n"
-                        "To keep researching, **create a free account** or **upgrade to Pro** "
-                        "for unlimited searches, saved results, and project folders.\n\n"
-                        f"Your research deserves more than {_limit} questions a day.",
-                        query_param,
-                    )
-
-                # Increment search counter
-                new_count = search_count + 1
-                session_update = SessionUpdate(search_count=new_count)
-                await SessionRepository.update(UUID(session_id), session_update)
-
-                # Track first search and email capture stages
-                if new_count == 1:
+                if new_session_count == 1:
                     await track_funnel_stage(
                         session_id=str(session.id),
                         tenant_id=str(session.tenant_id),
                         stage="first_search",
                     )
-                elif new_count == 5:
-                    await track_funnel_stage(
-                        session_id=str(session.id),
-                        tenant_id=str(session.tenant_id),
-                        stage="second_search",
-                    )
-            else:
-                # Registered user - check subscription plan
-                # TODO: Implement plan-based limits
-                pass
+            except Exception as e:
+                logger.warning(f"session increment failed (non-blocking): {e}")
 
-            # Store session info in request state for downstream handlers
-            request.state.session_id = session_id
-            request.state.session = session
+        request.state.session_id = session_id
+        request.state.session = session
+        request.state.anon_fingerprint = fp_hash
+        request.state.anon_search_count = new_fp_count
 
-        except Exception as e:
-            logger.error(f"Error in search gate: {e}")
-            return JSONResponse(
-                status_code=500,
-                content={"detail": "Internal server error"},
-            )
-
-        # Allow request to proceed
         return await call_next(request)

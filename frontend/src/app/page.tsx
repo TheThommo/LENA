@@ -10,6 +10,7 @@ import ResearchPanel from '@/components/chat/ResearchPanel';
 import ShareModal from '@/components/chat/ShareModal';
 import ThinkingIndicator from '@/components/search/ThinkingIndicator';
 import FunnelManager from '@/components/funnel/FunnelManager';
+import DisclaimerCard from '@/components/chat/DisclaimerCard';
 import PersonaSelector from '@/components/PersonaSelector';
 import ComingSoon, { COMMUNITY_CONFIG, CONTRIBUTION_CONFIG } from '@/components/views/ComingSoon';
 import HowItWorks from '@/components/views/HowItWorks';
@@ -38,7 +39,8 @@ interface RecentSession {
 
 export default function Home() {
   const router = useRouter();
-  const { session, captureAll, incrementSearch } = useSession();
+  const { session, captureAll, incrementSearch, acceptDisclaimer } = useSession();
+  const pendingQueryRef = useRef<string | null>(null);
   const { activeProject, activeProjectId, setActiveProjectId, refresh: refreshProjects, projects, assignSearch, createNew: createNewProject } = useProjects();
   const { isAuthenticated, isLoading: authLoading, user, token: authToken, logout } = useAuth();
   const { tenant } = useTenant();
@@ -252,13 +254,22 @@ export default function Home() {
         ? result.guardrail_message
         : (result.llm_summary || generateSummary(result));
 
+      // Disclaimer-required guardrail is rendered as an inline LENA card
+      // with an Accept button that re-runs the original query. We stash
+      // the query so the click handler can replay it.
+      const isDisclaimerPrompt =
+        result.guardrail_triggered && result.guardrail_type === 'disclaimer_required';
+
       const assistantMsg: Message = {
         id: `assistant-${Date.now()}`,
         type: 'assistant',
-        content: summary,
+        content: isDisclaimerPrompt ? '__DISCLAIMER_CARD__' : summary,
         response: result,
         timestamp: new Date(),
       };
+      if (isDisclaimerPrompt) {
+        pendingQueryRef.current = query;
+      }
       setMessages(prev => {
         const next = [...prev, assistantMsg];
         // Persist so clicking this session in 'Recent Sessions' restores from
@@ -291,6 +302,18 @@ export default function Home() {
       setLoading(false);
     }
   };
+
+  // Handle inline disclaimer acceptance: POST accept, drop the card
+  // message, then replay the pending query.
+  const handleAcceptDisclaimer = useCallback(async () => {
+    await acceptDisclaimer();
+    const pending = pendingQueryRef.current;
+    pendingQueryRef.current = null;
+    setMessages(prev => prev.filter(m => m.content !== '__DISCLAIMER_CARD__'));
+    if (pending) {
+      await handleSend(pending);
+    }
+  }, [acceptDisclaimer]);
 
   // Restore a prior session's thread from localStorage without re-hitting the
   // backend. Falls back to running a fresh search only if the thread is
@@ -379,7 +402,6 @@ export default function Home() {
         isRegistered: isAuthenticated,
         brandName: tenant.brandName,
       }}
-      onCapture={(data) => captureAll(data)}
       onRegister={() => router.push(`/register?session_id=${session.sessionId || ''}`)}
       onLogin={() => router.push('/login')}
     />
@@ -528,6 +550,9 @@ export default function Home() {
           ) : (
             <div className="max-w-3xl mx-auto px-4 py-6 space-y-1">
               {messages.map((msg) => (
+                msg.content === '__DISCLAIMER_CARD__' ? (
+                  <DisclaimerCard key={msg.id} onAccept={handleAcceptDisclaimer} />
+                ) : (
                 <ChatMessage
                   key={msg.id}
                   type={msg.type}
@@ -547,6 +572,7 @@ export default function Home() {
                     return { id: p.id, name: p.name, emoji: p.emoji };
                   } : undefined}
                 />
+                )
               ))}
               {loading && (
                 <div className="py-4">

@@ -15,6 +15,10 @@ from pydantic import BaseModel, Field, EmailStr
 from fastapi import APIRouter, HTTPException, status, Request
 
 from app.db.repositories.session_repo import SessionRepository
+from app.db.repositories.anon_fingerprint_repo import (
+    AnonFingerprintRepository,
+    compute_fingerprint,
+)
 from app.models import SessionCreate, SessionUpdate, SessionStatus
 from app.core.tenant import detect_tenant
 from app.services.funnel_tracker import track_funnel_stage
@@ -223,6 +227,7 @@ async def capture_name(
 async def accept_disclaimer(
     session_id: UUID,
     body: DisclaimerAcceptanceRequest,
+    request: Request,
 ) -> DisclaimerAcceptanceResponse:
     """
     Accept medical disclaimer.
@@ -254,6 +259,22 @@ async def accept_disclaimer(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail="Failed to update session",
         )
+
+    # Also stamp the IP+UA fingerprint so a localStorage wipe / incognito
+    # refresh can't reset the counter. The fingerprint row is keyed on
+    # SHA256(ip | ua | salt) which the search gate computes on every hit.
+    try:
+        ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+        if not ip:
+            ip = request.headers.get("X-Real-IP") or (request.client.host if request.client else "")
+        ua = request.headers.get("User-Agent", "")
+        fp_hash = compute_fingerprint(ip, ua)
+        await AnonFingerprintRepository.get_or_create(
+            fingerprint_hash=fp_hash, ip_address=ip, user_agent=ua
+        )
+        await AnonFingerprintRepository.record_disclaimer(fp_hash)
+    except Exception:
+        pass
 
     # Track funnel stage
     await track_funnel_stage(

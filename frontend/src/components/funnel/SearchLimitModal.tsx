@@ -32,15 +32,15 @@ export default function SearchLimitModal({
             <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
-            Free preview limit reached
+            Free preview used
           </span>
         </div>
 
         <h1 className="text-2xl font-bold text-slate-900 mb-2 text-center">
-          Unlock Full Research Access
+          Sign up to keep researching
         </h1>
         <p className="text-slate-500 mb-6 text-center text-sm leading-relaxed">
-          Create a free account to continue searching with LENA&apos;s full evidence pipeline
+          30 seconds. 5 free searches a day, saved history, project folders.
         </p>
 
         <button

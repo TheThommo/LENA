@@ -49,7 +49,13 @@ class Settings(BaseSettings):
     jwt_expiration_minutes: int = 480  # 8 hours (admin tokens live 8h, not 24h)
 
     # Freemium
-    free_search_limit: int = 5
+    # Anonymous visitors get 1 free search before signup CTA (demo mode).
+    # Registered users get 5 per rolling 24h before Pro gate (demo mode).
+    # Tighten both when billing goes live.
+    free_search_limit: int = 5  # legacy alias; kept for backward-compat readers
+    free_search_limit_anon: int = 1
+    free_search_limit_registered: int = 5
+    anon_fingerprint_salt: str = "lena-fp-demo-salt-rotate-before-prod"
 
     # Email (Resend)
     resend_api_key: Optional[str] = None
