@@ -91,20 +91,64 @@ class PULSEReport:
     source_agreements: list[SourceAgreement] = field(default_factory=list)
 
     @property
+    def sources_queried_count(self) -> int:
+        """Total sources that were queried (including those that returned nothing)."""
+        # source_count only tracks sources that returned results.
+        # sources_attempted is set by the orchestrator to the total queried count.
+        return getattr(self, '_sources_attempted', self.source_count) or self.source_count
+
+    @property
+    def sources_failed_count(self) -> int:
+        """Sources that were queried but returned no results or errored."""
+        return max(0, self.sources_queried_count - self.source_count)
+
+    @property
     def confidence_ratio(self) -> float:
+        """
+        PULSE confidence must reflect CROSS-SOURCE validation.
+        A single source agreeing with itself is NOT validation — it's
+        just a search result. The confidence score must convey:
+
+        - 1 source responding out of 6: LOW confidence (~15-30%), because
+          5 sources couldn't corroborate.
+        - 2-3 sources agreeing: MODERATE (40-65%)
+        - 4+ sources agreeing: HIGH (70%+)
+        - All 6 agreeing: very high (85-95%)
+
+        The old formula (agreement_count / source_count) gave 100% when
+        one source returned results — fundamentally misleading for a
+        cross-reference engine.
+        """
         if self.source_count == 0:
             return 0.0
 
-        # Base confidence = agreement_count / source_count
-        base_confidence = self.agreement_count / self.source_count
+        total_queried = self.sources_queried_count
 
-        # RULE 3: Conflicting evidence (edge cases exist) lowers confidence
+        # Core metric: how many of ALL queried sources actually agree?
+        # Not just "of those that returned results" — silence is signal too.
+        if total_queried > 0:
+            base_confidence = self.agreement_count / total_queried
+        else:
+            base_confidence = self.agreement_count / self.source_count
+
+        # Coverage penalty: if most sources returned nothing, confidence
+        # should be low regardless of agreement among the few that did.
+        # 1 of 6 sources = 17% coverage → heavy penalty.
+        # 6 of 6 sources = 100% coverage → no penalty.
+        if total_queried > 1:
+            coverage = self.source_count / total_queried
+            # Scale: sqrt smooths the penalty so 3/6 (50% coverage) isn't
+            # crushed too hard, but 1/6 (17% coverage) still gets hit.
+            import math
+            coverage_factor = 0.4 + (0.6 * math.sqrt(coverage))
+            base_confidence *= coverage_factor
+
+        # Edge-case penalty (unchanged)
         if self.edge_cases:
-            # Penalty factor based on edge case count
             penalty = len(self.edge_cases) / max(1, len(self.validated_results) + len(self.edge_cases))
-            base_confidence = base_confidence * (1.0 - (penalty * 0.25))
+            base_confidence *= (1.0 - (penalty * 0.25))
 
-        return base_confidence
+        return min(base_confidence, 0.95)  # Never show 100% — science is never settled
 
     def to_dict(self) -> dict:
         """Serialise the report to a dictionary for API responses."""
@@ -113,6 +157,8 @@ class PULSEReport:
             "status": self.status.value,
             "confidence_ratio": round(self.confidence_ratio, 2),
             "source_count": self.source_count,
+            "sources_attempted": self.sources_queried_count,
+            "sources_failed": self.sources_failed_count,
             "agreement_count": self.agreement_count,
             "consensus_keywords": self.consensus_keywords[:20],
             "validated_count": len(self.validated_results),

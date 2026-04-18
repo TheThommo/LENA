@@ -434,10 +434,16 @@ async def run_search(
     logger.debug(f"Mode scope {modes}: {pre_scope} -> {post_scope} results")
 
     # Step 6: Run PULSE validation on the scoped corpus only
+    # Tell PULSE how many sources were ATTEMPTED (including failures)
+    # so confidence_ratio penalizes low coverage honestly.
+    total_sources_attempted = len(scoped_results_by_source) + len(errors)
+
     pulse_report = await run_pulse_validation(
         query=query,
         results_by_source=scoped_results_by_source,
     )
+    # Inject the total-attempted count for confidence calculation
+    pulse_report._sources_attempted = total_sources_attempted
 
     # PULSE re-extracts keywords; re-tag so matched_modes reflects the fresh keyword set
     for r in pulse_report.validated_results + pulse_report.edge_cases:
