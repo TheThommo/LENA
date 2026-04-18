@@ -300,39 +300,39 @@ function SourceCard({ result, isEdgeCase, index }: { result: ValidatedResult; is
   return (
     <div
       data-source-index={index}
-      className={`border-l-3 ${style.border} rounded-md border border-slate-200 bg-white transition-all hover:shadow-sm`}
+      className={`rounded-lg border border-slate-200/70 bg-white transition-all hover:border-slate-300/80 hover:shadow-sm`}
     >
       <button
         onClick={() => setExpanded(!expanded)}
         className="w-full text-left px-3 py-2"
       >
         <div className="flex items-center justify-between gap-2">
-          <div className="flex-1 min-w-0 flex items-center gap-2">
-            <span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded ${style.bg} ${style.text} flex-shrink-0`}>
+          <div className="flex-1 min-w-0 flex items-center gap-1.5">
+            <span className={`px-1.5 py-0.5 text-[9px] font-semibold rounded ${style.bg} ${style.text} flex-shrink-0 tracking-wide`}>
               {style.label}
             </span>
             {result.year > 0 && (
-              <span className="text-[10px] text-slate-400 flex-shrink-0">{result.year}</span>
+              <span className="text-[10px] text-slate-400 flex-shrink-0 tabular-nums">{result.year}</span>
             )}
-            <span className={`px-1.5 py-0.5 text-[10px] font-semibold rounded-full ${scoreBadge.className} flex-shrink-0`}>
+            <span className={`px-1.5 py-0.5 text-[9px] font-semibold rounded-full ${scoreBadge.className} flex-shrink-0`}>
               {scoreBadge.label}
             </span>
             {isEdgeCase && (
-              <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-purple-100 text-purple-800 flex-shrink-0">
+              <span className="px-1.5 py-0.5 text-[9px] font-semibold rounded-full bg-purple-50 text-purple-700 flex-shrink-0">
                 Edge
               </span>
             )}
             {result.matched_modes?.includes('herbal') && (
-              <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-emerald-100 text-emerald-800 flex-shrink-0" title="Herbal / alternative medicine result">
+              <span className="px-1.5 py-0.5 text-[9px] font-semibold rounded-full bg-emerald-50 text-emerald-700 flex-shrink-0" title="Herbal / alternative medicine result">
                 Herbal
               </span>
             )}
             {result.matched_modes?.includes('outlier') && (
-              <span className="px-1.5 py-0.5 text-[10px] font-semibold rounded-full bg-amber-100 text-amber-800 flex-shrink-0" title="Authored by a researcher in the outlier list">
+              <span className="px-1.5 py-0.5 text-[9px] font-semibold rounded-full bg-amber-50 text-amber-700 flex-shrink-0" title="Authored by a researcher in the outlier list">
                 Outlier
               </span>
             )}
-            <p className="text-xs font-medium text-slate-900 truncate">
+            <p className="text-[12px] font-medium text-slate-900 truncate leading-snug">
               {result.title}
             </p>
           </div>
@@ -411,7 +411,7 @@ function SourceCardList({ allResults }: { allResults: { result: ValidatedResult;
 
   return (
     <div className="space-y-1.5">
-      <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+      <p className="text-[11px] font-medium text-slate-500 tracking-wide">
         Sources ({allResults.length})
       </p>
       <div className="space-y-1.5">
@@ -603,40 +603,41 @@ export default function ChatMessage({
         {response && response.pulse_report && (
           <div className="flex items-center gap-2 flex-wrap">
             <span
-              className={`px-2.5 py-1 text-xs font-semibold rounded-full ${
+              className={`px-2 py-0.5 text-[10px] font-semibold rounded-full tracking-wide ${
                 response.pulse_report.status === 'validated'
-                  ? 'bg-green-100 text-green-800'
+                  ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60'
                   : response.pulse_report.status === 'edge_case'
-                  ? 'bg-purple-100 text-purple-800'
+                  ? 'bg-purple-50 text-purple-700 ring-1 ring-purple-200/60'
                   : response.pulse_report.status === 'insufficient_validation'
-                  ? 'bg-red-100 text-red-800'
-                  : 'bg-slate-100 text-slate-700'
+                  ? 'bg-red-50 text-red-700 ring-1 ring-red-200/60'
+                  : 'bg-slate-100 text-slate-600'
               }`}
             >
-              PULSE: {(response.pulse_report.status || 'pending').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
+              PULSE · {(response.pulse_report.status || 'pending').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
             </span>
-            <span className="text-xs text-slate-500">
+            <span className="text-[11px] text-slate-500 tabular-nums">
               {Math.round((response.pulse_report.confidence_ratio || 0) * 100)}% confidence
-              &middot; {response.response_time_ms}ms
+              <span className="mx-1 text-slate-300">·</span>
+              {response.response_time_ms}ms
             </span>
           </div>
         )}
 
         {/* Source status indicators — only when sources exist (not for guardrail responses) */}
         {response && response.sources_queried && response.sources_queried.length > 0 && (
-          <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center gap-1 flex-wrap">
             {response.sources_queried.map((src) => {
               const style = getSourceStyle(src);
               return (
-                <span key={src} className={`px-1.5 py-0.5 text-[10px] font-semibold rounded ${style.bg} ${style.text}`}>
-                  {style.label} ✓
+                <span key={src} className={`px-1.5 py-0.5 text-[9px] font-semibold rounded ${style.bg} ${style.text}`}>
+                  {style.label}
                 </span>
               );
             })}
             {Object.keys(response.sources_failed || {}).map((src) => {
               const style = getSourceStyle(src);
               return (
-                <span key={src} className="px-1.5 py-0.5 text-[10px] font-semibold rounded bg-red-50 text-red-400 line-through">
+                <span key={src} className="px-1.5 py-0.5 text-[9px] font-semibold rounded bg-slate-50 text-slate-400 line-through">
                   {style.label}
                 </span>
               );
@@ -664,16 +665,16 @@ export default function ChatMessage({
 
         {/* Follow-up suggestions */}
         {followUps.length > 0 && onFollowUp && (
-          <div className="space-y-2 pt-2">
-            <p className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+          <div className="space-y-2 pt-1">
+            <p className="text-[11px] font-medium text-slate-500 tracking-wide">
               Follow-up questions
             </p>
-            <div className="flex flex-wrap gap-2">
+            <div className="flex flex-wrap gap-1.5">
               {followUps.map((suggestion) => (
                 <button
                   key={suggestion}
                   onClick={() => onFollowUp(suggestion)}
-                  className="px-3.5 py-2 text-xs font-medium text-[#1B6B93] bg-[#1B6B93]/5 border border-[#1B6B93]/20 rounded-full hover:bg-[#1B6B93]/10 hover:border-[#1B6B93]/40 transition-all"
+                  className="px-3 py-1.5 text-[12px] font-medium text-lena-600 bg-lena-50/70 border border-lena-200/50 rounded-full hover:bg-lena-100 hover:border-lena-300/60 transition-all"
                 >
                   {suggestion}
                 </button>
