@@ -27,9 +27,9 @@ const FAQ_ITEMS: FaqItem[] = [
       `LENA queries ${product.sourceCount} major biomedical databases in real time: ${product.sourceList}. All sources are peer-reviewed or government-maintained.`,
   },
   {
-    question: 'What does the Natural & Herbal toggle do?',
+    question: 'What do the Supplements / Herbal / Alternatives filters do?',
     answer:
-      'When enabled, the Natural & Herbal toggle includes results from alternative and complementary medicine sources alongside conventional databases. These results are scored with the same PULSE rigor \u2014 no special treatment or inflated confidence.',
+      'Three independent lenses let you scope results. Supplements surfaces vitamins, minerals, probiotics and nutraceuticals (with dedicated feeds from NIH ODS DSLD and openFDA CAERS). Herbal scopes to botanicals and plant extracts. Alternatives scopes to CAM modalities (acupuncture, TCM, Ayurveda, homeopathy, etc.). Any combination can be active; PULSE runs inside the selected scope so confidence is always fair.',
   },
   {
     question: 'How does persona detection work?',

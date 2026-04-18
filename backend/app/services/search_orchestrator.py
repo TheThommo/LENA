@@ -14,7 +14,7 @@ from app.core.pulse_engine import SourceResult, run_pulse_validation, PULSERepor
 from app.core.guardrails import run_all_guardrails
 from app.core.logging import get_logger
 from app.core.config import settings
-from app.services import pubmed, clinical_trials, cochrane, who_iris, cdc, openalex
+from app.services import pubmed, clinical_trials, cochrane, who_iris, cdc, openalex, ods_dsld, openfda
 from app.services.topic_classifier import classify_query_topic
 from app.services.result_cache import get_cached_result, cache_result
 from app.services.outlier_authors import (
@@ -26,7 +26,7 @@ logger = get_logger("lena.search")
 
 
 # Maps source names to their query functions
-ALL_SOURCES = ["pubmed", "clinical_trials", "cochrane", "who_iris", "cdc", "openalex"]
+ALL_SOURCES = ["pubmed", "clinical_trials", "cochrane", "who_iris", "cdc", "openalex", "ods_dsld", "openfda"]
 
 
 async def _query_pubmed(query: str, max_results: int) -> list[SourceResult]:
@@ -130,6 +130,36 @@ async def _query_openalex(query: str, max_results: int) -> list[SourceResult]:
     ]
 
 
+async def _query_ods_dsld(query: str, max_results: int) -> list[SourceResult]:
+    """Query NIH ODS DSLD (supplement label database) and convert to SourceResult."""
+    products = await ods_dsld.search_dsld(query, max_results=max_results)
+    return [
+        SourceResult(
+            source_name="ods_dsld",
+            title=p.title,
+            summary=p.summary,
+            url=p.url,
+            year=p.year,
+        )
+        for p in products
+    ]
+
+
+async def _query_openfda(query: str, max_results: int) -> list[SourceResult]:
+    """Query openFDA CAERS adverse events and convert to SourceResult."""
+    events = await openfda.search_caers(query, max_results=max_results)
+    return [
+        SourceResult(
+            source_name="openfda",
+            title=e.title,
+            summary=e.summary,
+            url=e.url,
+            year=e.year,
+        )
+        for e in events
+    ]
+
+
 # Map source names to their query functions
 SOURCE_QUERY_MAP = {
     "pubmed": _query_pubmed,
@@ -138,6 +168,8 @@ SOURCE_QUERY_MAP = {
     "who_iris": _query_who_iris,
     "cdc": _query_cdc,
     "openalex": _query_openalex,
+    "ods_dsld": _query_ods_dsld,
+    "openfda": _query_openfda,
 }
 
 
@@ -238,6 +270,8 @@ async def _generate_llm_summary(
             "who_iris": "WHO IRIS",
             "cdc": "CDC Open Data",
             "openalex": "OpenAlex",
+            "ods_dsld": "NIH ODS DSLD (supplement labels)",
+            "openfda": "openFDA CAERS (adverse events)",
         }
         queried = sources_queried or list(all_source_names.keys())
         failed = sources_failed or {}
@@ -296,42 +330,119 @@ async def _generate_llm_summary(
 
 
 # ── Result-mode filter ───────────────────────────────────────────────
-# Two sets:
-#  * _ALT_MED_KEYWORDS — single-token matches (PULSE keyword intersection)
-#  * _ALT_MED_PHRASES — multi-word phrases (scanned against title+summary blob)
-# Must be tokens actually found in abstracts, including specific supplements
-# and compounds that don't look "herbal" on the surface.
-_ALT_MED_KEYWORDS: set[str] = {
-    # modality / tradition tokens
-    "herbal", "herb", "herbs", "acupuncture", "homeopathy", "naturopathy",
-    "ayurveda", "ayurvedic", "tcm", "supplement", "supplements",
-    "remedy", "remedies", "aromatherapy", "meditation", "yoga",
-    "chiropractic", "osteopathy", "holistic", "phytotherapy", "botanical",
-    "nutraceutical", "integrative", "functional",
-    # specific herbs / supplements / compounds commonly studied
-    "nattokinase", "quercetin", "curcumin", "turmeric", "resveratrol",
-    "melatonin", "niacin", "nicotinamide", "berberine", "bromelain",
-    "serrapeptase", "astragalus", "andrographis", "ashwagandha", "ginseng",
-    "garlic", "ginger", "echinacea", "elderberry", "licorice", "rhodiola",
-    "reishi", "cordyceps", "valerian", "chamomile", "passionflower",
-    "saffron", "milk", "thistle", "spirulina", "chlorella",
-    "ivermectin", "hydroxychloroquine",  # non-herbal but part of outlier therapeutics
-    "glutathione", "nac", "lysine", "zinc", "magnesium",
-    "omega", "probiotic", "probiotics", "prebiotic", "prebiotics",
+# Three disjoint-ish category buckets. A single result can match multiple
+# (e.g. "curcumin supplement from Ayurveda" -> supplements + herbal + alternatives).
+# Each bucket has a keyword set (token match against PULSE keywords + blob)
+# and a phrase tuple (multi-word substring match against raw title+summary blob).
+
+# SUPPLEMENTS — vitamins, minerals, amino acids, isolated compounds,
+# probiotics, nutraceuticals. Things you swallow, mostly regulated-ish.
+_SUPPLEMENTS_KEYWORDS: set[str] = {
+    "supplement", "supplements", "multivitamin", "nutraceutical", "nutraceuticals",
+    "probiotic", "probiotics", "prebiotic", "prebiotics", "postbiotic", "postbiotics",
+    "electrolyte", "electrolytes",
+    # vitamins
+    "vitamin", "vitamins", "cholecalciferol", "ergocalciferol", "tocopherol",
+    "ascorbate", "ascorbic", "niacin", "riboflavin", "thiamine", "pyridoxine",
+    "biotin", "pantothenic", "cobalamin", "folate", "folinic",
+    # minerals
+    "magnesium", "zinc", "iron", "calcium", "selenium", "iodine", "copper",
+    "chromium", "manganese", "potassium", "phosphorus", "molybdenum",
+    # amino acids / derivatives
+    "glutamine", "glycine", "taurine", "carnitine", "arginine", "lysine",
+    "tryptophan", "creatine", "bcaa", "whey", "collagen", "glutathione",
+    "nac", "n-acetylcysteine",
+    # isolated phytocompounds sold as standalone pills
+    "curcumin", "resveratrol", "quercetin", "nattokinase", "bromelain",
+    "serrapeptase", "berberine", "lutein", "zeaxanthin", "lycopene",
+    "coq10", "ubiquinol", "ubiquinone", "nmn", "nicotinamide",
+    # lipids
+    "omega-3", "epa", "dha",
+    # sleep / mood
+    "melatonin", "5-htp",
+    # hormones / derivatives
+    "dhea", "pregnenolone",
+    # cannabinoid isolates
     "cbd", "cannabidiol",
-    # vitamin / fatty acid categories (without capturing "vitamin" alone which is too broad)
-    "tocopherol", "cholecalciferol", "ascorbate", "ascorbic",
+    # misc
+    "spirulina", "chlorella",
 }
 
-_ALT_MED_PHRASES: tuple[str, ...] = (
-    "traditional medicine", "chinese medicine", "natural remedy",
-    "essential oil", "complementary medicine", "alternative medicine",
-    "integrative medicine", "functional medicine", "plant-based",
-    "whole food", "whole-food", "vitamin c", "vitamin d", "vitamin e",
-    "omega-3", "omega 3", "fish oil", "cod liver",
+_SUPPLEMENTS_PHRASES: tuple[str, ...] = (
+    "dietary supplement", "dietary supplements", "nutritional supplement",
+    "vitamin a", "vitamin b", "vitamin c", "vitamin d", "vitamin e", "vitamin k",
+    "fish oil", "cod liver", "krill oil", "omega 3", "omega-3",
+    "amino acid", "amino acids", "protein powder", "whey protein",
+    "coenzyme q10", "coenzyme q-10", "magnesium glycinate", "magnesium citrate",
+    "folic acid", "b-complex", "b complex",
 )
 
-VALID_MODES = {"all", "herbal", "outlier"}
+# HERBAL — whole-plant / botanical medicine. Single-herb extracts,
+# teas, tinctures, plant monographs.
+_HERBAL_KEYWORDS: set[str] = {
+    "herb", "herbs", "herbal", "botanical", "botanicals", "phytotherapy",
+    "phytomedicine", "tincture", "decoction", "infusion", "extract",
+    # individual herbs / botanicals
+    "turmeric", "ginger", "garlic", "ginseng", "ashwagandha", "ginkgo",
+    "echinacea", "valerian", "chamomile", "rhodiola", "bacopa", "astragalus",
+    "andrographis", "elderberry", "hawthorn", "fenugreek", "cinnamon",
+    "peppermint", "lavender", "rosemary", "sage", "thyme", "oregano",
+    "dandelion", "nettle", "licorice", "saffron", "passionflower",
+    # mushrooms (medicinal)
+    "reishi", "chaga", "cordyceps", "shiitake", "maitake",
+    # other plant actives
+    "kava", "kratom", "moringa",
+)
+
+_HERBAL_PHRASES: tuple[str, ...] = (
+    "herbal medicine", "herbal remedy", "herbal extract", "herbal tea",
+    "plant medicine", "plant-based medicine", "medicinal plant",
+    "milk thistle", "st john's wort", "st. john's wort", "saw palmetto",
+    "black cohosh", "dong quai", "gotu kola", "tea tree", "aloe vera",
+    "lion's mane", "turkey tail", "essential oil", "essential oils",
+    "holy basil", "tulsi",
+)
+
+# ALTERNATIVES — CAM modalities that are NOT ingestibles. Practices,
+# techniques, traditional systems.
+_ALTERNATIVES_KEYWORDS: set[str] = {
+    "acupuncture", "acupressure", "homeopathy", "homeopathic", "naturopathy",
+    "naturopathic", "chiropractic", "chiropractor", "osteopathy", "osteopathic",
+    "ayurveda", "ayurvedic", "tcm", "reiki", "reflexology", "aromatherapy",
+    "cupping", "moxibustion", "qigong", "meditation", "mindfulness",
+    "hypnotherapy", "hypnosis", "biofeedback", "shiatsu", "rolfing",
+    "pranayama", "iridology", "holistic", "integrative",
+)
+
+_ALTERNATIVES_PHRASES: tuple[str, ...] = (
+    "traditional chinese medicine", "traditional medicine", "chinese medicine",
+    "alternative medicine", "complementary medicine", "complementary and alternative",
+    "integrative medicine", "functional medicine", "mind-body", "mind body",
+    "tai chi", "qi gong", "yoga therapy", "energy healing", "crystal healing",
+    "alexander technique", "craniosacral", "bowen therapy", "bach flower",
+)
+
+# Outlier therapeutics that used to live in the herbal bucket — keep
+# reachable via search but don't tag as supplement/herbal/alternative.
+_OUTLIER_THERAPEUTICS: set[str] = {
+    "ivermectin", "hydroxychloroquine",
+}
+
+VALID_MODES = {"all", "supplements", "herbal", "alternatives", "outlier"}
+
+# Map mode name -> (keyword_set, phrase_tuple)
+_MODE_RULES: dict[str, tuple[set[str], tuple[str, ...]]] = {
+    "supplements": (_SUPPLEMENTS_KEYWORDS, _SUPPLEMENTS_PHRASES),
+    "herbal": (_HERBAL_KEYWORDS, _HERBAL_PHRASES),
+    "alternatives": (_ALTERNATIVES_KEYWORDS, _ALTERNATIVES_PHRASES),
+}
+
+# Source -> default mode tag. Results from these sources get that mode
+# auto-tagged regardless of content (they ARE the category).
+_SOURCE_DEFAULT_MODES: dict[str, str] = {
+    "ods_dsld": "supplements",
+    "openfda": "supplements",
+}
 
 
 def _normalise_modes(modes: Optional[list[str]]) -> list[str]:
@@ -346,23 +457,36 @@ def _tag_result_modes(result: SourceResult) -> None:
     """Populate result.matched_modes with every mode this result qualifies for.
 
     'all' is always included so a result is never invisible when no filter
-    is active. 'herbal' / 'outlier' are set based on content.
+    is active. 'supplements' / 'herbal' / 'alternatives' / 'outlier' are set
+    based on content (and source-default for the category-native sources).
     """
     tags = ["all"]
-    # Herbal / alt-med: check keyword tokens AND raw title+summary blob.
-    # Multi-word phrases ("vitamin c", "fish oil") never survive PULSE's alpha-
-    # token extractor, so the blob pass is mandatory — not a fallback.
+
     text_tokens = set((result.keywords or []))
     blob = f"{result.title or ''} {result.summary or ''}".lower()
-    if (
-        (text_tokens & _ALT_MED_KEYWORDS)
-        or any(k in blob for k in _ALT_MED_KEYWORDS)
-        or any(p in blob for p in _ALT_MED_PHRASES)
-    ):
-        tags.append("herbal")
+
+    # Source-native tagging: ODS DSLD & openFDA ARE supplement data by definition.
+    source_default = _SOURCE_DEFAULT_MODES.get(result.source_name or "")
+    if source_default:
+        tags.append(source_default)
+
+    # Content-based tagging: check each mode's keyword set + phrase tuple.
+    # Multi-word phrases ("vitamin c", "fish oil") never survive PULSE's alpha-
+    # token extractor, so blob substring match is mandatory, not a fallback.
+    for mode, (keywords, phrases) in _MODE_RULES.items():
+        if mode in tags:
+            continue  # already tagged via source default
+        if (
+            (text_tokens & keywords)
+            or any(k in blob for k in keywords)
+            or any(p in blob for p in phrases)
+        ):
+            tags.append(mode)
+
     # Outlier: match against author list
     if is_outlier_result(result.authors or []):
         tags.append("outlier")
+
     result.matched_modes = tags
 
 
@@ -407,7 +531,8 @@ async def run_search(
     1. Check for medical advice guardrail
     2. Check result cache (keyed on query + sources + modes)
     3. Query all sources in parallel
-    4. Tag every result with its matched_modes (all / herbal / outlier)
+    4. Tag every result with its matched_modes
+       (all / supplements / herbal / alternatives / outlier)
     5. Scope the corpus to the user's selected modes BEFORE PULSE
     6. Run PULSE cross-reference validation on the scoped corpus
     7. Generate LLM summary and cache results
@@ -418,7 +543,8 @@ async def run_search(
         sources: Optional list of specific sources to query
         include_alt_medicine: Legacy toggle; ignored when `modes` is set
         persona: Persona for LLM summary
-        modes: Active result-mode filters – any of "all", "herbal", "outlier"
+        modes: Active result-mode filters – any of "all", "supplements",
+               "herbal", "alternatives", "outlier"
 
     Returns:
         Dictionary with PULSE report, source errors, timing, and metadata

@@ -40,7 +40,7 @@ export interface SourceAgreement {
   is_consensus: boolean;
 }
 
-export type ResultMode = 'all' | 'herbal' | 'outlier';
+export type ResultMode = 'all' | 'supplements' | 'herbal' | 'alternatives' | 'outlier';
 
 export interface ValidatedResult {
   source: string;

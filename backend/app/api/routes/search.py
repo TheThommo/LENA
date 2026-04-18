@@ -28,7 +28,7 @@ async def search_literature(
     include_alt_medicine: bool = Query(True, description="[Legacy] Include alternative medicine results"),
     modes: Optional[str] = Query(
         None,
-        description="Comma-separated result modes: all,herbal,outlier (defaults to 'all')",
+        description="Comma-separated result modes: all,supplements,herbal,alternatives,outlier (defaults to 'all')",
     ),
     session_id: Optional[str] = Query(None, description="Session identifier for analytics"),
     project_id: Optional[str] = Query(None, description="File this search under a project (auth users only)"),

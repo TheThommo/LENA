@@ -201,6 +201,8 @@ const SOURCE_COLORS: Record<string, { border: string; bg: string; text: string; 
   who_iris:        { border: 'border-l-[#0891B2]', bg: 'bg-cyan-50',    text: 'text-cyan-700',    label: 'WHO IRIS' },
   cdc:             { border: 'border-l-[#059669]', bg: 'bg-emerald-50', text: 'text-emerald-700', label: 'CDC' },
   openalex:        { border: 'border-l-[#DC2626]', bg: 'bg-red-50',     text: 'text-red-700',     label: 'OpenAlex' },
+  ods_dsld:        { border: 'border-l-[#0D9488]', bg: 'bg-teal-50',    text: 'text-teal-700',    label: 'NIH DSLD' },
+  openfda:         { border: 'border-l-[#B91C1C]', bg: 'bg-rose-50',    text: 'text-rose-700',    label: 'openFDA CAERS' },
 };
 
 function getSourceStyle(source: string) {
@@ -324,9 +326,19 @@ function SourceCard({ result, isEdgeCase, index }: { result: ValidatedResult; is
                 Edge
               </span>
             )}
+            {result.matched_modes?.includes('supplements') && (
+              <span className="px-1.5 py-0.5 text-[9px] font-semibold rounded-full bg-teal-50 text-teal-700 flex-shrink-0" title="Vitamin, mineral, probiotic or nutraceutical supplement">
+                Supplement
+              </span>
+            )}
             {result.matched_modes?.includes('herbal') && (
-              <span className="px-1.5 py-0.5 text-[9px] font-semibold rounded-full bg-emerald-50 text-emerald-700 flex-shrink-0" title="Herbal / alternative medicine result">
+              <span className="px-1.5 py-0.5 text-[9px] font-semibold rounded-full bg-emerald-50 text-emerald-700 flex-shrink-0" title="Botanical / herbal medicine result">
                 Herbal
+              </span>
+            )}
+            {result.matched_modes?.includes('alternatives') && (
+              <span className="px-1.5 py-0.5 text-[9px] font-semibold rounded-full bg-violet-50 text-violet-700 flex-shrink-0" title="Alternative / complementary practice (acupuncture, TCM, Ayurveda, etc.)">
+                Alternative
               </span>
             )}
             {result.matched_modes?.includes('outlier') && (

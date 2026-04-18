@@ -38,10 +38,10 @@ export const product = {
   paperCount: '250M+',
 
   /** Number of data sources queried */
-  sourceCount: 6,
+  sourceCount: 8,
 
   /** Source names for display */
-  sourceNames: ['PubMed', 'ClinicalTrials.gov', 'Cochrane', 'WHO IRIS', 'CDC', 'OpenAlex'],
+  sourceNames: ['PubMed', 'ClinicalTrials.gov', 'Cochrane', 'WHO IRIS', 'CDC', 'OpenAlex', 'NIH DSLD', 'openFDA CAERS'],
 
   /** Source names as a readable string */
   get sourceList() {

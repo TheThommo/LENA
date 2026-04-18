@@ -53,7 +53,7 @@ export default function Home() {
   const [activeView, setActiveView] = useState('chat');
   const [panelOpen, setPanelOpen] = useState(false);
   const [shareModal, setShareModal] = useState<{ isOpen: boolean; title?: string }>({ isOpen: false });
-  // Result-mode multi-select: 'all' (default), 'herbal', 'outlier'. Multiple may be active.
+  // Result-mode multi-select: 'all' (default), 'supplements', 'herbal', 'alternatives', 'outlier'. Multiple may be active.
   const [resultModes, setResultModes] = useState<ResultMode[]>(['all']);
   const [modesOpen, setModesOpen] = useState(false);
   const modesMenuRef = useRef<HTMLDivElement>(null);
@@ -667,9 +667,11 @@ export default function Home() {
             {/* Result-mode checkbox dropdown (scalable for future filters) */}
             {(() => {
               const MODE_OPTIONS: { id: ResultMode; label: string; desc: string }[] = [
-                { id: 'all',     label: 'All results',   desc: 'Unfiltered corpus' },
-                { id: 'herbal',  label: 'Herbal / Alt',  desc: 'Supplements, botanicals, integrative' },
-                { id: 'outlier', label: 'Outlier',       desc: 'Heterodox peer-reviewed authors' },
+                { id: 'all',          label: 'All results',  desc: 'Unfiltered corpus' },
+                { id: 'supplements',  label: 'Supplements',  desc: 'Vitamins, minerals, probiotics, nutraceuticals' },
+                { id: 'herbal',       label: 'Herbal',       desc: 'Botanicals, plant extracts, medicinal herbs' },
+                { id: 'alternatives', label: 'Alternatives', desc: 'Acupuncture, TCM, Ayurveda, homeopathy' },
+                { id: 'outlier',      label: 'Outlier',      desc: 'Heterodox peer-reviewed authors' },
               ];
               const activeNonAll = resultModes.filter(m => m !== 'all');
               const buttonLabel =
