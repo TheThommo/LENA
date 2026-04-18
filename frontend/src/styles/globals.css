@@ -34,11 +34,45 @@ html, body {
   overscroll-behavior-y: contain;
   /* Smoother momentum scrolling on iOS */
   -webkit-text-size-adjust: 100%;
+  /* Apple-style system font stack - falls back to Inter on non-Apple OS */
+  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Inter', system-ui, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  /* Tighter letter-spacing like Apple UI */
+  letter-spacing: -0.011em;
+  /* Better kerning */
+  font-feature-settings: 'kern', 'liga', 'calt';
 }
 
 body {
   color: rgb(var(--brand-text));
   background: rgb(var(--brand-bg));
+}
+
+/* Apple-style display headings - tighter tracking, sharper */
+h1, h2, h3 {
+  letter-spacing: -0.022em;
+  font-weight: 600;
+}
+
+h1 {
+  letter-spacing: -0.028em;
+}
+
+/* Subtle scrollbar like macOS */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.15);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.25);
 }
 
 /* Utility Classes */

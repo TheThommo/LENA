@@ -64,33 +64,33 @@ export function Sidebar({
   }, [menuOpen]);
 
   return (
-    <aside className="flex flex-col w-[280px] h-full bg-white border-r border-gray-200 shrink-0">
+    <aside className="flex flex-col w-[260px] h-full bg-white/80 backdrop-blur-xl border-r border-gray-200/60 shrink-0">
       {/* Logo Section */}
-      <div className="px-5 pt-6 pb-4">
+      <div className="px-5 pt-5 pb-3">
         <Image
           src={branding.logoSrc}
           alt={branding.name}
-          width={240}
-          height={80}
+          width={220}
+          height={72}
           className="object-contain"
           priority
         />
       </div>
 
       {/* New Search Button */}
-      <div className="px-4 pb-4">
+      <div className="px-3 pb-3">
         <button
           onClick={onNewSearch}
-          className="flex items-center justify-center gap-2 w-full px-4 py-2.5 bg-lena-500 text-white text-sm font-medium rounded-lg hover:bg-lena-700 transition-colors"
+          className="flex items-center justify-center gap-2 w-full px-3.5 py-2 bg-lena-500 text-white text-[13px] font-medium rounded-lg hover:bg-lena-700 transition-all shadow-sm hover:shadow"
         >
-          <SearchIcon className="w-4 h-4" />
+          <SearchIcon className="w-3.5 h-3.5" />
           New Search
         </button>
       </div>
 
       {/* Navigation */}
       <nav className="flex-1 overflow-y-auto px-2">
-        <ul className="space-y-0.5">
+        <ul className="space-y-px">
           {navItems.map((item) => {
             const isActive = activeView === item.id;
             const Icon = item.icon;
@@ -99,18 +99,18 @@ export function Sidebar({
                 <button
                   onClick={() => onViewChange(item.id)}
                   className={`
-                    flex items-center gap-3 w-full px-3 py-2.5 text-sm font-medium rounded-lg transition-colors
+                    flex items-center gap-2.5 w-full px-3 py-2 text-[13px] font-medium rounded-md transition-all
                     ${
                       isActive
-                        ? 'text-lena-500 bg-lena-50 border-l-[3px] border-lena-500 pl-[9px]'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50 border-l-[3px] border-transparent pl-[9px]'
+                        ? 'text-lena-600 bg-lena-50'
+                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50/80'
                     }
                   `}
                 >
-                  <Icon className="w-[18px] h-[18px] shrink-0" />
+                  <Icon className="w-4 h-4 shrink-0" />
                   <span>{item.label}</span>
                   {item.badge && (
-                    <span className="ml-auto text-[10px] font-bold text-amber-700 bg-amber-100 px-1.5 py-0.5 rounded-full leading-none">
+                    <span className="ml-auto text-[9px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full leading-none tracking-wide">
                       {item.badge}
                     </span>
                   )}

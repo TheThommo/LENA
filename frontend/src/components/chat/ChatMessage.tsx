@@ -468,10 +468,10 @@ export default function ChatMessage({
     return (
       <div className="flex justify-end mb-4">
         <div
-          className="max-w-[75%] px-5 py-3 rounded-2xl rounded-br-md text-white"
+          className="max-w-[75%] px-4 py-2.5 rounded-2xl rounded-br-lg text-white shadow-sm"
           style={{ backgroundColor: '#1B6B93' }}
         >
-          <p className="text-sm leading-relaxed">{content}</p>
+          <p className="text-[14px] leading-relaxed">{content}</p>
         </div>
       </div>
     );
@@ -516,19 +516,19 @@ export default function ChatMessage({
   const hiddenByFilter = allResults.length - filteredResults.length;
 
   return (
-    <div className="mb-6 w-full">
+    <div className="mb-5 w-full">
       {/* Header row */}
-      <div className="flex items-center justify-between mb-3">
-        <div className="flex items-center gap-2.5">
+      <div className="flex items-center justify-between mb-2.5">
+        <div className="flex items-center gap-2">
           {/* LENA avatar */}
           <Image
             src={branding.avatarSrc}
             alt={branding.name}
-            width={28}
-            height={28}
-            className="rounded-full flex-shrink-0"
+            width={24}
+            height={24}
+            className="rounded-full flex-shrink-0 ring-1 ring-black/5"
           />
-          <span className="text-sm font-semibold text-slate-700">{branding.name}</span>
+          <span className="text-[13px] font-semibold text-slate-700 tracking-tight">{branding.name}</span>
         </div>
 
         <div className="flex items-center gap-2">
@@ -536,18 +536,18 @@ export default function ChatMessage({
           {response && response.search_id && onAddToProject && projects && projects.length > 0 && !response.guardrail_triggered && (
             <div className="relative" ref={pickerRef}>
               {projectSaved ? (
-                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-emerald-700 bg-emerald-50 rounded-lg">
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+                <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 rounded-md">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                   </svg>
                   Saved
                 </span>
               ) : (
                 <button
                   onClick={() => setProjectPickerOpen(!projectPickerOpen)}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-slate-600 bg-slate-100/80 rounded-md hover:bg-slate-200/80 transition-colors"
                 >
-                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   Add to Project
@@ -555,8 +555,8 @@ export default function ChatMessage({
               )}
 
               {projectPickerOpen && (
-                <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-slate-200 rounded-xl shadow-lg z-50 overflow-hidden">
-                  <div className="px-3 py-2 text-[11px] uppercase tracking-wide text-slate-400 border-b border-slate-100 bg-slate-50">
+                <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-slate-200/80 rounded-lg shadow-xl shadow-slate-900/5 z-50 overflow-hidden">
+                  <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-100 bg-slate-50/80 font-medium">
                     Save to project
                   </div>
                   {projects.map(p => (
@@ -569,7 +569,7 @@ export default function ChatMessage({
                           setProjectPickerOpen(false);
                         }
                       }}
-                      className="flex items-center gap-2 w-full px-3 py-2.5 text-sm text-slate-700 hover:bg-slate-50 transition-colors"
+                      className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 transition-colors"
                     >
                       <span className="text-[13px]">{p.emoji || '📁'}</span>
                       <span className="truncate">{p.name}</span>
@@ -584,9 +584,9 @@ export default function ChatMessage({
           {response && onShare && (
             <button
               onClick={() => onShare(response.query)}
-              className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-slate-600 bg-slate-100 rounded-lg hover:bg-slate-200 transition-colors"
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-slate-600 bg-slate-100/80 rounded-md hover:bg-slate-200/80 transition-colors"
             >
-              <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
               </svg>
               Share
