@@ -392,7 +392,7 @@ _HERBAL_KEYWORDS: set[str] = {
     "reishi", "chaga", "cordyceps", "shiitake", "maitake",
     # other plant actives
     "kava", "kratom", "moringa",
-)
+}
 
 _HERBAL_PHRASES: tuple[str, ...] = (
     "herbal medicine", "herbal remedy", "herbal extract", "herbal tea",
@@ -412,7 +412,7 @@ _ALTERNATIVES_KEYWORDS: set[str] = {
     "cupping", "moxibustion", "qigong", "meditation", "mindfulness",
     "hypnotherapy", "hypnosis", "biofeedback", "shiatsu", "rolfing",
     "pranayama", "iridology", "holistic", "integrative",
-)
+}
 
 _ALTERNATIVES_PHRASES: tuple[str, ...] = (
     "traditional chinese medicine", "traditional medicine", "chinese medicine",
