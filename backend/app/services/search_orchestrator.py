@@ -186,6 +186,8 @@ async def _generate_llm_summary(
     query: str,
     pulse_report: PULSEReport,
     persona_type: str = "general",
+    sources_failed: Optional[dict[str, str]] = None,
+    sources_queried: Optional[list[str]] = None,
 ) -> tuple[Optional[str], Optional[dict]]:
     """
     Use OpenAI to generate an intelligent, persona-aware summary from the
@@ -203,12 +205,14 @@ async def _generate_llm_summary(
         from app.services.openai_service import generate_response
         from app.core.persona import PersonaType
 
-        # Build evidence context from validated results + edge cases
+        # Build source coverage context so the LLM can reason about evidence gaps
+        sources_with_results = set()
         evidence_lines: list[str] = []
+
         for idx, r in enumerate(pulse_report.validated_results[:12], 1):
+            sources_with_results.add(r.source_name)
             line = f"[{idx}] ({r.source_name}) {r.title}"
             if r.summary:
-                # Trim very long abstracts to keep token count sane
                 snippet = r.summary[:400] + ("…" if len(r.summary) > 400 else "")
                 line += f"\n    {snippet}"
             if r.doi:
@@ -218,13 +222,52 @@ async def _generate_llm_summary(
         if pulse_report.edge_cases:
             evidence_lines.append("\n--- Edge Cases (single-source only) ---")
             for idx, r in enumerate(pulse_report.edge_cases[:4], len(evidence_lines)):
+                sources_with_results.add(r.source_name)
                 line = f"[{idx}] ({r.source_name}) {r.title}"
                 if r.summary:
                     snippet = r.summary[:300] + ("…" if len(r.summary) > 300 else "")
                     line += f"\n    {snippet}"
                 evidence_lines.append(line)
 
-        context = "\n\n".join(evidence_lines)
+        # Source coverage preamble — critical for the LLM to understand
+        # evidence quality and acknowledge gaps honestly.
+        all_source_names = {
+            "pubmed": "PubMed (NIH/NLM)",
+            "cochrane": "Cochrane Library",
+            "clinical_trials": "ClinicalTrials.gov",
+            "who_iris": "WHO IRIS",
+            "cdc": "CDC Open Data",
+            "openalex": "OpenAlex",
+        }
+        queried = sources_queried or list(all_source_names.keys())
+        failed = sources_failed or {}
+        sources_no_results = [
+            s for s in queried
+            if s not in sources_with_results and s not in failed
+        ]
+
+        coverage_lines = []
+        coverage_lines.append(f"Sources queried: {len(queried)} ({', '.join(queried)})")
+        coverage_lines.append(f"Sources with results: {len(sources_with_results)} ({', '.join(sorted(sources_with_results)) or 'none'})")
+        if failed:
+            coverage_lines.append(f"Sources that errored: {', '.join(failed.keys())} ({', '.join(failed.values())})")
+        if sources_no_results:
+            coverage_lines.append(
+                f"Sources with NO results for this query: {', '.join(sources_no_results)}. "
+                "This means these peer-reviewed databases had no matching literature — "
+                "acknowledge this coverage gap in your response."
+            )
+        if len(sources_with_results) <= 1 and len(queried) > 1:
+            coverage_lines.append(
+                "IMPORTANT: Only 1 source returned results. This is NOT cross-validated "
+                "evidence. Be transparent about this limitation. If the query isn't purely "
+                "medical, try to identify what health angle IS relevant and suggest a "
+                "better-framed question the user could ask."
+            )
+
+        coverage_context = "\n".join(coverage_lines)
+        evidence_context = "\n\n".join(evidence_lines)
+        context = f"--- Source Coverage ---\n{coverage_context}\n\n--- Evidence ---\n{evidence_context}"
 
         # Map string to PersonaType enum
         try:
@@ -450,14 +493,20 @@ async def run_search(
         _tag_result_modes(r)
 
     # Step 7: Generate LLM summary (non-blocking, best-effort)
-    llm_summary, llm_usage = await _generate_llm_summary(query, pulse_report, persona)
+    # Pass source coverage so the LLM can acknowledge evidence gaps honestly
+    all_queried = list(raw_results_by_source.keys()) + list(errors.keys())
+    llm_summary, llm_usage = await _generate_llm_summary(
+        query, pulse_report, persona,
+        sources_failed=errors,
+        sources_queried=all_queried,
+    )
 
     # Step 8: Build response
     response_time_ms = (time.time() - start_time) * 1000
     result = {
         "guardrail_triggered": False,
         "query": query,
-        "sources_queried": list(raw_results_by_source.keys()),
+        "sources_queried": all_queried,
         "sources_failed": errors,
         "total_results": post_scope,
         "total_pre_scope": pre_scope,
