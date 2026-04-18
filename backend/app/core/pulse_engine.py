@@ -162,18 +162,10 @@ def _normalize_medical_terms(words: set[str]) -> set[str]:
     return normalized
 
 
-def _claim_similarity(claim_a: str, claim_b: str) -> float:
+def _claim_similarity_lexical(claim_a: str, claim_b: str) -> float:
     """
-    Semantic similarity between two claim sentences.
-
-    Uses word-level Jaccard with medical synonym normalization + character
-    sequence matching. This catches paraphrased findings like:
-      "heat exposure was associated with increased cardiovascular mortality"
-      "high temperatures led to higher rates of cardiovascular death"
-
-    Both normalize to concepts like {temperature, increased, cardiovascular, mortality}.
-
-    Future: replace with embedding cosine similarity via pgvector.
+    Lexical similarity: word-level Jaccard with medical synonym normalization.
+    Fast fallback when embeddings are unavailable.
     """
     a = re.sub(r'[^a-z0-9\s]', '', claim_a.lower())
     b = re.sub(r'[^a-z0-9\s]', '', claim_b.lower())
@@ -184,25 +176,75 @@ def _claim_similarity(claim_a: str, claim_b: str) -> float:
     if not words_a or not words_b:
         return 0.0
 
-    # Normalize medical synonyms so "death" ≈ "mortality" etc.
     norm_a = _normalize_medical_terms(words_a)
     norm_b = _normalize_medical_terms(words_b)
 
-    # Jaccard on normalized content words
     jaccard = len(norm_a & norm_b) / len(norm_a | norm_b)
-
-    # SequenceMatcher on original text (catches numeric agreement: "23%" ≈ "25%")
     sequence = SequenceMatcher(None, a, b).ratio()
 
-    # Weighted blend
     return (jaccard * 0.65) + (sequence * 0.35)
 
 
-# Threshold for claim corroboration. Lower than you'd think because
-# medical abstracts paraphrase heavily — the synonym normalization
-# helps but isn't perfect. False positives are acceptable (the cross-
-# validation count is a signal, not a binary gate).
-CLAIM_MATCH_THRESHOLD = 0.22
+# Thresholds — embedding similarity is higher-resolution than lexical,
+# so it uses a tighter threshold.
+CLAIM_MATCH_THRESHOLD_LEXICAL = 0.22
+CLAIM_MATCH_THRESHOLD_EMBEDDING = 0.72
+
+# Runtime flag: set to True when embeddings are available
+_use_embeddings = False
+_claim_embeddings: dict[str, list[float]] = {}
+
+
+async def _precompute_claim_embeddings(all_claims: list[str]) -> bool:
+    """
+    Batch-embed all claims upfront. Returns True if successful.
+    Falls back to lexical matching if OpenAI key is missing or API fails.
+    """
+    global _use_embeddings, _claim_embeddings
+    _claim_embeddings.clear()
+
+    try:
+        from app.services.openai_service import get_embeddings, clear_embedding_cache
+        from app.core.config import settings
+        if not settings.openai_api_key or not all_claims:
+            _use_embeddings = False
+            return False
+
+        # Deduplicate claims for efficient embedding
+        unique_claims = list(set(all_claims))
+        vectors = await get_embeddings(unique_claims)
+        _claim_embeddings = dict(zip(unique_claims, vectors))
+        _use_embeddings = True
+        logger.info(f"Embedded {len(unique_claims)} unique claims for PULSE cross-validation")
+        return True
+    except Exception as e:
+        logger.warning(f"Embedding failed, falling back to lexical matching: {e}")
+        _use_embeddings = False
+        return False
+
+
+def _claim_similarity(claim_a: str, claim_b: str) -> float:
+    """
+    Semantic similarity between two claim sentences.
+
+    Uses OpenAI embeddings (text-embedding-3-small) when available,
+    falling back to lexical Jaccard + medical synonym normalization.
+
+    Embeddings catch deep paraphrasing that word matching misses:
+      "Heat exposure increased cardiovascular mortality"
+      "Environmental temperature elevation was linked to excess cardiac deaths"
+    These share almost no words but embeddings see them as the same finding.
+    """
+    if _use_embeddings and claim_a in _claim_embeddings and claim_b in _claim_embeddings:
+        from app.services.openai_service import cosine_similarity
+        return cosine_similarity(_claim_embeddings[claim_a], _claim_embeddings[claim_b])
+
+    return _claim_similarity_lexical(claim_a, claim_b)
+
+
+def _get_match_threshold() -> float:
+    """Return the appropriate threshold for the current matching mode."""
+    return CLAIM_MATCH_THRESHOLD_EMBEDDING if _use_embeddings else CLAIM_MATCH_THRESHOLD_LEXICAL
 
 
 # ── Stop Words & Keywords ──────────────────────────────────────────────
@@ -488,7 +530,8 @@ async def run_pulse_validation(
 
     # ── Step 1: Extract keywords AND claims for every result ──────────
     source_keyword_profiles: dict[str, set[str]] = {}
-    all_papers: list[SourceResult] = []  # flat list for cross-matching
+    all_papers: list[SourceResult] = []
+    all_claims_flat: list[str] = []  # for batch embedding
 
     for source_name, results in results_by_source.items():
         source_keywords: set[str] = set()
@@ -500,8 +543,14 @@ async def run_pulse_validation(
             r.source_name = source_name
             source_keywords.update(r.keywords)
             all_papers.append(r)
+            all_claims_flat.extend(r.claims)
             report.total_claims_extracted += len(r.claims)
         source_keyword_profiles[source_name] = source_keywords
+
+    # ── Step 1b: Batch-embed all claims for semantic matching ────────
+    # Falls back to lexical matching if OpenAI API is unavailable.
+    await _precompute_claim_embeddings(all_claims_flat)
+    match_threshold = _get_match_threshold()
 
     # ── Step 2: Build consensus keywords (legacy, kept for theme display) ──
     min_sources_for_consensus = min(3, max(1, report.source_count // 2 + 1))
@@ -532,7 +581,7 @@ async def run_pulse_validation(
             for claim_a in paper_a.claims:
                 for claim_b in paper_b.claims:
                     sim = _claim_similarity(claim_a, claim_b)
-                    if sim >= CLAIM_MATCH_THRESHOLD:
+                    if sim >= match_threshold:
                         weight_a = EVIDENCE_WEIGHTS.get(paper_a.study_type, 0.7)
                         weight_b = EVIDENCE_WEIGHTS.get(paper_b.study_type, 0.7)
                         combined_weight = (weight_a + weight_b) / 2.0

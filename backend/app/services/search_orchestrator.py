@@ -522,6 +522,14 @@ async def run_search(
     # storing so a subsequent cache hit can't accidentally re-bill anyone.
     to_cache = {**result, "llm_usage": None}
     cache_result(query, to_cache, sources, include_alt_medicine, modes)
+
+    # Clear the per-request embedding cache so memory doesn't grow unbounded
+    try:
+        from app.services.openai_service import clear_embedding_cache
+        clear_embedding_cache()
+    except Exception:
+        pass
+
     logger.info(f"Search completed: {len(pulse_report.validated_results)} validated results in {response_time_ms:.0f}ms")
 
     return result

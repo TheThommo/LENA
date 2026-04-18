@@ -36,6 +36,9 @@ _MODEL_PRICING_USD_PER_M = {
     "o1-mini":      (1.10, 4.40),
     "o1-preview":   (15.00, 60.00),
     "o1":           (15.00, 60.00),
+    # Embeddings (input-only, no output cost)
+    "text-embedding-3-small": (0.02, 0.0),
+    "text-embedding-3-large": (0.13, 0.0),
 }
 
 
@@ -189,6 +192,67 @@ async def generate_response(
             cost_micros=_compute_cost_micros(actual_model, pt, ct),
         )
     return content, usage
+
+
+# ── Embeddings for PULSE claim similarity ────────────────────────────────
+# text-embedding-3-small: 1536 dims, $0.02 per 1M tokens.
+# A typical claim is ~30 tokens → embedding 100 claims ≈ $0.00006.
+
+EMBEDDING_MODEL = "text-embedding-3-small"
+EMBEDDING_DIMS = 1536
+
+# Cache embeddings within a single search request so we don't re-embed
+# the same claim across multiple pair comparisons.
+_embedding_cache: dict[str, list[float]] = {}
+
+
+async def get_embeddings(texts: list[str]) -> list[list[float]]:
+    """
+    Batch-embed a list of texts. Returns one 1536-dim vector per text.
+    Uses in-memory cache to avoid re-embedding duplicates within a search.
+    Cost: ~$0.02 per 1M tokens (~$0.00006 per 100 claims).
+    """
+    client = get_client()
+
+    # Split into cached and uncached
+    uncached_indices = []
+    uncached_texts = []
+    results: list[Optional[list[float]]] = [None] * len(texts)
+
+    for i, text in enumerate(texts):
+        if text in _embedding_cache:
+            results[i] = _embedding_cache[text]
+        else:
+            uncached_indices.append(i)
+            uncached_texts.append(text)
+
+    if uncached_texts:
+        response = await client.embeddings.create(
+            model=EMBEDDING_MODEL,
+            input=uncached_texts,
+        )
+        for j, embedding_obj in enumerate(response.data):
+            vec = embedding_obj.embedding
+            idx = uncached_indices[j]
+            results[idx] = vec
+            _embedding_cache[uncached_texts[j]] = vec
+
+    return [r for r in results if r is not None]
+
+
+def cosine_similarity(a: list[float], b: list[float]) -> float:
+    """Cosine similarity between two embedding vectors."""
+    dot = sum(x * y for x, y in zip(a, b))
+    norm_a = sum(x * x for x in a) ** 0.5
+    norm_b = sum(x * x for x in b) ** 0.5
+    if norm_a == 0 or norm_b == 0:
+        return 0.0
+    return dot / (norm_a * norm_b)
+
+
+def clear_embedding_cache():
+    """Clear the per-request embedding cache. Call after each search completes."""
+    _embedding_cache.clear()
 
 
 async def test_connection() -> dict:
