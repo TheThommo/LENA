@@ -205,8 +205,10 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
             if not session.user_id:
                 search_count = session.search_count or 0
 
-                # Hard gate at 5 free searches/day
-                if search_count >= 5:
+                # Free tier limit from config - not hardcoded
+                from app.core.config import settings as _settings
+                _limit = _settings.free_search_limit
+                if search_count >= _limit:
                     # Track funnel stage
                     await track_funnel_stage(
                         session_id=str(session.id),
@@ -216,10 +218,10 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
 
                     return _guardrail_response(
                         "free_limit",
-                        "You've used your **5 free searches** — and I hope they were useful!\n\n"
+                        f"You've used your **{_limit} free searches** - and I hope they were useful!\n\n"
                         "To keep researching, **create a free account** or **upgrade to Pro** "
                         "for unlimited searches, saved results, and project folders.\n\n"
-                        "Your research deserves more than 5 questions a day.",
+                        f"Your research deserves more than {_limit} questions a day.",
                         query_param,
                     )
 

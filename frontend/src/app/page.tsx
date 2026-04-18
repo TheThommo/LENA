@@ -3,6 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/Sidebar';
+import { product } from '@/config/branding';
 import WelcomeView from '@/components/chat/WelcomeView';
 import ChatMessage from '@/components/chat/ChatMessage';
 import ResearchPanel from '@/components/chat/ResearchPanel';
@@ -617,7 +618,7 @@ export default function Home() {
             </div>
             <div className="flex items-center justify-between mt-2 px-1">
               <span className="text-xs text-slate-400 hidden sm:inline">Shift + Enter for new line</span>
-              <span className="text-xs text-slate-400">LENA searches 250M+ papers across 6 databases</span>
+              <span className="text-xs text-slate-400">{product.tagline}</span>
             </div>
           </div>
         </div>

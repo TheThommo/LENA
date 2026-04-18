@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { branding } from '@/config/branding';
+import { branding, product } from '@/config/branding';
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
@@ -90,7 +90,7 @@ export default function WelcomeView({ persona, onPromptClick }: WelcomeViewProps
         What would you like to research?
       </h1>
       <p className="text-slate-500 text-center mb-10 max-w-lg leading-relaxed">
-        Search 250M+ medical papers across 6 databases in seconds, cross-referenced by AI for accuracy.
+        {product.description}
       </p>
 
       {/* Suggested prompts */}

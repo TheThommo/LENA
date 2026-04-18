@@ -1,6 +1,7 @@
 'use client';
 
 import { useState } from 'react';
+import { product } from '@/config/branding';
 
 interface HowItWorksProps {}
 
@@ -23,7 +24,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: 'Where does LENA get its data?',
     answer:
-      'LENA queries five major biomedical databases in real time: PubMed (NIH/NLM), ClinicalTrials.gov, the Cochrane Library, WHO IRIS (World Health Organization), and CDC Open Data. All sources are peer-reviewed or government-maintained.',
+      `LENA queries ${product.sourceCount} major biomedical databases in real time: ${product.sourceList}. All sources are peer-reviewed or government-maintained.`,
   },
   {
     question: 'What does the Natural & Herbal toggle do?',
@@ -53,8 +54,8 @@ const FAQ_ITEMS: FaqItem[] = [
 ];
 
 const STATS = [
-  { value: '250M+', label: 'Papers Indexed' },
-  { value: '6', label: 'Databases' },
+  { value: product.paperCount, label: 'Papers Indexed' },
+  { value: String(product.sourceCount), label: 'Databases' },
   { value: '<30s', label: 'Search Time' },
   { value: '100%', label: 'Peer-Reviewed' },
 ];

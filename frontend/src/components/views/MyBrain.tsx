@@ -2,6 +2,7 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSession, PersonaId } from '@/contexts/SessionContext';
+import { product } from '@/config/branding';
 
 // Map MyBrain specialty -> top-bar PersonaSelector default.
 // The top-right selector controls only LENA's response style — so we map
@@ -69,7 +70,7 @@ const AVAILABLE_SOURCES = [
   { key: 'cochrane', label: 'Cochrane' },
   { key: 'who_iris', label: 'WHO IRIS' },
   { key: 'cdc', label: 'CDC' },
-  { key: 'openalex', label: 'OpenAlex (250M+ papers)' },
+  { key: 'openalex', label: `OpenAlex (${product.paperCount} papers)` },
 ];
 
 const COMMUNICATION_STYLES = [

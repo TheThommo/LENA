@@ -2,6 +2,7 @@
 
 import React, { useState } from 'react';
 import ModalOverlay from './ModalOverlay';
+import { product } from '@/config/branding';
 
 export interface WelcomeCapturePayload {
   name: string;
@@ -68,7 +69,7 @@ export default function WelcomeCaptureModal({
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-800">Welcome to {brandName}</h1>
-            <p className="text-xs text-slate-500">5 free searches a day — no credit card</p>
+            <p className="text-xs text-slate-500">{product.freeSearchLimit} free searches a day - no credit card</p>
           </div>
         </div>
 

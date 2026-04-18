@@ -2,12 +2,12 @@
 
 import { useState, useEffect } from 'react';
 import Image from 'next/image';
-import { branding } from '@/config/branding';
+import { branding, product } from '@/config/branding';
 
 const STEPS = [
   { text: 'Parsing clinical query & detecting persona...', detail: 'NLP analysis' },
-  { text: 'Searching 250M+ papers across 6 databases...', detail: 'PubMed \u00B7 ClinicalTrials \u00B7 Cochrane \u00B7 WHO IRIS \u00B7 CDC \u00B7 OpenAlex' },
-  { text: 'Running PULSE cross-reference validation...', detail: 'Keyword overlap \u00B7 Source consensus \u00B7 Edge-case detection' },
+  { text: `Searching ${product.paperCount} papers across ${product.sourceCount} databases...`, detail: product.sourceNames.join(' \u00B7 ') },
+  { text: 'Running PULSE cross-reference validation...', detail: 'Claim matching \u00B7 Source consensus \u00B7 Evidence hierarchy' },
   { text: 'Scoring evidence & ranking by relevance...', detail: 'Systematic reviews weighted \u00B7 Retraction check' },
   { text: 'Generating intelligent summary with AI...', detail: 'Persona-aware \u00B7 Structured markdown' },
 ];

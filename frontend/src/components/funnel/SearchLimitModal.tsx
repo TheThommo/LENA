@@ -2,6 +2,7 @@
 
 import React from 'react';
 import ModalOverlay from './ModalOverlay';
+import { product } from '@/config/branding';
 
 interface SearchLimitModalProps {
   isOpen: boolean;
@@ -10,8 +11,8 @@ interface SearchLimitModalProps {
 }
 
 const FEATURES = [
-  { icon: '📚', text: '250M+ academic papers', detail: 'PubMed, Cochrane, OpenAlex & more' },
-  { icon: '🔬', text: '6 scientific databases', detail: 'Queried simultaneously in real-time' },
+  { icon: '📚', text: `${product.paperCount} academic papers`, detail: product.sourceListShort },
+  { icon: '🔬', text: `${product.sourceCount} scientific databases`, detail: 'Queried simultaneously in real-time' },
   { icon: '✅', text: 'PULSE validation engine', detail: 'Cross-reference scoring & consensus detection' },
   { icon: '🤖', text: 'AI evidence synthesis', detail: 'Persona-aware summaries powered by GPT-4o' },
   { icon: '⚡', text: 'Results in seconds', detail: 'What used to take hours of manual review' },
