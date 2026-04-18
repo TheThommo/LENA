@@ -39,7 +39,7 @@ interface RecentSession {
 
 export default function Home() {
   const router = useRouter();
-  const { session, captureAll, incrementSearch, acceptDisclaimer } = useSession();
+  const { session, incrementSearch, acceptDisclaimer } = useSession();
   const pendingQueryRef = useRef<string | null>(null);
   const { activeProject, activeProjectId, setActiveProjectId, refresh: refreshProjects, projects, assignSearch, createNew: createNewProject } = useProjects();
   const { isAuthenticated, isLoading: authLoading, user, token: authToken, logout } = useAuth();

@@ -75,6 +75,7 @@ export interface SearchResponse {
   query: string;
   persona: PersonaInfo;
   guardrail_triggered: boolean;
+  guardrail_type?: string | null;
   guardrail_message: string | null;
   sources_queried: string[];
   sources_failed: Record<string, string>;
