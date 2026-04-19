@@ -674,9 +674,18 @@ async def run_search(
         logger.info(f"Cache hit for query: '{query}'")
         return cached
 
-    # Step 3: Query all sources in parallel
+    # Step 3: Query all sources in parallel.
+    # Transform the natural-language user query into a source-friendly
+    # query. PubMed, OpenAlex, CDC Socrata etc. all AND-concat spaces,
+    # so "Tell me about magnesium health benefits for males 50+" -> zero
+    # hits on PubMed. Send the distinctive subject tokens instead so we
+    # get broad recall; the relevance filter below then trims noise.
+    subjects = _subject_terms(query)
+    source_query = " ".join(subjects) if subjects else query
+    if source_query != query:
+        logger.info("Source query rewritten: %r -> %r", query, source_query)
     raw_results_by_source, errors = await search_all_sources(
-        query=query,
+        query=source_query,
         max_results_per_source=max_results_per_source,
         sources=sources,
     )
@@ -688,7 +697,6 @@ async def run_search(
     # all. Saves PULSE from scoring / ranking noise like "COVID-19 case
     # surveillance" on a magnesium query (the exact bug Thommo hit in
     # demo).
-    subjects = _subject_terms(query)
     pre_relevance = sum(len(r) for r in raw_results_by_source.values())
     raw_results_by_source = _filter_relevant(raw_results_by_source, subjects)
     post_relevance = sum(len(r) for r in raw_results_by_source.values())
