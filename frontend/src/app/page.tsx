@@ -11,6 +11,7 @@ import ShareModal from '@/components/chat/ShareModal';
 import ThinkingIndicator from '@/components/search/ThinkingIndicator';
 import FunnelManager from '@/components/funnel/FunnelManager';
 import DisclaimerCard from '@/components/chat/DisclaimerCard';
+import UpgradeCTACard from '@/components/chat/UpgradeCTACard';
 import PersonaSelector from '@/components/PersonaSelector';
 import ComingSoon, { COMMUNITY_CONFIG, CONTRIBUTION_CONFIG } from '@/components/views/ComingSoon';
 import HowItWorks from '@/components/views/HowItWorks';
@@ -254,16 +255,13 @@ export default function Home() {
         ? result.guardrail_message
         : (result.llm_summary || generateSummary(result));
 
-      // Disclaimer-required guardrail is rendered as an inline LENA card
-      // with an Accept button that re-runs the original query. We stash
-      // the query so the click handler can replay it.
       const isDisclaimerPrompt =
         result.guardrail_triggered && result.guardrail_type === 'disclaimer_required';
 
       const assistantMsg: Message = {
         id: `assistant-${Date.now()}`,
         type: 'assistant',
-        content: isDisclaimerPrompt ? '__DISCLAIMER_CARD__' : summary,
+        content: summary,
         response: result,
         timestamp: new Date(),
       };
@@ -309,7 +307,7 @@ export default function Home() {
     await acceptDisclaimer();
     const pending = pendingQueryRef.current;
     pendingQueryRef.current = null;
-    setMessages(prev => prev.filter(m => m.content !== '__DISCLAIMER_CARD__'));
+    setMessages(prev => prev.filter(m => m.response?.guardrail_type !== 'disclaimer_required'));
     if (pending) {
       await handleSend(pending);
     }
@@ -549,31 +547,51 @@ export default function Home() {
             <WelcomeView persona={session.persona} onPromptClick={(q) => handleSend(q)} />
           ) : (
             <div className="max-w-3xl mx-auto px-4 py-6 space-y-1">
-              {messages.map((msg) => (
-                msg.content === '__DISCLAIMER_CARD__' ? (
-                  <DisclaimerCard key={msg.id} onAccept={handleAcceptDisclaimer} />
-                ) : (
-                <ChatMessage
-                  key={msg.id}
-                  type={msg.type}
-                  content={msg.content}
-                  response={msg.response}
-                  activeModes={resultModes}
-                  onFollowUp={(q) => handleSend(q)}
-                  onShare={(title) => setShareModal({ isOpen: true, title })}
-                  projects={isAuthenticated ? projects.filter(p => !p.archived_at).map(p => ({
-                    id: p.id, name: p.name, emoji: p.emoji,
-                  })) : undefined}
-                  onAddToProject={isAuthenticated ? (searchId, projectId) => {
-                    assignSearch(searchId, projectId);
-                  } : undefined}
-                  onCreateProject={isAuthenticated ? async (name) => {
-                    const p = await createNewProject({ name });
-                    return { id: p.id, name: p.name, emoji: p.emoji };
-                  } : undefined}
-                />
-                )
-              ))}
+              {messages.map((msg) => {
+                const gt = msg.response?.guardrail_type;
+                if (gt === 'disclaimer_required') {
+                  return <DisclaimerCard key={msg.id} onAccept={handleAcceptDisclaimer} />;
+                }
+                if (gt === 'registered_limit' || gt === 'signup_required') {
+                  return (
+                    <UpgradeCTACard
+                      key={msg.id}
+                      message={msg.response?.guardrail_message}
+                      onUpgrade={() => {
+                        if (isAuthenticated) {
+                          window.location.href = 'mailto:hello@lena-app.com?subject=LENA%20Pro%20Upgrade&body=I%27d%20like%20to%20upgrade%20to%20LENA%20Pro.';
+                        } else {
+                          router.push(`/register?session_id=${session.sessionId || ''}`);
+                        }
+                      }}
+                      onContact={() => {
+                        window.location.href = 'mailto:hello@lena-app.com?subject=LENA%20Enterprise%20enquiry';
+                      }}
+                    />
+                  );
+                }
+                return (
+                  <ChatMessage
+                    key={msg.id}
+                    type={msg.type}
+                    content={msg.content}
+                    response={msg.response}
+                    activeModes={resultModes}
+                    onFollowUp={(q) => handleSend(q)}
+                    onShare={(title) => setShareModal({ isOpen: true, title })}
+                    projects={isAuthenticated ? projects.filter(p => !p.archived_at).map(p => ({
+                      id: p.id, name: p.name, emoji: p.emoji,
+                    })) : undefined}
+                    onAddToProject={isAuthenticated ? (searchId, projectId) => {
+                      assignSearch(searchId, projectId);
+                    } : undefined}
+                    onCreateProject={isAuthenticated ? async (name) => {
+                      const p = await createNewProject({ name });
+                      return { id: p.id, name: p.name, emoji: p.emoji };
+                    } : undefined}
+                  />
+                );
+              })}
               {loading && (
                 <div className="py-4">
                   <ThinkingIndicator />
