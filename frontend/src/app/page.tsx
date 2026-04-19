@@ -21,7 +21,7 @@ import { useSession } from '@/contexts/SessionContext';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
-import { searchLiterature, SearchResponse, ResultMode, listProjectSearches, type ProjectSearch } from '@/lib/api';
+import { searchLiterature, SearchResponse, ResultMode, listProjectSearches, type ProjectSearch, getBillingStatus, createCheckoutSession, type BillingPlan } from '@/lib/api';
 
 interface Message {
   id: string;
@@ -301,6 +301,28 @@ export default function Home() {
     }
   };
 
+  // Route the upgrade CTA: if Stripe is live, create a checkout session
+  // and redirect; otherwise fall back to a mailto so we never leave the
+  // user stranded. Anon visitors hit the signup page first.
+  const handleUpgrade = useCallback(async (plan: BillingPlan = 'pro_monthly') => {
+    if (!isAuthenticated || !authToken) {
+      router.push(`/register?session_id=${session.sessionId || ''}`);
+      return;
+    }
+    try {
+      const billingStatus = await getBillingStatus();
+      if (billingStatus.enabled && billingStatus.plans[plan]) {
+        const checkout = await createCheckoutSession(authToken, plan);
+        window.location.href = checkout.url;
+        return;
+      }
+    } catch (err) {
+      console.warn('Stripe unavailable, falling back to mailto', err);
+    }
+    window.location.href =
+      'mailto:hello@lena-app.com?subject=LENA%20Pro%20Upgrade&body=I%27d%20like%20to%20upgrade%20to%20LENA%20Pro.';
+  }, [isAuthenticated, authToken, router, session.sessionId]);
+
   // Handle inline disclaimer acceptance: POST accept, drop the card
   // message, then replay the pending query.
   const handleAcceptDisclaimer = useCallback(async () => {
@@ -557,13 +579,7 @@ export default function Home() {
                     <UpgradeCTACard
                       key={msg.id}
                       message={msg.response?.guardrail_message}
-                      onUpgrade={() => {
-                        if (isAuthenticated) {
-                          window.location.href = 'mailto:hello@lena-app.com?subject=LENA%20Pro%20Upgrade&body=I%27d%20like%20to%20upgrade%20to%20LENA%20Pro.';
-                        } else {
-                          router.push(`/register?session_id=${session.sessionId || ''}`);
-                        }
-                      }}
+                      onUpgrade={() => handleUpgrade('pro_monthly')}
                       onContact={() => {
                         window.location.href = 'mailto:hello@lena-app.com?subject=LENA%20Enterprise%20enquiry';
                       }}

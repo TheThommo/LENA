@@ -235,6 +235,57 @@ export async function searchLiterature(
   return response.json();
 }
 
+// ── Billing ─────────────────────────────────────────────────────────
+// Thin wrappers around Stripe Checkout. Endpoints return 503 until the
+// Stripe keys are set in Railway env. getBillingStatus is safe to call
+// without an auth token; createCheckoutSession requires one.
+
+export type BillingPlan = 'pro_monthly' | 'pro_annual' | 'pro_founding';
+
+export interface BillingStatus {
+  enabled: boolean;
+  publishable_key: string | null;
+  plans: { pro_monthly: boolean; pro_annual: boolean; pro_founding: boolean };
+  founding_remaining: number;
+  founding_max: number;
+}
+
+export async function getBillingStatus(): Promise<BillingStatus> {
+  const response = await fetch(`${API_BASE}/billing/status`);
+  if (!response.ok) throw new Error(`Billing status failed: ${response.statusText}`);
+  return response.json();
+}
+
+export async function createCheckoutSession(
+  token: string,
+  plan: BillingPlan,
+): Promise<{ url: string; session_id: string }> {
+  const response = await fetch(`${API_BASE}/billing/checkout`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      Authorization: `Bearer ${token}`,
+    },
+    body: JSON.stringify({ plan }),
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body?.detail || `Checkout failed (${response.status})`);
+  }
+  return response.json();
+}
+
+export async function openCustomerPortal(token: string): Promise<{ url: string }> {
+  const response = await fetch(`${API_BASE}/billing/portal`, {
+    headers: { Authorization: `Bearer ${token}` },
+  });
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body?.detail || `Portal failed (${response.status})`);
+  }
+  return response.json();
+}
+
 export async function checkHealth(): Promise<HealthStatus> {
   const response = await fetch(`${API_BASE}/health/connections`);
   if (!response.ok) throw new Error(`Health check failed: ${response.statusText}`);

@@ -60,7 +60,23 @@ class Settings(BaseSettings):
     # Email (Resend)
     resend_api_key: Optional[str] = None
     admin_email: str = "mark.e.s.thompson@gmail.com"
+    support_email: str = "hello@lena-app.com"
     app_url: str = "https://lena-app.up.railway.app"
+
+    # Stripe (billing).
+    # Set STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET in Railway prod env.
+    # Price IDs come from the Stripe dashboard after products are created.
+    # Founding-50 redemption is tracked by counting active subscriptions on
+    # the founding price in tenant_subscriptions (see billing.py).
+    stripe_secret_key: Optional[str] = None
+    stripe_publishable_key: Optional[str] = None
+    stripe_webhook_secret: Optional[str] = None
+    stripe_price_pro_monthly: Optional[str] = None
+    stripe_price_pro_annual: Optional[str] = None
+    stripe_price_pro_founding: Optional[str] = None
+    stripe_founding_max_redemptions: int = 50
+    billing_success_url: str = "https://lena-app.up.railway.app/?billing=success"
+    billing_cancel_url: str = "https://lena-app.up.railway.app/?billing=cancelled"
 
     # Rate limiting
     rate_limit_per_minute: int = 60
@@ -68,11 +84,25 @@ class Settings(BaseSettings):
     @field_validator(
         "openai_api_key", "supabase_url", "supabase_anon_key",
         "supabase_service_role_key", "ncbi_api_key", "ncbi_email", "resend_api_key",
+        "stripe_secret_key", "stripe_publishable_key", "stripe_webhook_secret",
+        "stripe_price_pro_monthly", "stripe_price_pro_annual", "stripe_price_pro_founding",
         mode="before",
     )
     @classmethod
     def strip_placeholders(cls, v):
         return _clean_placeholder(v)
+
+    @property
+    def stripe_enabled(self) -> bool:
+        """True when the Stripe secret + at least one price ID are present."""
+        return bool(
+            self.stripe_secret_key
+            and (
+                self.stripe_price_pro_monthly
+                or self.stripe_price_pro_annual
+                or self.stripe_price_pro_founding
+            )
+        )
 
     @property
     def is_production(self) -> bool:
