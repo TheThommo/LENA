@@ -222,7 +222,17 @@ export default function Home() {
     // Gate the 2nd anon attempt here so the signup modal only fires when
     // the visitor tries to SEARCH AGAIN - never right after the first
     // result lands. This lets them read the 1st result in peace.
-    if (!isAuthenticated && session.searchCount >= 1) {
+    // Dev bypass: URL ?bypass=1 or localStorage.lena_bypass_gate === '1'.
+    const bypass = (() => {
+      if (typeof window === 'undefined') return false;
+      try {
+        if (new URLSearchParams(window.location.search).get('bypass') === '1') return true;
+        return localStorage.getItem('lena_bypass_gate') === '1';
+      } catch {
+        return false;
+      }
+    })();
+    if (!isAuthenticated && session.searchCount >= 1 && !bypass) {
       setSignupModalOpen(true);
       return;
     }
@@ -286,9 +296,14 @@ export default function Home() {
         }
         return next;
       });
-      // Don't count guardrail blocks as a search (they don't cost anything
-      // and shouldn't burn the user's free-tier allowance).
-      if (!result.guardrail_triggered) {
+      // Only count a search against the visitor's quota if it actually
+      // returned papers. Guardrails never count, and 0-result searches
+      // (source timeouts, no matches) don't count either - backend follows
+      // the same rule on fingerprint/search_logs, so client + server stay
+      // in sync.
+      const chargeable =
+        !result.guardrail_triggered && (result.total_results || 0) > 0;
+      if (chargeable) {
         incrementSearch();
       }
       // Update the project's search_count badge in the sidebar

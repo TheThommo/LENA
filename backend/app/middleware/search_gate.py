@@ -280,32 +280,13 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
                 query_param,
             )
 
-        # Allowed: increment the fingerprint counter AND the session counter.
-        try:
-            new_fp_count = await AnonFingerprintRepository.increment_search(fp_hash)
-        except Exception as e:
-            logger.warning(f"fp increment failed (non-blocking): {e}")
-            new_fp_count = fp_search_count + 1
-
-        if session:
-            try:
-                new_session_count = (session.search_count or 0) + 1
-                await SessionRepository.update(
-                    UUID(session_id),
-                    SessionUpdate(search_count=new_session_count),
-                )
-                if new_session_count == 1:
-                    await track_funnel_stage(
-                        session_id=str(session.id),
-                        tenant_id=str(session.tenant_id),
-                        stage="first_search",
-                    )
-            except Exception as e:
-                logger.warning(f"session increment failed (non-blocking): {e}")
-
+        # DO NOT increment the quota counter here. The search route commits
+        # the increment only AFTER a non-empty result is returned, so a
+        # visitor who got zero papers (source timeouts, no matches) never
+        # burns a free search. See search.py for the commit logic.
         request.state.session_id = session_id
         request.state.session = session
         request.state.anon_fingerprint = fp_hash
-        request.state.anon_search_count = new_fp_count
+        request.state.anon_search_count = fp_search_count
 
         return await call_next(request)

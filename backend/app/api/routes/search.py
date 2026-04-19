@@ -95,8 +95,54 @@ async def search_literature(
         modes=mode_list,
     )
 
-    # Step 5: Log analytics (fire-and-forget, never blocks)
-    if not search_result.get("guardrail_triggered") and resolved_tenant_id:
+    # A "chargeable" search is one that was NOT guardrail-blocked AND
+    # actually returned something useful (>= 1 result). Empty results or
+    # exceptions must not burn the visitor's free quota (Thommo: "5
+    # searches that returned nothing is not 5 searches").
+    chargeable = (
+        not search_result.get("guardrail_triggered")
+        and (search_result.get("total_results") or 0) > 0
+    )
+
+    # Step 5a: Commit the anon fingerprint quota increment ONLY for
+    # chargeable searches. Middleware now only READS the counter; the
+    # route decides whether to spend the visitor's allowance.
+    fp_hash_for_commit = getattr(request.state, "anon_fingerprint", None)
+    if chargeable and fp_hash_for_commit and not resolved_user_id:
+        try:
+            from app.db.repositories.anon_fingerprint_repo import AnonFingerprintRepository
+            await AnonFingerprintRepository.increment_search(fp_hash_for_commit)
+        except Exception:
+            logger.warning("fingerprint commit failed (non-blocking)", exc_info=True)
+
+    # Step 5b: Bump the session.search_count for funnel analytics. Kept
+    # for ALL non-guardrail successes (including 0-result) because this
+    # is UX counter data, not the billing gate.
+    session_obj_for_bump = getattr(request.state, "session", None)
+    if not search_result.get("guardrail_triggered") and session_obj_for_bump:
+        try:
+            from app.db.repositories.session_repo import SessionRepository
+            from app.models import SessionUpdate
+            from app.services.funnel_tracker import track_funnel_stage
+            new_count = (session_obj_for_bump.search_count or 0) + 1
+            await SessionRepository.update(
+                session_obj_for_bump.id,
+                SessionUpdate(search_count=new_count),
+            )
+            if new_count == 1:
+                await track_funnel_stage(
+                    session_id=str(session_obj_for_bump.id),
+                    tenant_id=str(session_obj_for_bump.tenant_id),
+                    stage="first_search",
+                )
+        except Exception:
+            logger.warning("session search_count bump failed (non-blocking)", exc_info=True)
+
+    # Step 5c: Log analytics (fire-and-forget, never blocks). search_logs
+    # is the source of truth for the registered 24h quota, so ONLY
+    # chargeable searches are logged here. Zero-result "teething" searches
+    # must not count against the user's 5-per-day allowance.
+    if chargeable and resolved_tenant_id:
         response_time_ms = search_result.get("response_time_ms", 0)
         sources_queried = search_result.get("sources_queried", [])
         sources_failed = search_result.get("sources_failed", {})
