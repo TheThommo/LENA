@@ -85,6 +85,11 @@ async def search_literature(
             resolved_tenant_id = str(session_obj.tenant_id)
             session_id = str(session_obj.id)
 
+    # Bypass flag set by the middleware for internal testers
+    # (settings.bypass_user_ids). Pass it through so the orchestrator
+    # skips content guardrails too.
+    bypass_all = bool(getattr(request.state, "bypass_all", False))
+
     # Step 4: Run the full search pipeline (guardrail + parallel queries + PULSE + caching)
     search_result = await run_search(
         query=q,
@@ -93,6 +98,7 @@ async def search_literature(
         include_alt_medicine=include_alt_medicine,
         persona=detected_persona.value,
         modes=mode_list,
+        bypass_guardrails=bypass_all,
     )
 
     # A "chargeable" search is one that was NOT guardrail-blocked AND

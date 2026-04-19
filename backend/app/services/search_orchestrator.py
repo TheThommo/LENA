@@ -614,6 +614,7 @@ async def run_search(
     include_alt_medicine: bool = True,
     persona: str = "general",
     modes: Optional[list[str]] = None,
+    bypass_guardrails: bool = False,
 ) -> dict:
     """
     Full LENA search pipeline:
@@ -646,8 +647,14 @@ async def run_search(
     start_time = time.time()
     logger.info(f"Starting search: query='{query}', modes={modes}")
 
-    # Step 1: Content guardrails (self-harm > profanity > off-topic > advice)
-    guardrail_type, guardrail_msg = run_all_guardrails(query)
+    # Step 1: Content guardrails (self-harm > profanity > off-topic > advice).
+    # Bypass users (internal testers on settings.bypass_user_ids) skip all
+    # content guardrails so they can probe edge cases without friction.
+    if bypass_guardrails:
+        guardrail_type, guardrail_msg = None, None
+        logger.info("Guardrails bypassed for tester user")
+    else:
+        guardrail_type, guardrail_msg = run_all_guardrails(query)
     if guardrail_type and guardrail_type != "medical_advice":
         # Hard block — no search runs, show the guardrail message only
         logger.info(f"Guardrail BLOCK ({guardrail_type}): '{query[:80]}'")

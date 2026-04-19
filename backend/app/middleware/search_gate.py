@@ -163,12 +163,30 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
 
         from app.core.config import settings as _settings
 
+        query_param = request.query_params.get("q", "")
+
+        # ── Bypass check (runs before guardrails) ─────────────────────
+        # Full-access testers skip content guardrails too, not just the
+        # 24h quota, so this decode+check has to happen before the pre-
+        # auth guardrail block.
+        bearer = _extract_bearer_token(request)
+        jwt_payload = None
+        if bearer and not bearer.startswith("session_"):
+            jwt_payload = _try_decode_jwt(bearer)
+            if jwt_payload and jwt_payload.get("user_id"):
+                user_id_str = str(jwt_payload["user_id"])
+                if _settings.is_bypass_user(user_id_str):
+                    request.state.user_id = user_id_str
+                    request.state.bypass_all = True
+                    request.state.session_id = extract_session_id(request)
+                    request.state.session = None
+                    return await call_next(request)
+
         # ── Pre-auth guardrails ──────────────────────────────────────
         # Self-harm, profanity, and off-topic checks run BEFORE session
         # validation so they work for anonymous visitors who haven't
         # completed the disclaimer. These are hard blocks — no search
         # runs, no session needed.
-        query_param = request.query_params.get("q", "")
         if query_param:
             from app.core.guardrails import run_all_guardrails
             guardrail_type, guardrail_msg = run_all_guardrails(query_param)
@@ -176,49 +194,46 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
                 return _guardrail_response(guardrail_type, guardrail_msg, query_param)
 
         # ── Authenticated (JWT) path ──
-        bearer = _extract_bearer_token(request)
-        if bearer and not bearer.startswith("session_"):
-            jwt_payload = _try_decode_jwt(bearer)
-            if jwt_payload and jwt_payload.get("user_id"):
-                user_id_str = str(jwt_payload["user_id"])
-                request.state.user_id = user_id_str
+        if jwt_payload and jwt_payload.get("user_id"):
+            user_id_str = str(jwt_payload["user_id"])
+            request.state.user_id = user_id_str
 
-                # 24h rolling quota for registered (demo free tier).
-                used = await _registered_search_count_last_24h(user_id_str)
-                reg_limit = _settings.free_search_limit_registered
-                if used >= reg_limit:
-                    return _guardrail_response(
-                        "registered_limit",
-                        f"You've used your **{reg_limit} free searches** in the last 24 hours.\n\n"
-                        "Upgrade to **Pro** for unlimited searches, saved results, project folders, "
-                        "and export. Your free tier resets daily - come back tomorrow if you'd like.",
-                        query_param,
-                    )
+            # 24h rolling quota for registered (demo free tier).
+            used = await _registered_search_count_last_24h(user_id_str)
+            reg_limit = _settings.free_search_limit_registered
+            if used >= reg_limit:
+                return _guardrail_response(
+                    "registered_limit",
+                    f"You've used your **{reg_limit} free searches** in the last 24 hours.\n\n"
+                    "Upgrade to **Pro** for unlimited searches, saved results, project folders, "
+                    "and export. Your free tier resets daily - come back tomorrow if you'd like.",
+                    query_param,
+                )
 
-                # Link session if present (so admin funnel counts stay accurate).
-                session_id = extract_session_id(request)
-                if session_id:
-                    try:
-                        session = await SessionRepository.get_by_id(UUID(session_id))
-                        if session:
-                            new_count = (session.search_count or 0) + 1
-                            await SessionRepository.update(
-                                UUID(session_id),
-                                SessionUpdate(search_count=new_count),
-                            )
-                            request.state.session_id = session_id
-                            request.state.session = session
-                        else:
-                            request.state.session_id = None
-                            request.state.session = None
-                    except Exception:
+            # Link session if present (so admin funnel counts stay accurate).
+            session_id = extract_session_id(request)
+            if session_id:
+                try:
+                    session = await SessionRepository.get_by_id(UUID(session_id))
+                    if session:
+                        new_count = (session.search_count or 0) + 1
+                        await SessionRepository.update(
+                            UUID(session_id),
+                            SessionUpdate(search_count=new_count),
+                        )
+                        request.state.session_id = session_id
+                        request.state.session = session
+                    else:
                         request.state.session_id = None
                         request.state.session = None
-                else:
+                except Exception:
                     request.state.session_id = None
                     request.state.session = None
+            else:
+                request.state.session_id = None
+                request.state.session = None
 
-                return await call_next(request)
+            return await call_next(request)
 
         # ── Anonymous path ──
         # Build the IP+UA fingerprint first. Even if the visitor has no

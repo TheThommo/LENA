@@ -57,6 +57,13 @@ class Settings(BaseSettings):
     free_search_limit_registered: int = 5
     anon_fingerprint_salt: str = "lena-fp-demo-salt-rotate-before-prod"
 
+    # Per-user bypass allowlist. Comma-separated user UUIDs. These users
+    # skip ALL gates: registered 24h quota, content guardrails (self-harm
+    # / profanity / off-topic / disclaimer / medical-advice) and fingerprint
+    # limits. Used for internal testers (e.g. Lauren pre-launch) until the
+    # management console ships a first-class "grant full access" toggle.
+    bypass_user_ids: str = ""
+
     # Email (Resend)
     resend_api_key: Optional[str] = None
     admin_email: str = "mark.e.s.thompson@gmail.com"
@@ -91,6 +98,20 @@ class Settings(BaseSettings):
     @classmethod
     def strip_placeholders(cls, v):
         return _clean_placeholder(v)
+
+    @property
+    def bypass_user_id_set(self) -> set[str]:
+        """Parsed, lowercased, whitespace-stripped set of bypass user IDs."""
+        return {
+            uid.strip().lower()
+            for uid in (self.bypass_user_ids or "").split(",")
+            if uid.strip()
+        }
+
+    def is_bypass_user(self, user_id: Optional[str]) -> bool:
+        if not user_id:
+            return False
+        return str(user_id).lower() in self.bypass_user_id_set
 
     @property
     def stripe_enabled(self) -> bool:
