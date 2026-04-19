@@ -9,7 +9,7 @@ import ChatMessage from '@/components/chat/ChatMessage';
 import ResearchPanel from '@/components/chat/ResearchPanel';
 import ShareModal from '@/components/chat/ShareModal';
 import ThinkingIndicator from '@/components/search/ThinkingIndicator';
-import FunnelManager from '@/components/funnel/FunnelManager';
+import SearchLimitModal from '@/components/funnel/SearchLimitModal';
 import DisclaimerCard from '@/components/chat/DisclaimerCard';
 import UpgradeCTACard from '@/components/chat/UpgradeCTACard';
 import PersonaSelector from '@/components/PersonaSelector';
@@ -51,6 +51,7 @@ export default function Home() {
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [signupModalOpen, setSignupModalOpen] = useState(false);
 
   // UI state
   const [activeView, setActiveView] = useState('chat');
@@ -217,6 +218,14 @@ export default function Home() {
   const handleSend = async (text?: string) => {
     const query = (text || input).trim();
     if (!query || loading) return;
+
+    // Gate the 2nd anon attempt here so the signup modal only fires when
+    // the visitor tries to SEARCH AGAIN - never right after the first
+    // result lands. This lets them read the 1st result in peace.
+    if (!isAuthenticated && session.searchCount >= 1) {
+      setSignupModalOpen(true);
+      return;
+    }
 
     setInput('');
     setError(null);
@@ -411,19 +420,16 @@ export default function Home() {
     }
   }, [realResponseCount]);
 
-  // Funnel overlay — don't render while auth is still loading (prevents flash for signed-in users)
-  const funnelOverlay = authLoading ? null : (
-    <FunnelManager
-      sessionState={{
-        name: session.name || undefined,
-        email: session.email || undefined,
-        disclaimerAccepted: session.disclaimerAccepted,
-        searchCount: session.searchCount,
-        isRegistered: isAuthenticated,
-        brandName: tenant.brandName,
-      }}
+  // Funnel overlay: only renders when the user tries a SECOND search as
+  // anon. Never fires automatically on searchCount>=1 (that was dismissing
+  // the 1st result page). handleSend sets signupModalOpen when it catches
+  // the second-attempt intent.
+  const funnelOverlay = authLoading || isAuthenticated ? null : (
+    <SearchLimitModal
+      isOpen={signupModalOpen}
       onRegister={() => router.push(`/register?session_id=${session.sessionId || ''}`)}
       onLogin={() => router.push('/login')}
+      onClose={() => setSignupModalOpen(false)}
     />
   );
 

@@ -8,6 +8,7 @@ interface SearchLimitModalProps {
   isOpen: boolean;
   onRegister: () => void;
   onLogin: () => void;
+  onClose?: () => void;
 }
 
 const FEATURES = [
@@ -22,10 +23,22 @@ export default function SearchLimitModal({
   isOpen,
   onRegister,
   onLogin,
+  onClose,
 }: SearchLimitModalProps) {
   return (
-    <ModalOverlay isOpen={isOpen} blocking={true}>
-      <div className="p-8">
+    <ModalOverlay isOpen={isOpen} blocking={!onClose} onClose={onClose}>
+      <div className="p-8 relative">
+        {onClose && (
+          <button
+            onClick={onClose}
+            aria-label="Close"
+            className="absolute top-3 right-3 w-8 h-8 flex items-center justify-center text-slate-400 hover:text-slate-700 hover:bg-slate-100 rounded-full transition-colors"
+          >
+            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        )}
         {/* Badge */}
         <div className="flex justify-center mb-4">
           <span className="inline-flex items-center gap-1.5 px-3 py-1 bg-amber-50 text-amber-700 text-xs font-semibold rounded-full border border-amber-200">
