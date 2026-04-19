@@ -853,6 +853,7 @@ export default function Home() {
                 <ResearchPanel
                   messages={messages.map(m => ({ type: m.type, content: m.content, response: m.response, timestamp: m.timestamp }))}
                   persona={session.persona}
+                  activeModes={resultModes}
                   onClose={() => setPanelOpen(false)}
                 />
               </div>

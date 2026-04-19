@@ -1,7 +1,7 @@
 'use client';
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
-import type { SearchResponse, ValidatedResult, SourceAgreement } from '@/lib/api';
+import type { SearchResponse, ValidatedResult, SourceAgreement, ResultMode } from '@/lib/api';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -10,6 +10,7 @@ import type { SearchResponse, ValidatedResult, SourceAgreement } from '@/lib/api
 interface ResearchPanelProps {
   messages: { type: 'user' | 'assistant'; content: string; response?: SearchResponse; timestamp: Date }[];
   persona: string;
+  activeModes?: ResultMode[];
   onClose: () => void;
 }
 
@@ -219,7 +220,27 @@ function AgreementDot({ type }: { type: 'consensus' | 'divergent' | 'contradicti
 // Main component
 // ---------------------------------------------------------------------------
 
-export default function ResearchPanel({ messages, persona, onClose }: ResearchPanelProps) {
+export default function ResearchPanel({ messages, persona, activeModes, onClose }: ResearchPanelProps) {
+  // Mirror ChatMessage's lens behavior: if no mode selection, or 'all' is
+  // selected, show everything. Otherwise keep only results whose
+  // matched_modes intersect the active set. Same source of truth as the
+  // chat workspace so the two never drift.
+  const modeFilter = useMemo(() => {
+    if (!activeModes || activeModes.length === 0 || activeModes.includes('all')) {
+      return null;
+    }
+    return new Set(activeModes);
+  }, [activeModes]);
+
+  const resultMatchesModes = useCallback((vr: ValidatedResult) => {
+    if (!modeFilter) return true;
+    const tags = vr.matched_modes || [];
+    for (const t of tags) {
+      if (modeFilter.has(t)) return true;
+    }
+    return false;
+  }, [modeFilter]);
+
   const [activeSection, setActiveSection] = useState<ActiveSection>('overview');
   const [citationFilter, setCitationFilter] = useState<CitationFilterMode>('all');
   const [citationSort, setCitationSort] = useState<CitationSortMode>('relevance');
@@ -282,6 +303,7 @@ export default function ResearchPanel({ messages, persona, onClose }: ResearchPa
     responses.forEach(r => {
       const addResults = (results: ValidatedResult[], query: string) => {
         results.forEach(vr => {
+          if (!resultMatchesModes(vr)) return;
           if (!seenTitles.has(vr.title)) {
             seenTitles.add(vr.title);
             idx++;
@@ -328,8 +350,11 @@ export default function ResearchPanel({ messages, persona, onClose }: ResearchPa
       ? Math.round((confidences.reduce((a, b) => a + b, 0) / confidences.length) * 100)
       : 0;
 
-    // Total results
-    const totalResults = responses.reduce((sum, r) => sum + r.total_results, 0);
+    // Total results: the active-mode filter drops rows from `citations`,
+    // so the headline count must follow them, not the unfiltered backend
+    // total. Without this the "Results Found" tile diverged from the
+    // references tab when a lens was active.
+    const totalResults = modeFilter ? citations.length : responses.reduce((sum, r) => sum + r.total_results, 0);
 
     // Unique sources queried & failed
     const uniqueSources = new Set<string>();
@@ -404,7 +429,7 @@ export default function ResearchPanel({ messages, persona, onClose }: ResearchPa
       allFailedSources,
       edgeCaseTotal: responses.reduce((s, r) => s + r.pulse_report.edge_case_count, 0),
     };
-  }, [messages]);
+  }, [messages, resultMatchesModes, modeFilter]);
 
   // ---------------------------------------------------------------------------
   // Filtered & sorted citations
