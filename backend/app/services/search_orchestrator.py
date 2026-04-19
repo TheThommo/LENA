@@ -445,6 +445,95 @@ _SOURCE_DEFAULT_MODES: dict[str, str] = {
 }
 
 
+# ── Query-relevance filter ───────────────────────────────────────────
+# Several sources (CDC Socrata catalog, WHO IRIS broad search) return
+# rows where the common query words ("health", "benefits") match but the
+# actual subject ("magnesium") is nowhere in the paper. A zero-signal
+# result destroys credibility on the very first demo query. This filter
+# runs AFTER we gather raw results and BEFORE mode scoping / PULSE: any
+# paper whose title+summary does not mention at least one of the query's
+# distinctive subject tokens is dropped.
+
+_RELEVANCE_STOPWORDS: set[str] = {
+    # Generic English stopwords we never want to require
+    "the", "and", "for", "with", "from", "what", "which", "when", "where",
+    "how", "why", "who", "that", "this", "these", "those", "there", "here",
+    "about", "tell", "give", "show", "list", "find", "some", "more", "most",
+    "best", "good", "bad", "want", "need", "any", "all", "few", "many",
+    "also", "into", "have", "has", "had", "are", "was", "were", "will",
+    "would", "could", "should", "can", "cant", "dont", "does", "did",
+    "such", "than", "then", "just", "only", "very", "much", "please",
+    # Common health/research filler that otherwise matches half of PubMed
+    "health", "benefit", "benefits", "effect", "effects", "impact",
+    "impacts", "risk", "risks", "outcome", "outcomes", "symptom",
+    "symptoms", "study", "studies", "review", "reviews", "research",
+    "paper", "papers", "evidence", "trial", "trials", "clinical",
+    "patient", "patients", "people", "adult", "adults", "men", "male",
+    "males", "women", "female", "females", "child", "children", "older",
+    "younger", "elderly", "aged", "treatment", "treatments", "therapy",
+    "therapies", "condition", "conditions", "disease", "diseases",
+    "related", "associated", "use", "uses", "using", "used",
+}
+
+
+def _subject_terms(query: str, max_terms: int = 3, min_len: int = 4) -> list[str]:
+    """Pull distinctive subject tokens out of the user's query.
+
+    Picks the N longest non-stopword tokens of at least `min_len` chars.
+    Length is a cheap proxy for specificity ("magnesium" > "benefits" >
+    "male"). Returns empty list when nothing distinctive exists so the
+    filter becomes a no-op rather than a hard block.
+    """
+    import re
+    tokens = re.findall(r"[a-z][a-z0-9-]{2,}", query.lower())
+    candidates = [
+        t for t in tokens
+        if len(t) >= min_len and t not in _RELEVANCE_STOPWORDS
+    ]
+    # Dedupe while preserving first-seen order
+    seen: set[str] = set()
+    ordered: list[str] = []
+    for t in candidates:
+        if t in seen:
+            continue
+        seen.add(t)
+        ordered.append(t)
+    ordered.sort(key=len, reverse=True)
+    return ordered[:max_terms]
+
+
+def _filter_relevant(
+    results_by_source: dict[str, list[SourceResult]],
+    subject_terms: list[str],
+) -> dict[str, list[SourceResult]]:
+    """Drop any result whose title+summary doesn't mention a subject term.
+
+    OR-logic across subject_terms so multi-subject queries ("magnesium AND
+    potassium") keep papers that mention either. When no subject terms
+    could be extracted we pass everything through unchanged.
+    """
+    if not subject_terms:
+        return results_by_source
+
+    needles = [t.lower() for t in subject_terms]
+    filtered: dict[str, list[SourceResult]] = {}
+    for src, results in results_by_source.items():
+        kept: list[SourceResult] = []
+        for r in results:
+            # Source-native rows (DSLD, openFDA) are categorical - they're
+            # supplement label / adverse event data, so we trust the source
+            # tag instead of demanding a token match in a 20-character label.
+            if (r.source_name or "") in _SOURCE_DEFAULT_MODES:
+                kept.append(r)
+                continue
+            blob = f"{r.title or ''} {r.summary or ''}".lower()
+            if any(n in blob for n in needles):
+                kept.append(r)
+        if kept:
+            filtered[src] = kept
+    return filtered
+
+
 def _normalise_modes(modes: Optional[list[str]]) -> list[str]:
     """Keep only known modes; empty / unknown collapses to ['all']."""
     if not modes:
@@ -594,6 +683,20 @@ async def run_search(
 
     if errors:
         logger.warning(f"Source errors: {errors}")
+
+    # Step 3b: Drop papers that don't mention the query's subject term at
+    # all. Saves PULSE from scoring / ranking noise like "COVID-19 case
+    # surveillance" on a magnesium query (the exact bug Thommo hit in
+    # demo).
+    subjects = _subject_terms(query)
+    pre_relevance = sum(len(r) for r in raw_results_by_source.values())
+    raw_results_by_source = _filter_relevant(raw_results_by_source, subjects)
+    post_relevance = sum(len(r) for r in raw_results_by_source.values())
+    if subjects:
+        logger.info(
+            "Relevance filter on %s: %d -> %d results",
+            subjects, pre_relevance, post_relevance,
+        )
 
     # Step 4+5: Tag results and scope corpus to active modes (pre-PULSE)
     scoped_results_by_source = _scope_corpus_by_modes(raw_results_by_source, modes)
