@@ -27,6 +27,6 @@ INSERT INTO public.plan_tiers
 VALUES
   ('pro', 'Pro', 'Unlimited research + projects + export',
    999999, 999999, 999999, 25, true, true, true, true, true, 3000, 30000),
-  ('pro_founding', 'Pro (Founding 50)', 'First-50 lifetime founding rate',
+  ('pro_founding', 'Pro (Founding 10)', 'First-10 lifetime founding rate',
    999999, 999999, 999999, 25, true, true, true, true, true, 0, 5000)
 ON CONFLICT (name) DO NOTHING;

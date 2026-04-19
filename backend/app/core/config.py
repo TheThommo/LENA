@@ -74,7 +74,7 @@ class Settings(BaseSettings):
     stripe_price_pro_monthly: Optional[str] = None
     stripe_price_pro_annual: Optional[str] = None
     stripe_price_pro_founding: Optional[str] = None
-    stripe_founding_max_redemptions: int = 50
+    stripe_founding_max_redemptions: int = 10
     billing_success_url: str = "https://lena-app.up.railway.app/?billing=success"
     billing_cancel_url: str = "https://lena-app.up.railway.app/?billing=cancelled"
 

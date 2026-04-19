@@ -53,7 +53,7 @@ export default function UpgradeCTACard({ onUpgrade, onContact, message }: Upgrad
         </div>
 
         <p className="mt-2 text-[11px] text-slate-400">
-          $30/mo, $300/yr, or $25/mo on a 12-month plan. Founding 50: $50/yr.
+          $30/mo or $300/yr. Founding 10: $50/yr (first 10 members only).
         </p>
       </div>
     </div>
