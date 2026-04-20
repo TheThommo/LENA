@@ -642,6 +642,10 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
   const handleSaveToDocuments = useCallback(() => {
     try {
       const saved = loadJsonFromLS<unknown[]>(LS_KEY_SAVED, []);
+      // Persist the full citation list (title + URL + DOI + source + year
+      // + relevance + keywords) so My Documents can render each row as a
+      // clickable link back to the original paper. Lauren's feedback: the
+      // saved doc used to be metadata-only, no way back to the sources.
       saved.unshift({
         id: `research-${Date.now()}`,
         date: new Date().toISOString(),
@@ -651,6 +655,17 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
         avgConfidence: analysis.avgConfidence,
         totalResults: analysis.totalResults,
         evidenceLevel: analysis.bestEvidence,
+        citations: analysis.citations.map(c => ({
+          source: c.source,
+          title: c.title,
+          url: c.url,
+          doi: c.doi,
+          year: c.year,
+          relevanceScore: c.relevanceScore,
+          keywords: c.keywords,
+          query: c.query,
+          evidenceLevel: c.evidenceLevel,
+        })),
       });
       localStorage.setItem(LS_KEY_SAVED, JSON.stringify(saved.slice(0, 50)));
       setSavedToLibrary(true);
@@ -885,31 +900,6 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
   const renderReferences = () => {
     return (
       <div className="space-y-3">
-        {/* Search within results */}
-        <div className="relative">
-          <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
-          </svg>
-          <input
-            type="text"
-            value={citationSearch}
-            onChange={(e) => setCitationSearch(e.target.value)}
-            placeholder="Search within results..."
-            className="w-full pl-7 pr-7 py-1.5 text-[11px] bg-white border border-slate-200 rounded-md focus:outline-none focus:border-[#1B6B93] text-slate-700 placeholder-slate-400"
-          />
-          {citationSearch && (
-            <button
-              onClick={() => setCitationSearch('')}
-              aria-label="Clear search"
-              className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center text-slate-400 hover:text-slate-600"
-            >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-              </svg>
-            </button>
-          )}
-        </div>
-
         {/* Filter bar */}
         <div className="flex items-center gap-2">
           <select
@@ -1216,6 +1206,43 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
           </svg>
         </button>
       </div>
+
+      {/* Global search - visible across every tab so Lauren can narrow
+          the citation list without having to open References first. */}
+      {hasData && (
+        <div className="px-3 pt-2 pb-1 border-b border-slate-100 flex-shrink-0 bg-white">
+          <div className="relative">
+            <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              type="text"
+              value={citationSearch}
+              onChange={(e) => {
+                setCitationSearch(e.target.value);
+                // Jump the user to References when they start typing so
+                // they actually see the filtered hits.
+                if (e.target.value && activeSection !== 'references') {
+                  setActiveSection('references');
+                }
+              }}
+              placeholder="Search within results..."
+              className="w-full pl-7 pr-7 py-1.5 text-[11px] bg-white border border-slate-200 rounded-md focus:outline-none focus:border-[#1B6B93] text-slate-700 placeholder-slate-400"
+            />
+            {citationSearch && (
+              <button
+                onClick={() => setCitationSearch('')}
+                aria-label="Clear search"
+                className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center text-slate-400 hover:text-slate-600"
+              >
+                <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Tab navigation */}
       {hasData && (
