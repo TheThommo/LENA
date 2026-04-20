@@ -786,7 +786,7 @@ export default function ChatMessage({
                 Filter hiding {hiddenByFilter} result{hiddenByFilter === 1 ? '' : 's'} — select <span className="font-medium">All results</span> to see everything.
               </p>
             )}
-            <SourceCardList allResults={filteredResults} query={query} />
+            <SourceCardList allResults={filteredResults} query={response?.query || ''} />
           </>
         )}
         {filteredResults.length === 0 && allResults.length > 0 && (
