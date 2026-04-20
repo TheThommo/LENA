@@ -506,7 +506,10 @@ export default function ChatMessage({
   const [newProjectName, setNewProjectName] = useState('');
   const [creatingBusy, setCreatingBusy] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [shareOpen, setShareOpen] = useState(false);
+  const [shareCopied, setShareCopied] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
+  const shareRef = useRef<HTMLDivElement>(null);
 
   // Close picker on outside click
   useEffect(() => {
@@ -522,6 +525,18 @@ export default function ChatMessage({
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [projectPickerOpen]);
+
+  // Close share menu on outside click
+  useEffect(() => {
+    if (!shareOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (shareRef.current && !shareRef.current.contains(e.target as Node)) {
+        setShareOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [shareOpen]);
   if (type === 'user') {
     return (
       <div className="flex justify-end mb-4">
@@ -594,8 +609,8 @@ export default function ChatMessage({
           {response && response.search_id && onAddToProject && !response.guardrail_triggered && (
             <div className="relative" ref={pickerRef}>
               {projectSaved ? (
-                <span className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-emerald-700 bg-emerald-50 rounded-md">
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <span className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-emerald-700 bg-emerald-50 border border-emerald-200 rounded-lg">
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M5 13l4 4L19 7" />
                   </svg>
                   Saved to {projectSaved}
@@ -603,10 +618,10 @@ export default function ChatMessage({
               ) : (
                 <button
                   onClick={() => setProjectPickerOpen(!projectPickerOpen)}
-                  className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-slate-600 bg-slate-100/80 rounded-md hover:bg-slate-200/80 transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-white bg-lena-600 hover:bg-lena-700 rounded-lg shadow-sm transition-colors"
                 >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                  <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                   </svg>
                   Add to Project
                 </button>
@@ -713,17 +728,98 @@ export default function ChatMessage({
             </div>
           )}
 
-          {/* Share */}
-          {response && onShare && (
-            <button
-              onClick={() => onShare(response.query)}
-              className="inline-flex items-center gap-1 px-2.5 py-1 text-[11px] font-medium text-slate-600 bg-slate-100/80 rounded-md hover:bg-slate-200/80 transition-colors"
-            >
-              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
-              </svg>
-              Share
-            </button>
+          {/* Share - brand pill with social channel menu */}
+          {response && (
+            <div className="relative" ref={shareRef}>
+              <button
+                onClick={() => setShareOpen(!shareOpen)}
+                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-lena-700 bg-white border border-lena-300 hover:bg-lena-50 rounded-lg shadow-sm transition-colors"
+              >
+                <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
+                </svg>
+                Share
+              </button>
+
+              {shareOpen && (
+                <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-slate-200/80 rounded-lg shadow-xl shadow-slate-900/5 z-50 overflow-hidden">
+                  <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-100 bg-slate-50/80 font-medium">
+                    Share this research
+                  </div>
+                  {(() => {
+                    const shareText = `LENA research: "${response.query}"`;
+                    const shareUrl = typeof window !== 'undefined' ? window.location.href : 'https://lena-app.up.railway.app';
+                    const encUrl = encodeURIComponent(shareUrl);
+                    const encText = encodeURIComponent(shareText);
+                    const channels = [
+                      { key: 'copy', label: shareCopied ? 'Link copied' : 'Copy link',
+                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />,
+                        action: async () => {
+                          try {
+                            await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+                            setShareCopied(true);
+                            setTimeout(() => setShareCopied(false), 2000);
+                          } catch {}
+                        } },
+                      { key: 'x', label: 'X (Twitter)',
+                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />,
+                        href: `https://twitter.com/intent/tweet?text=${encText}&url=${encUrl}` },
+                      { key: 'linkedin', label: 'LinkedIn',
+                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.063 2.063 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452z" />,
+                        href: `https://www.linkedin.com/sharing/share-offsite/?url=${encUrl}` },
+                      { key: 'facebook', label: 'Facebook',
+                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M22 12a10 10 0 10-11.5 9.87v-6.98H8v-2.89h2.5V9.8c0-2.47 1.47-3.83 3.72-3.83 1.08 0 2.21.19 2.21.19v2.43h-1.24c-1.22 0-1.6.76-1.6 1.54v1.85h2.72l-.43 2.89h-2.29v6.98A10 10 0 0022 12z" />,
+                        href: `https://www.facebook.com/sharer/sharer.php?u=${encUrl}&quote=${encText}` },
+                      { key: 'whatsapp', label: 'WhatsApp',
+                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.52 3.48A11.9 11.9 0 0012 0a11.9 11.9 0 00-10.34 17.92L0 24l6.22-1.63A11.9 11.9 0 0012 24a11.9 11.9 0 0012-12 11.9 11.9 0 00-3.48-8.52z" />,
+                        href: `https://wa.me/?text=${encText}%20${encUrl}` },
+                      { key: 'email', label: 'Email',
+                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
+                        href: `mailto:?subject=${encText}&body=${encText}%0A%0A${encUrl}` },
+                    ];
+                    return channels.map(c => (
+                      c.href ? (
+                        <a
+                          key={c.key}
+                          href={c.href}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          onClick={() => setShareOpen(false)}
+                          className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {c.icon}
+                          </svg>
+                          <span>{c.label}</span>
+                        </a>
+                      ) : (
+                        <button
+                          key={c.key}
+                          onClick={() => c.action && c.action()}
+                          className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 transition-colors"
+                        >
+                          <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            {c.icon}
+                          </svg>
+                          <span>{c.label}</span>
+                        </button>
+                      )
+                    ));
+                  })()}
+                  {onShare && (
+                    <button
+                      onClick={() => { onShare(response.query); setShareOpen(false); }}
+                      className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-lena-600 hover:bg-lena-50 transition-colors border-t border-slate-100"
+                    >
+                      <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 17h5l-1.405-1.405A2.032 2.032 0 0118 14.158V11a6.002 6.002 0 00-4-5.659V5a2 2 0 10-4 0v.341C7.67 6.165 6 8.388 6 11v3.159c0 .538-.214 1.055-.595 1.436L4 17h5m6 0v1a3 3 0 11-6 0v-1m6 0H9" />
+                      </svg>
+                      <span>In-app share preview</span>
+                    </button>
+                  )}
+                </div>
+              )}
+            </div>
           )}
         </div>
       </div>
