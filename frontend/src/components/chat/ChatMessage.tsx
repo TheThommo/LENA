@@ -296,8 +296,36 @@ function generateFollowUpsFallback(response: SearchResponse): string[] {
   return suggestions.slice(0, 3);
 }
 
-function SourceCard({ result, isEdgeCase, index }: { result: ValidatedResult; isEdgeCase: boolean; index: number }) {
+function SourceCard({ result, isEdgeCase, index, query }: { result: ValidatedResult; isEdgeCase: boolean; index: number; query: string }) {
   const [expanded, setExpanded] = useState(false);
+  const [saved, setSaved] = useState(false);
+
+  useEffect(() => {
+    import('@/lib/mySources').then(m => {
+      setSaved(m.isSaved(result.source, result.title));
+    }).catch(() => {});
+  }, [result.source, result.title]);
+
+  const handleSave = async () => {
+    const m = await import('@/lib/mySources');
+    if (saved) {
+      m.removeSource(m.makeSourceId(result.source, result.title));
+      setSaved(false);
+    } else {
+      m.saveSource({
+        source: result.source,
+        title: result.title,
+        url: result.url,
+        doi: result.doi,
+        year: result.year,
+        authors: result.authors,
+        keywords: result.keywords,
+        query,
+        matched_modes: result.matched_modes,
+      });
+      setSaved(true);
+    }
+  };
   const style = getSourceStyle(result.source);
   const scoreBadge = getPulseScoreBadge(result.relevance_score);
 
@@ -398,8 +426,16 @@ function SourceCard({ result, isEdgeCase, index }: { result: ValidatedResult; is
             <button className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 transition-colors">
               Cite
             </button>
-            <button className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 transition-colors">
-              Save
+            <button
+              onClick={handleSave}
+              className={`inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium rounded-md transition-colors ${
+                saved
+                  ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
+                  : 'text-slate-700 bg-slate-100 hover:bg-slate-200'
+              }`}
+              title={saved ? 'Saved to My Sources - click to remove' : 'Save to My Sources'}
+            >
+              {saved ? 'Saved' : 'Save'}
             </button>
           </div>
         </div>
@@ -410,7 +446,7 @@ function SourceCard({ result, isEdgeCase, index }: { result: ValidatedResult; is
 
 const INITIAL_VISIBLE = 3;
 
-function SourceCardList({ allResults }: { allResults: { result: ValidatedResult; isEdge: boolean }[] }) {
+function SourceCardList({ allResults, query }: { allResults: { result: ValidatedResult; isEdge: boolean }[]; query: string }) {
   const [showAll, setShowAll] = useState(false);
 
   // Listen for citation clicks that need the list expanded
@@ -430,7 +466,7 @@ function SourceCardList({ allResults }: { allResults: { result: ValidatedResult;
       </p>
       <div className="space-y-1.5">
         {visible.map(({ result, isEdge }, i) => (
-          <SourceCard key={`${result.source}-${result.title}-${i}`} result={result} isEdgeCase={isEdge} index={i} />
+          <SourceCard key={`${result.source}-${result.title}-${i}`} result={result} isEdgeCase={isEdge} index={i} query={query} />
         ))}
       </div>
       {hiddenCount > 0 && !showAll && (
@@ -750,7 +786,7 @@ export default function ChatMessage({
                 Filter hiding {hiddenByFilter} result{hiddenByFilter === 1 ? '' : 's'} — select <span className="font-medium">All results</span> to see everything.
               </p>
             )}
-            <SourceCardList allResults={filteredResults} />
+            <SourceCardList allResults={filteredResults} query={query} />
           </>
         )}
         {filteredResults.length === 0 && allResults.length > 0 && (

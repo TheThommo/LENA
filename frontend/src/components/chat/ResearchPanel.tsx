@@ -252,6 +252,7 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
   const [exportSuccess, setExportSuccess] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
   const [savedToLibrary, setSavedToLibrary] = useState(false);
+  const [citationSearch, setCitationSearch] = useState('');
 
   // Load persisted stars / notes from localStorage on mount
   useEffect(() => {
@@ -445,13 +446,23 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
     } else if (citationFilter !== 'all') {
       list = list.filter(c => c.source === citationFilter);
     }
+    // Free-text search within the current result set - title, source,
+    // keywords and year all searchable. Case-insensitive, AND-joined
+    // across whitespace so "magnesium 2023" narrows to both.
+    const needles = citationSearch.trim().toLowerCase().split(/\s+/).filter(Boolean);
+    if (needles.length > 0) {
+      list = list.filter(c => {
+        const hay = `${c.title} ${getSourceLabel(c.source)} ${(c.keywords || []).join(' ')} ${c.year}`.toLowerCase();
+        return needles.every(n => hay.includes(n));
+      });
+    }
     if (citationSort === 'year') {
       list = [...list].sort((a, b) => b.year - a.year);
     } else {
       list = [...list].sort((a, b) => b.relevanceScore - a.relevanceScore);
     }
     return list;
-  }, [analysis.citations, citationFilter, citationSort, starredKeys]);
+  }, [analysis.citations, citationFilter, citationSort, starredKeys, citationSearch]);
 
   // ---------------------------------------------------------------------------
   // Derived values
@@ -874,6 +885,31 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
   const renderReferences = () => {
     return (
       <div className="space-y-3">
+        {/* Search within results */}
+        <div className="relative">
+          <svg className="absolute left-2 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-slate-400 pointer-events-none" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+          </svg>
+          <input
+            type="text"
+            value={citationSearch}
+            onChange={(e) => setCitationSearch(e.target.value)}
+            placeholder="Search within results..."
+            className="w-full pl-7 pr-7 py-1.5 text-[11px] bg-white border border-slate-200 rounded-md focus:outline-none focus:border-[#1B6B93] text-slate-700 placeholder-slate-400"
+          />
+          {citationSearch && (
+            <button
+              onClick={() => setCitationSearch('')}
+              aria-label="Clear search"
+              className="absolute right-2 top-1/2 -translate-y-1/2 w-4 h-4 flex items-center justify-center text-slate-400 hover:text-slate-600"
+            >
+              <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          )}
+        </div>
+
         {/* Filter bar */}
         <div className="flex items-center gap-2">
           <select

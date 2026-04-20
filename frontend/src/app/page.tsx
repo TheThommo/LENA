@@ -16,6 +16,7 @@ import PersonaSelector from '@/components/PersonaSelector';
 import ComingSoon, { COMMUNITY_CONFIG, CONTRIBUTION_CONFIG } from '@/components/views/ComingSoon';
 import HowItWorks from '@/components/views/HowItWorks';
 import MyDocuments from '@/components/views/MyDocuments';
+import MySources from '@/components/views/MySources';
 import MyBrain from '@/components/views/MyBrain';
 import { useSession } from '@/contexts/SessionContext';
 import { useProjects } from '@/contexts/ProjectsContext';
@@ -263,9 +264,10 @@ export default function Home() {
         sessionToken: authToken || session.sessionToken || undefined,
         tenantId: tenant.id,
         persona: session.persona,
-        // File this search under the active project (auth-only; backend
-        // silently drops project_id for anon callers).
-        projectId: isAuthenticated && activeProjectId ? activeProjectId : undefined,
+        // Searches are NEVER auto-filed into a project. Lauren's UX
+        // feedback: filing on the fly was counter-intuitive - users
+        // expect to run free and file afterwards via the Add to
+        // Project button on each result.
       });
 
       // Guardrail responses (off-topic, profanity, self-harm) have no
@@ -459,6 +461,8 @@ export default function Home() {
         return <HowItWorks />;
       case 'documents':
         return <MyDocuments />;
+      case 'sources':
+        return <MySources />;
       case 'brain':
         return <MyBrain />;
       case 'projects':

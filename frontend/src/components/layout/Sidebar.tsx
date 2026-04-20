@@ -30,6 +30,7 @@ interface SidebarProps {
 const navItems = [
   { id: 'chat', label: 'Chat', icon: ChatIcon },
   { id: 'documents', label: 'My Documents', icon: FolderIcon },
+  { id: 'sources', label: 'My Sources', icon: BookIcon },
   { id: 'brain', label: 'My Brain', icon: BrainIcon },
   { id: 'community', label: 'Community', icon: UsersIcon, badge: 'SOON' },
   { id: 'contribution', label: 'Contribution', icon: UploadIcon, badge: 'SOON' },

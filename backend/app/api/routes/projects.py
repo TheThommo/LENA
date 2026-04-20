@@ -166,7 +166,9 @@ async def create_project(body: ProjectCreate, user=Depends(require_auth)):
     user_id = user["user_id"]
     tenant_id = user["tenant_id"]
 
-    if await _user_plan_is_free(client, user_id):
+    # Bypass users (internal testers) are never capped.
+    from app.core.config import settings as _settings
+    if not _settings.is_bypass_user(user_id) and await _user_plan_is_free(client, user_id):
         active = await _count_active_projects(client, user_id)
         if active >= FREE_TIER_PROJECT_LIMIT:
             raise HTTPException(
@@ -227,7 +229,8 @@ async def update_project(project_id: UUID, body: ProjectUpdate, user=Depends(req
     else:
         # Unarchive-and-over-limit check
         if body.archived is False:
-            if await _user_plan_is_free(client, user_id):
+            from app.core.config import settings as _settings
+            if not _settings.is_bypass_user(user_id) and await _user_plan_is_free(client, user_id):
                 active = await _count_active_projects(client, user_id)
                 if active >= FREE_TIER_PROJECT_LIMIT:
                     raise HTTPException(
