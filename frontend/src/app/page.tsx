@@ -37,6 +37,7 @@ interface RecentSession {
   firstQuery: string;
   queries: string[];
   time: string;
+  projectId?: string | null;
 }
 
 export default function Home() {
@@ -191,27 +192,44 @@ export default function Home() {
   const addRecentSearch = useCallback((query: string) => {
     if (!isAuthenticated) return;
     const sid = currentSessionIdRef.current;
+    const pid = activeProjectId || null;
     setRecentSessions(prev => {
       const existing = prev.find(s => s.id === sid);
       let updated: RecentSession[];
       if (existing) {
-        // Append query to existing session, move to top
+        // Append query to existing session. Keep session's original
+        // projectId - don't silently rehome it across projects mid-thread.
         updated = [
           { ...existing, queries: [...existing.queries, query], time: 'Just now' },
           ...prev.filter(s => s.id !== sid),
         ];
       } else {
-        // New session
+        // New session - stamp with the project context it was born into
         updated = [
-          { id: sid, firstQuery: query, queries: [query], time: 'Just now' },
+          { id: sid, firstQuery: query, queries: [query], time: 'Just now', projectId: pid },
           ...prev,
         ];
       }
-      updated = updated.slice(0, 8);
+      // Cap only the unfiled list so project-scoped history isn't evicted
+      const unfiled = updated.filter(s => !s.projectId).slice(0, 8);
+      const filed = updated.filter(s => s.projectId);
+      updated = [...filed, ...unfiled];
       if (sessionsKey) {
         localStorage.setItem(sessionsKey, JSON.stringify(updated));
       }
       return updated;
+    });
+  }, [isAuthenticated, sessionsKey, activeProjectId]);
+
+  // Update a recent session's projectId in-place (after user clicks
+  // "Add to Project" on a result). Lets the sidebar move it from top-
+  // level Recent Sessions into the project's nested list without a reload.
+  const setSessionProject = useCallback((sessionId: string, projectId: string | null) => {
+    if (!isAuthenticated || !sessionsKey) return;
+    setRecentSessions(prev => {
+      const next = prev.map(s => s.id === sessionId ? { ...s, projectId } : s);
+      try { localStorage.setItem(sessionsKey, JSON.stringify(next)); } catch {}
+      return next;
     });
   }, [isAuthenticated, sessionsKey]);
 
@@ -368,6 +386,13 @@ export default function Home() {
   // missing (e.g. storage cleared, cross-device).
   const handleRecentSessionClick = useCallback((sessionId: string, fallbackQuery: string) => {
     const thread = loadSessionThread(sessionId);
+    // Restore the project context this session was born into so the
+    // pill and sidebar highlight match the thread being viewed.
+    const saved = recentSessions.find(s => s.id === sessionId);
+    if (saved) {
+      restoringThreadRef.current = true;
+      setActiveProjectId(saved.projectId || null);
+    }
     if (thread && thread.length > 0) {
       currentSessionIdRef.current = sessionId;
       setMessages(thread);
@@ -378,7 +403,7 @@ export default function Home() {
     // No persisted thread — run the query as a last resort
     setActiveView('chat');
     handleSend(fallbackQuery);
-  }, [loadSessionThread]);
+  }, [loadSessionThread, recentSessions, setActiveProjectId]);
 
   // Handle keyboard
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
@@ -388,8 +413,37 @@ export default function Home() {
     }
   };
 
-  // New search — starts a fresh conversation session
+  // When the user switches to a different project context (or creates a
+  // new one), start a fresh conversation. Lauren's feedback: carrying the
+  // thread across projects was confusing - a new folder should be blank.
+  // restoringThreadRef guards the case where handleRecentSessionClick is
+  // explicitly restoring a session; that path already sets its own
+  // activeProjectId and shouldn't be wiped.
+  const restoringThreadRef = useRef(false);
+  const lastProjectIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    if (restoringThreadRef.current) {
+      restoringThreadRef.current = false;
+      lastProjectIdRef.current = activeProjectId || null;
+      return;
+    }
+    const prev = lastProjectIdRef.current;
+    const curr = activeProjectId || null;
+    if (prev !== curr) {
+      setMessages([]);
+      setError(null);
+      currentSessionIdRef.current = Date.now().toString();
+      lastProjectIdRef.current = curr;
+    }
+  }, [activeProjectId]);
+
+  // New search — starts a fresh conversation session OUTSIDE any
+  // project. The effect that wipes messages on project-switch will
+  // also fire here (pid -> null), but we set restoringThreadRef so
+  // we don't double-clear.
   const handleNewSearch = () => {
+    restoringThreadRef.current = true;
+    setActiveProjectId(null);
     setMessages([]);
     setError(null);
     setActiveView('chat');
@@ -626,7 +680,18 @@ export default function Home() {
                       id: p.id, name: p.name, emoji: p.emoji,
                     })) : undefined}
                     onAddToProject={isAuthenticated ? (searchId, projectId) => {
+                      // Persist on the server (search_logs.project_id) and
+                      // move this session under the target project in the
+                      // sidebar. Also re-activate that project context so
+                      // follow-ups in the same thread keep filing there.
+                      // restoringThreadRef guards the effect that wipes
+                      // messages on project-switch so the current thread
+                      // stays visible right after the assign.
                       assignSearch(searchId, projectId);
+                      setSessionProject(currentSessionIdRef.current, projectId);
+                      restoringThreadRef.current = true;
+                      setActiveProjectId(projectId);
+                      refreshProjects();
                     } : undefined}
                     onCreateProject={isAuthenticated ? async (name) => {
                       const p = await createNewProject({ name });

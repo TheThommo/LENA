@@ -10,6 +10,7 @@ interface RecentSession {
   firstQuery: string;
   queries: string[];
   time: string;
+  projectId?: string | null;
 }
 
 interface SidebarProps {
@@ -126,11 +127,13 @@ export function Sidebar({
           isAuthenticated={!!isAuthenticated}
           onOpenProject={(id) => { onViewChange('chat'); /* land in chat with project pill so user can search immediately */ void id; }}
           onSignIn={onSignIn}
+          recentSessions={recentSessions}
+          onSearchClick={onSearchClick}
         />
 
-        {/* Recent Sessions — only for authenticated users. Anonymous visitors
-            NEVER see search history, even if stale state briefly exists. */}
-        {isAuthenticated && recentSessions.length > 0 && (
+        {/* Recent Sessions — only UNFILED sessions show here; project-filed
+            sessions are nested under their project above. */}
+        {isAuthenticated && recentSessions.filter(s => !s.projectId).length > 0 && (
           <div className="mt-6 px-2">
             <div className="flex items-center gap-2 mb-3">
               <ClockIcon className="w-3.5 h-3.5 text-gray-400" />
@@ -139,7 +142,7 @@ export function Sidebar({
               </h3>
             </div>
             <ul className="space-y-1">
-              {recentSessions.map((sess) => (
+              {recentSessions.filter(s => !s.projectId).map((sess) => (
                 <li key={sess.id}>
                   <button
                     onClick={() => onSearchClick(sess.id, sess.firstQuery)}
@@ -505,10 +508,14 @@ function ProjectsSection({
   isAuthenticated,
   onOpenProject,
   onSignIn,
+  recentSessions,
+  onSearchClick,
 }: {
   isAuthenticated: boolean;
   onOpenProject: (projectId: string) => void;
   onSignIn?: () => void;
+  recentSessions?: RecentSession[];
+  onSearchClick?: (sessionId: string, fallbackQuery: string) => void;
 }) {
   const { projects, activeProjectId, setActiveProjectId, createNew, error } = useProjects();
   const [creating, setCreating] = useState(false);
@@ -602,6 +609,7 @@ function ProjectsSection({
       <ul className="space-y-0.5">
         {active.map(p => {
           const isActive = activeProjectId === p.id;
+          const filed = (recentSessions || []).filter(s => s.projectId === p.id);
           return (
             <li key={p.id}>
               <button
@@ -611,10 +619,32 @@ function ProjectsSection({
               >
                 <span className="text-[13px] flex-shrink-0">{p.emoji || '📁'}</span>
                 <span className="truncate flex-1 text-left">{p.name}</span>
-                {p.search_count > 0 && (
-                  <span className="text-[10px] text-gray-400 flex-shrink-0">{p.search_count}</span>
+                {(p.search_count > 0 || filed.length > 0) && (
+                  <span className="text-[10px] text-gray-400 flex-shrink-0">
+                    {Math.max(p.search_count, filed.length)}
+                  </span>
                 )}
               </button>
+
+              {/* Filed sessions nested under this project */}
+              {isActive && filed.length > 0 && onSearchClick && (
+                <ul className="ml-6 mt-0.5 mb-1 space-y-0.5 border-l border-gray-100 pl-2">
+                  {filed.slice(0, 8).map(sess => (
+                    <li key={sess.id}>
+                      <button
+                        onClick={() => onSearchClick(sess.id, sess.firstQuery)}
+                        className="w-full text-left px-1.5 py-1 rounded text-[12px] text-gray-600 hover:text-lena-600 hover:bg-lena-50/60 transition-colors truncate"
+                        title={sess.firstQuery}
+                      >
+                        {sess.firstQuery}
+                        {sess.queries.length > 1 && (
+                          <span className="ml-1 text-[10px] text-gray-400">({sess.queries.length})</span>
+                        )}
+                      </button>
+                    </li>
+                  ))}
+                </ul>
+              )}
             </li>
           );
         })}
