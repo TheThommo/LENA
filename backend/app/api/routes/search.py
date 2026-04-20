@@ -177,24 +177,48 @@ async def search_literature(
             except Exception:
                 logger.warning("project_id ownership check failed", exc_info=True)
 
-        # Log search event (includes LLM cost when the summary ran)
-        schedule_analytics_task(
-            log_search_event(
-                search_id=search_id,
-                session_id=session_id,
-                query=q,
-                persona=detected_persona.value,
-                tenant_id=resolved_tenant_id,
-                user_id=resolved_user_id,
-                response_time_ms=response_time_ms,
-                sources_queried=sources_queried,
-                sources_succeeded=sources_succeeded,
-                total_results=total_results,
-                pulse_status=pulse_status,
-                llm_usage=search_result.get("llm_usage"),
-                project_id=resolved_project_id,
+        # Log search event. For authed users we AWAIT so the
+        # search_logs + searches rows exist before we return search_id
+        # to the client; otherwise a fast "Add to Project" click races
+        # the background insert and the assign endpoint 404s. Anonymous
+        # flows still fire-and-forget so guest latency doesn't regress.
+        if resolved_user_id:
+            try:
+                await log_search_event(
+                    search_id=search_id,
+                    session_id=session_id,
+                    query=q,
+                    persona=detected_persona.value,
+                    tenant_id=resolved_tenant_id,
+                    user_id=resolved_user_id,
+                    response_time_ms=response_time_ms,
+                    sources_queried=sources_queried,
+                    sources_succeeded=sources_succeeded,
+                    total_results=total_results,
+                    pulse_status=pulse_status,
+                    llm_usage=search_result.get("llm_usage"),
+                    project_id=resolved_project_id,
+                )
+            except Exception:
+                logger.warning("log_search_event sync failed (non-blocking)", exc_info=True)
+        else:
+            schedule_analytics_task(
+                log_search_event(
+                    search_id=search_id,
+                    session_id=session_id,
+                    query=q,
+                    persona=detected_persona.value,
+                    tenant_id=resolved_tenant_id,
+                    user_id=resolved_user_id,
+                    response_time_ms=response_time_ms,
+                    sources_queried=sources_queried,
+                    sources_succeeded=sources_succeeded,
+                    total_results=total_results,
+                    pulse_status=pulse_status,
+                    llm_usage=search_result.get("llm_usage"),
+                    project_id=resolved_project_id,
+                )
             )
-        )
 
         # Classify topics and log separately (for trending dashboard)
         topics = classify_query_topic(q)

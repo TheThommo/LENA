@@ -337,7 +337,10 @@ async def assign_search_to_project(
     client = get_supabase_admin_client()
     user_id = user["user_id"]
 
-    # Ownership on the search (joined via user_id)
+    # Ownership check: try search_logs first, fall back to searches. Some
+    # historic rows landed in only one of the two tables (pre-migration
+    # 008 dropped search_logs writes silently when user_id was missing),
+    # so we accept a hit from either.
     sr = (
         client.table("search_logs")
         .select("id")
@@ -347,7 +350,16 @@ async def assign_search_to_project(
         .execute()
     )
     if not sr.data:
-        raise HTTPException(status_code=404, detail="Search not found")
+        sr2 = (
+            client.table("searches")
+            .select("id")
+            .eq("id", str(search_id))
+            .eq("user_id", user_id)
+            .limit(1)
+            .execute()
+        )
+        if not sr2.data:
+            raise HTTPException(status_code=404, detail="Search not found")
 
     # Ownership on the target project (if any)
     target_id: Optional[str] = None
