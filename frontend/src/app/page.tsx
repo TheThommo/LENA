@@ -264,10 +264,12 @@ export default function Home() {
         sessionToken: authToken || session.sessionToken || undefined,
         tenantId: tenant.id,
         persona: session.persona,
-        // Searches are NEVER auto-filed into a project. Lauren's UX
-        // feedback: filing on the fly was counter-intuitive - users
-        // expect to run free and file afterwards via the Add to
-        // Project button on each result.
+        // File into active project only when the user has explicitly
+        // entered a project context (activeProjectId is set + the top-
+        // bar pill is visible). Clearing the pill returns to free
+        // search mode. Lauren's follow-up feedback: dropping filing
+        // entirely broke the "search within folder" flow.
+        projectId: isAuthenticated && activeProjectId ? activeProjectId : undefined,
       });
 
       // Guardrail responses (off-topic, profanity, self-harm) have no
@@ -651,6 +653,31 @@ export default function Home() {
         {/* Bottom search input */}
         <div className="border-t border-slate-200/70 bg-white/80 backdrop-blur-xl px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
           <div className="max-w-3xl mx-auto">
+            {/* Active project pill - shows what context the next search
+                will file into. Click X to exit project context and run
+                free searches again. */}
+            {isAuthenticated && activeProject && (
+              <div className="mb-2 inline-flex items-center gap-1 pl-2.5 pr-1 py-1 bg-lena-50 border border-lena-200/70 rounded-full text-[11px] text-lena-700">
+                <span className="text-[13px] leading-none">{activeProject.emoji || '📁'}</span>
+                <button
+                  onClick={() => setActiveView('projects')}
+                  title="View filed searches in this project"
+                  className="font-medium hover:underline"
+                >
+                  Searching in {activeProject.name}
+                </button>
+                <button
+                  onClick={() => setActiveProjectId(null)}
+                  aria-label="Exit project context"
+                  title="Exit project - next search won't file here"
+                  className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-lena-100 text-lena-600 hover:text-lena-800 transition-colors ml-1"
+                >
+                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            )}
             <div className="flex items-end gap-2.5 bg-white border border-slate-200/80 rounded-xl px-3.5 py-2.5 focus-within:border-lena-400/60 focus-within:ring-2 focus-within:ring-lena-100/60 transition-all shadow-sm">
               <textarea
                 ref={inputRef}

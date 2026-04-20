@@ -124,7 +124,7 @@ export function Sidebar({
         {/* Projects */}
         <ProjectsSection
           isAuthenticated={!!isAuthenticated}
-          onOpenProject={(id) => { onViewChange('projects'); /* id is set by the section */ void id; }}
+          onOpenProject={(id) => { onViewChange('chat'); /* land in chat with project pill so user can search immediately */ void id; }}
           onSignIn={onSignIn}
         />
 
