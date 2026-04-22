@@ -99,6 +99,7 @@ const SECTION_TABS: { key: ActiveSection; label: string }[] = [
 ];
 
 const LS_KEY_STARS = 'lena_starred_citations';
+const LS_KEY_STARRED_DATA = 'lena_starred_citation_data'; // full objects, keyed by citationKey
 const LS_KEY_NOTES = 'lena_citation_notes';
 const LS_KEY_SAVED = 'lena_saved_research';
 
@@ -260,12 +261,39 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
     setCitationNotes(loadJsonFromLS<Record<string, string>>(LS_KEY_NOTES, {}));
   }, []);
 
-  // Persist stars
-  const toggleStar = useCallback((key: string) => {
+  // Persist stars — also write / remove full citation data so My Documents
+  // can render a "Starred Citations" section without needing the panel open.
+  const toggleStar = useCallback((c: CitationEntry) => {
+    const key = citationKey(c);
     setStarredKeys(prev => {
       const next = new Set(prev);
-      if (next.has(key)) next.delete(key);
-      else next.add(key);
+      if (next.has(key)) {
+        next.delete(key);
+        // Remove persisted citation data
+        try {
+          const data = loadJsonFromLS<Record<string, unknown>>(LS_KEY_STARRED_DATA, {});
+          delete data[key];
+          localStorage.setItem(LS_KEY_STARRED_DATA, JSON.stringify(data));
+        } catch {}
+      } else {
+        next.add(key);
+        // Persist full citation so My Documents can display it
+        try {
+          const data = loadJsonFromLS<Record<string, unknown>>(LS_KEY_STARRED_DATA, {});
+          data[key] = {
+            source: c.source,
+            title: c.title,
+            url: c.url,
+            doi: c.doi,
+            year: c.year,
+            evidenceLevel: c.evidenceLevel,
+            query: c.query,
+            keywords: c.keywords,
+            starredAt: new Date().toISOString(),
+          };
+          localStorage.setItem(LS_KEY_STARRED_DATA, JSON.stringify(data));
+        } catch {}
+      }
       try { localStorage.setItem(LS_KEY_STARS, JSON.stringify(Array.from(next))); } catch {}
       return next;
     });
@@ -1010,7 +1038,7 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
                   <div className="flex flex-col gap-1 flex-shrink-0">
                     {/* Star toggle */}
                     <button
-                      onClick={() => toggleStar(key)}
+                      onClick={() => toggleStar(c)}
                       className={`p-1 rounded transition-colors ${isStarred ? 'text-amber-500 hover:text-amber-600' : 'text-slate-300 hover:text-amber-400'}`}
                       aria-label={isStarred ? 'Remove star' : 'Star citation'}
                     >

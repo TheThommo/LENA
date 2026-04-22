@@ -59,10 +59,24 @@ export default function Home() {
   const [activeView, setActiveView] = useState('chat');
   const [panelOpen, setPanelOpen] = useState(false);
   const [shareModal, setShareModal] = useState<{ isOpen: boolean; title?: string }>({ isOpen: false });
+  const [sessionSearchOpen, setSessionSearchOpen] = useState(false);
+  const [sessionSearch, setSessionSearch] = useState('');
   // Result-mode multi-select: 'all' (default), 'supplements', 'herbal', 'alternatives', 'outlier'. Multiple may be active.
+  // Persisted per user so filters survive logout/reload (Lauren bug: "have to select every login").
+  const resultModesKey = user?.id ? `lena_result_modes_${user.id}` : null;
   const [resultModes, setResultModes] = useState<ResultMode[]>(['all']);
   const [modesOpen, setModesOpen] = useState(false);
   const modesMenuRef = useRef<HTMLDivElement>(null);
+
+  // Load saved result modes for this user on login
+  useEffect(() => {
+    if (!resultModesKey) return;
+    try {
+      const saved = JSON.parse(localStorage.getItem(resultModesKey) || '');
+      if (Array.isArray(saved) && saved.length > 0) setResultModes(saved as ResultMode[]);
+    } catch { /* no saved prefs → stay with default */ }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [resultModesKey]);
 
   const toggleMode = (mode: ResultMode) => {
     setResultModes(prev => {
@@ -74,6 +88,10 @@ export default function Home() {
       // selecting a filter removes 'all'.
       if (!has && mode === 'all') next = ['all'];
       else if (!has && mode !== 'all') next = next.filter(m => m !== 'all');
+      // Persist per user
+      if (resultModesKey) {
+        try { localStorage.setItem(resultModesKey, JSON.stringify(next)); } catch {}
+      }
       return next;
     });
   };
@@ -642,15 +660,61 @@ export default function Home() {
   const renderChat = () => {
     const showWelcome = messages.length === 0 && !loading;
 
+    // Session-search: filter visible messages. Both user query and assistant
+    // content are checked. When a match is found we also include the paired
+    // adjacent message so context is never lost.
+    const needle = sessionSearch.trim().toLowerCase();
+    const visibleMessages = needle
+      ? messages.filter((msg, i, arr) => {
+          const hay = (msg.content + ' ' + (msg.response?.query || '')).toLowerCase();
+          const match = hay.includes(needle);
+          if (match) return true;
+          // Include the sibling so user Q + LENA A stay paired
+          const sibling = arr[i - 1] || arr[i + 1];
+          if (!sibling) return false;
+          const sibHay = (sibling.content + ' ' + (sibling.response?.query || '')).toLowerCase();
+          return sibHay.includes(needle);
+        })
+      : messages;
+
     return (
       <div className="flex flex-col h-full">
+        {/* Session search bar (shown when toggled in header) */}
+        {sessionSearchOpen && messages.length > 0 && (
+          <div className="border-b border-slate-200/70 bg-white/90 px-4 py-2 flex items-center gap-2">
+            <svg className="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+              <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+            </svg>
+            <input
+              autoFocus
+              value={sessionSearch}
+              onChange={e => setSessionSearch(e.target.value)}
+              placeholder="Search within this session…"
+              className="flex-1 bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none"
+            />
+            {sessionSearch && (
+              <span className="text-[11px] text-slate-400">
+                {visibleMessages.length}/{messages.length}
+              </span>
+            )}
+            <button
+              onClick={() => { setSessionSearchOpen(false); setSessionSearch(''); }}
+              className="text-slate-400 hover:text-slate-600 p-0.5"
+            >
+              <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </button>
+          </div>
+        )}
+
         {/* Messages area */}
         <div className="flex-1 overflow-y-auto">
           {showWelcome ? (
             <WelcomeView persona={session.persona} onPromptClick={(q) => handleSend(q)} />
           ) : (
             <div className="max-w-3xl mx-auto px-4 py-6 space-y-1">
-              {messages.map((msg) => {
+              {visibleMessages.map((msg) => {
                 const gt = msg.response?.guardrail_type;
                 if (gt === 'disclaimer_required') {
                   return <DisclaimerCard key={msg.id} onAccept={handleAcceptDisclaimer} />;
@@ -913,6 +977,24 @@ export default function Home() {
                 </div>
               );
             })()}
+
+            {/* Session search — only visible in chat view with messages */}
+            {activeView === 'chat' && messages.length > 0 && (
+              <button
+                onClick={() => { setSessionSearchOpen(o => !o); if (sessionSearchOpen) setSessionSearch(''); }}
+                title="Search within this session"
+                className={`flex items-center gap-1.5 px-2.5 py-1 border rounded-full text-[11px] font-medium transition-all ${
+                  sessionSearchOpen
+                    ? 'border-lena-300/70 bg-lena-50/60 text-lena-700'
+                    : 'border-slate-200/70 text-slate-600 hover:border-slate-300 hover:text-slate-900'
+                }`}
+              >
+                <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                </svg>
+                <span className="hidden sm:inline">Search session</span>
+              </button>
+            )}
 
             {/* Persona Selector */}
             <PersonaSelector />

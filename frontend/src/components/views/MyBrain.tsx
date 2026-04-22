@@ -2,6 +2,8 @@
 
 import { useState, useEffect, useCallback } from 'react';
 import { useSession, PersonaId } from '@/contexts/SessionContext';
+import { useAuth } from '@/contexts/AuthContext';
+import { requestPasswordReset } from '@/lib/api';
 import { product } from '@/config/branding';
 
 // Map MyBrain specialty -> top-bar PersonaSelector default.
@@ -92,9 +94,11 @@ const SPECIALTIES = [
 
 export default function MyBrain() {
   const { setPersona } = useSession();
+  const { user, isAuthenticated } = useAuth();
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [saved, setSaved] = useState(false);
   const [focusInput, setFocusInput] = useState('');
+  const [pwResetStatus, setPwResetStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
 
   useEffect(() => {
     try {
@@ -163,9 +167,85 @@ export default function MyBrain() {
     return Math.round((filled / total) * 100);
   })();
 
+  const handlePasswordReset = useCallback(async () => {
+    const email = user?.email;
+    if (!email) return;
+    setPwResetStatus('sending');
+    try {
+      await requestPasswordReset(email);
+      setPwResetStatus('sent');
+    } catch {
+      setPwResetStatus('error');
+    }
+  }, [user?.email]);
+
   return (
     <div className="flex-1 overflow-y-auto p-6">
       <div className="max-w-2xl mx-auto">
+
+        {/* ── Account Settings ──────────────────────────────────── */}
+        {isAuthenticated && user && (
+          <div className="mb-8 bg-white border border-slate-200 rounded-2xl overflow-hidden">
+            <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/60 flex items-center gap-2">
+              <svg className="w-4 h-4 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                <circle cx="12" cy="8" r="4" /><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7" />
+              </svg>
+              <h3 className="text-sm font-semibold text-slate-700">Account Settings</h3>
+            </div>
+            <div className="px-5 py-4 space-y-4">
+              {/* Email */}
+              <div>
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Email address</label>
+                <div className="flex items-center gap-2">
+                  <span className="text-sm text-slate-800 font-medium">{user.email}</span>
+                  <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">read-only</span>
+                </div>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  To change your email, contact <a href="mailto:hello@lena-app.com" className="text-lena-600 hover:underline">hello@lena-app.com</a>.
+                </p>
+              </div>
+
+              {/* Name */}
+              {user.name && (
+                <div>
+                  <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-1">Name</label>
+                  <span className="text-sm text-slate-800">{user.name}</span>
+                </div>
+              )}
+
+              {/* Password reset */}
+              <div className="pt-2 border-t border-slate-100">
+                <label className="block text-xs font-semibold text-slate-500 uppercase tracking-wide mb-2">Password</label>
+                {pwResetStatus === 'sent' ? (
+                  <div className="flex items-center gap-2 text-sm text-emerald-600">
+                    <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                    </svg>
+                    Password reset email sent to {user.email}
+                  </div>
+                ) : pwResetStatus === 'error' ? (
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-red-500">Failed to send — try again or email us.</span>
+                    <button onClick={() => setPwResetStatus('idle')} className="text-xs text-lena-600 hover:underline">Retry</button>
+                  </div>
+                ) : (
+                  <button
+                    onClick={handlePasswordReset}
+                    disabled={pwResetStatus === 'sending'}
+                    className="px-4 py-1.5 text-xs font-medium bg-lena-50 border border-lena-200 text-lena-700 rounded-lg hover:bg-lena-100 transition-colors disabled:opacity-50"
+                  >
+                    {pwResetStatus === 'sending' ? 'Sending…' : 'Send password reset email'}
+                  </button>
+                )}
+                <p className="text-[11px] text-slate-400 mt-1.5">
+                  We&apos;ll email you a secure link to set a new password.
+                </p>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* ── Research profile ───────────────────────────────────── */}
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">

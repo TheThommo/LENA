@@ -394,3 +394,16 @@ export async function assignSearchToProject(
   });
   await readJsonOrThrow(r, 'Assign search to project');
 }
+
+/**
+ * Trigger a password reset email for the given address.
+ * Maps to POST /auth/forgot-password on the backend.
+ */
+export async function requestPasswordReset(email: string): Promise<{ message: string }> {
+  const r = await fetch(`${API_BASE}/auth/forgot-password`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email }),
+  });
+  return readJsonOrThrow(r, 'Request password reset');
+}

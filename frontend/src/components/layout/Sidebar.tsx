@@ -201,6 +201,17 @@ export function Sidebar({
                 </div>
 
                 <div className="py-1.5">
+                  {/* Profile Settings */}
+                  <button
+                    onClick={() => { setMenuOpen(false); onViewChange('brain'); }}
+                    className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors group"
+                  >
+                    <SettingsIcon className="w-4 h-4 text-gray-400 group-hover:text-lena-500" />
+                    <span className="text-sm text-gray-700 group-hover:text-gray-900">Profile &amp; Settings</span>
+                  </button>
+
+                  <div className="border-t border-gray-100 my-1.5" />
+
                   {/* Share with Friends */}
                   <button
                     onClick={() => setMenuOpen(false)}
@@ -626,10 +637,13 @@ function ProjectsSection({
                 )}
               </button>
 
-              {/* Filed sessions nested under this project */}
-              {isActive && filed.length > 0 && onSearchClick && (
+              {/* Filed sessions nested under this project — always visible,
+                  not only when the project is currently active. This means
+                  added-to-project sessions appear under the folder even after
+                  the user has navigated away (fixes Lauren's "stays on side"). */}
+              {filed.length > 0 && onSearchClick && (
                 <ul className="ml-6 mt-0.5 mb-1 space-y-0.5 border-l border-gray-100 pl-2">
-                  {filed.slice(0, 8).map(sess => (
+                  {filed.slice(0, 12).map(sess => (
                     <li key={sess.id}>
                       <button
                         onClick={() => onSearchClick(sess.id, sess.firstQuery)}

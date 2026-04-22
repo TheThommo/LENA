@@ -14,6 +14,21 @@ interface SavedCitation {
   evidenceLevel?: string;
 }
 
+// Mirrors the shape written by ResearchPanel.toggleStar
+interface StarredCitation {
+  source: string;
+  title: string;
+  url: string;
+  doi: string | null;
+  year: number;
+  evidenceLevel: string;
+  query: string;
+  keywords: string[];
+  starredAt: string;
+}
+
+const LS_KEY_STARRED = 'lena_starred_citation_data';
+
 interface SavedResearch {
   id: string;
   date: string;
@@ -53,7 +68,8 @@ const LS_KEY = 'lena_saved_research';
 
 export default function MyDocuments() {
   const [documents, setDocuments] = useState<SavedResearch[]>([]);
-  const [filter, setFilter] = useState<'all' | 'favourites' | 'high' | 'recent'>('all');
+  const [starredCitations, setStarredCitations] = useState<Record<string, StarredCitation>>({});
+  const [filter, setFilter] = useState<'all' | 'favourites' | 'high' | 'recent' | 'starred'>('all');
   const [search, setSearch] = useState('');
   const [expandedId, setExpandedId] = useState<string | null>(null);
 
@@ -61,6 +77,10 @@ export default function MyDocuments() {
     try {
       const saved = JSON.parse(localStorage.getItem(LS_KEY) || '[]');
       setDocuments(saved);
+    } catch {}
+    try {
+      const stars = JSON.parse(localStorage.getItem(LS_KEY_STARRED) || '{}');
+      setStarredCitations(stars);
     } catch {}
   }, []);
 
@@ -105,6 +125,30 @@ export default function MyDocuments() {
     c >= 80 ? 'text-emerald-600' : c >= 60 ? 'text-amber-600' : 'text-red-500';
 
   const favCount = documents.filter(d => d.is_favourite).length;
+  const starredCount = Object.keys(starredCitations).length;
+
+  // For the 'starred' tab, build a sorted list from the starred data object
+  const starredList = useMemo(
+    () => Object.values(starredCitations).sort((a, b) =>
+      new Date(b.starredAt).getTime() - new Date(a.starredAt).getTime()
+    ),
+    [starredCitations],
+  );
+
+  // Unstar handler: mirrors ResearchPanel toggleStar
+  const unstar = useCallback((key: string) => {
+    setStarredCitations(prev => {
+      const next = { ...prev };
+      delete next[key];
+      try {
+        localStorage.setItem(LS_KEY_STARRED, JSON.stringify(next));
+        // Also remove from the keys array used by ResearchPanel
+        const keys: string[] = JSON.parse(localStorage.getItem('lena_starred_citations') || '[]');
+        localStorage.setItem('lena_starred_citations', JSON.stringify(keys.filter(k => k !== key)));
+      } catch {}
+      return next;
+    });
+  }, []);
 
   return (
     <div className="flex-1 overflow-y-auto p-6">
@@ -112,11 +156,12 @@ export default function MyDocuments() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 mb-4">
           <div>
             <h2 className="text-xl font-bold text-slate-900 mb-1">My Documents</h2>
-            <p className="text-sm text-slate-500">Saved research sessions and evidence briefs</p>
+            <p className="text-sm text-slate-500">Saved research sessions, evidence briefs and starred citations</p>
           </div>
-          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5 self-start sm:self-auto">
+          <div className="flex items-center gap-1 bg-slate-100 rounded-lg p-0.5 self-start sm:self-auto flex-wrap">
             {[
               { key: 'all' as const, label: 'All' },
+              { key: 'starred' as const, label: `Starred${starredCount > 0 ? ` (${starredCount})` : ''}` },
               { key: 'favourites' as const, label: `Favourites${favCount > 0 ? ` (${favCount})` : ''}` },
               { key: 'high' as const, label: 'High Evidence' },
               { key: 'recent' as const, label: 'This Week' },
@@ -160,7 +205,91 @@ export default function MyDocuments() {
           )}
         </div>
 
-        {filteredDocs.length === 0 ? (
+        {/* ── Starred Citations tab ───────────────────────────────── */}
+        {filter === 'starred' && (
+          starredList.length === 0 ? (
+            <div className="text-center py-16">
+              <div
+                className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
+                style={{ background: 'linear-gradient(135deg, rgba(251,191,36,0.15), rgba(245,158,11,0.08))' }}
+              >
+                <svg className="w-8 h-8 text-amber-400" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={1.5}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                </svg>
+              </div>
+              <p className="text-sm font-medium text-slate-700 mb-1">No starred citations yet</p>
+              <p className="text-xs text-slate-400 max-w-sm mx-auto leading-relaxed">
+                Open the Research Panel, go to References, and tap the ★ next to any citation to save it here.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              <p className="text-[11px] uppercase tracking-wider text-slate-400 font-semibold mb-3">
+                {starredList.length} starred citation{starredList.length !== 1 ? 's' : ''}
+              </p>
+              {starredList.map((c) => {
+                const key = `${c.source}::${c.title}`;
+                return (
+                  <div
+                    key={key}
+                    className="bg-white border border-amber-200 bg-amber-50/20 rounded-xl p-3.5 group"
+                  >
+                    <div className="flex items-start justify-between gap-2">
+                      <div className="flex-1 min-w-0">
+                        {c.url ? (
+                          <a
+                            href={c.url}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-sm font-medium text-slate-800 hover:text-lena-600 transition-colors line-clamp-2"
+                          >
+                            {c.title}
+                          </a>
+                        ) : (
+                          <p className="text-sm font-medium text-slate-800 line-clamp-2">{c.title}</p>
+                        )}
+                        <div className="flex items-center gap-2 flex-wrap mt-1.5">
+                          <span className="text-[10px] font-semibold bg-slate-100 text-slate-600 px-1.5 py-0.5 rounded">
+                            {SOURCE_LABEL[c.source] || c.source}
+                          </span>
+                          {c.year > 0 && (
+                            <span className="text-[10px] text-slate-400 tabular-nums">{c.year}</span>
+                          )}
+                          {c.evidenceLevel && (
+                            <span className="text-[10px] font-semibold bg-slate-100 text-slate-500 px-1.5 py-0.5 rounded">
+                              Level {c.evidenceLevel}
+                            </span>
+                          )}
+                          {c.query && (
+                            <span className="text-[10px] text-slate-400 italic truncate max-w-[200px]">
+                              from: {c.query}
+                            </span>
+                          )}
+                        </div>
+                        {c.doi && (
+                          <p className="text-[10px] text-slate-400 font-mono mt-1 truncate">{c.doi}</p>
+                        )}
+                      </div>
+                      <button
+                        onClick={() => unstar(key)}
+                        className="p-1.5 text-amber-400 hover:text-slate-400 transition-colors rounded-md hover:bg-slate-100 flex-shrink-0"
+                        title="Remove star"
+                        aria-label="Remove star"
+                      >
+                        <svg className="w-4 h-4" viewBox="0 0 24 24" fill="currentColor" stroke="currentColor" strokeWidth={1.5}>
+                          <path strokeLinecap="round" strokeLinejoin="round" d="M11.049 2.927c.3-.921 1.603-.921 1.902 0l1.519 4.674a1 1 0 00.95.69h4.915c.969 0 1.371 1.24.588 1.81l-3.976 2.888a1 1 0 00-.363 1.118l1.518 4.674c.3.922-.755 1.688-1.538 1.118l-3.976-2.888a1 1 0 00-1.176 0l-3.976 2.888c-.783.57-1.838-.197-1.538-1.118l1.518-4.674a1 1 0 00-.363-1.118l-3.976-2.888c-.784-.57-.38-1.81.588-1.81h4.914a1 1 0 00.951-.69l1.519-4.674z" />
+                        </svg>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          )
+        )}
+
+        {/* ── Documents tabs (all / favourites / high / recent) ─── */}
+        {filter !== 'starred' && filteredDocs.length === 0 ? (
           <div className="text-center py-16">
             <div
               className="w-16 h-16 rounded-2xl flex items-center justify-center mx-auto mb-4"
@@ -177,7 +306,7 @@ export default function MyDocuments() {
               When you find valuable research, use the &quot;Save to Documents&quot; button in the Research Panel to store it here for future reference.
             </p>
           </div>
-        ) : (
+        ) : filter !== 'starred' ? (
           <div className="space-y-3">
             {filteredDocs.map((doc) => {
               const isOpen = expandedId === doc.id;
@@ -311,7 +440,7 @@ export default function MyDocuments() {
               );
             })}
           </div>
-        )}
+        ) : null}
 
         <div className="mt-8 bg-slate-50 rounded-xl p-4 border border-slate-100">
           <p className="text-xs text-slate-500 leading-relaxed">
