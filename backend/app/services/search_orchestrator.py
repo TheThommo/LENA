@@ -759,8 +759,24 @@ async def run_search(
     if _is_supplement_query and subjects:
         try:
             from app.services.supplement_verifier import verify_supplement
-            # Use the first (most specific) subject term for verification
-            sv = await verify_supplement(name=subjects[0], include_clinical=False)
+            # Split query into supplement name vs brand. Subject terms are the
+            # longest non-stopword tokens; supplement keywords (vitamin, magnesium)
+            # are the NAME, everything else that isn't a stopword is a likely BRAND.
+            # "Nature Made Vitamin D 5000IU" → name="vitamin", brand="Nature Made"
+            import re as _re
+            _all_tokens = _re.findall(r"[A-Za-z][A-Za-z0-9'-]{2,}", query)
+            _supp_name_parts = [t for t in subjects if t.lower() in _SUPPLEMENTS_KEYWORDS or t.lower() in _HERBAL_KEYWORDS]
+            _brand_parts = [
+                t for t in _all_tokens
+                if t.lower() not in _RELEVANCE_STOPWORDS
+                and t.lower() not in _SUPPLEMENTS_KEYWORDS
+                and t.lower() not in _HERBAL_KEYWORDS
+                and t.lower() not in {"supplement", "supplements", "brand", "product", "review", "best"}
+                and len(t) >= 3
+            ]
+            supp_name = " ".join(_supp_name_parts) if _supp_name_parts else subjects[0]
+            supp_brand = " ".join(_brand_parts[:3]) if _brand_parts else None
+            sv = await verify_supplement(name=supp_name, brand=supp_brand, include_clinical=False)
             # Clinical evidence already counted from this search's results
             sv.clinical_evidence_count = len(
                 [r for r in pulse_report.validated_results

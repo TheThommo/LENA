@@ -209,12 +209,20 @@ async def verify_supplement(
     search_term = f"{brand} {name}".strip() if brand else name
     v = SupplementVerification(supplement_name=name, brand=brand)
 
-    # Launch all checks in parallel
+    # Launch all checks in parallel.
+    # DSLD: search both brand+name AND name-only so generic registrations
+    # aren't missed when user specifies a brand. Recalls + adverse events
+    # also searched by name-only as a fallback (brand may differ from firm).
     tasks = {
         "dsld": ods_dsld.search_dsld(search_term, max_results=10),
         "recalls": search_recalls(search_term, max_results=30),
         "adverse_counts": count_adverse_events(search_term),
     }
+    # Parallel name-only searches when brand is specified
+    if brand:
+        tasks["dsld_generic"] = ods_dsld.search_dsld(name, max_results=5)
+        tasks["recalls_generic"] = search_recalls(name, max_results=15)
+        tasks["adverse_counts_generic"] = count_adverse_events(name)
 
     # Clinical evidence: quick PubMed + Cochrane count
     if include_clinical:
@@ -227,56 +235,74 @@ async def verify_supplement(
     results = await asyncio.gather(*task_coros, return_exceptions=True)
     task_results = dict(zip(task_names, results))
 
-    # Process DSLD results
+    # Process DSLD results — merge brand-specific + generic (dedupe by ID)
     dsld_products = task_results.get("dsld")
-    if isinstance(dsld_products, list):
-        v.dsld_registered = len(dsld_products) > 0
-        v.dsld_products_found = len(dsld_products)
-        v.dsld_sample_products = [
-            {"name": p.title, "brand": p.brand, "url": p.url}
-            for p in dsld_products[:5]
-        ]
-    elif isinstance(dsld_products, Exception):
-        logger.warning(f"DSLD check failed: {dsld_products}")
+    dsld_generic = task_results.get("dsld_generic")
+    all_dsld = []
+    seen_ids: set = set()
+    for batch in [dsld_products, dsld_generic]:
+        if isinstance(batch, list):
+            for p in batch:
+                pid = getattr(p, "dsld_id", None) or getattr(p, "title", "")
+                if pid not in seen_ids:
+                    seen_ids.add(pid)
+                    all_dsld.append(p)
+        elif isinstance(batch, Exception):
+            logger.warning(f"DSLD check failed: {batch}")
+    v.dsld_registered = len(all_dsld) > 0
+    v.dsld_products_found = len(all_dsld)
+    v.dsld_sample_products = [
+        {"name": p.title, "brand": p.brand, "url": p.url}
+        for p in all_dsld[:5]
+    ]
 
-    # Process FDA recalls
-    recalls = task_results.get("recalls")
-    if isinstance(recalls, list):
-        v.recall_count = len(recalls)
-        for r in recalls:
-            if isinstance(r, FDARecall):
-                sev = r.severity
-                if sev == "critical":
-                    v.class_i_recalls += 1
-                elif sev == "moderate":
-                    v.class_ii_recalls += 1
-                elif sev == "low":
-                    v.class_iii_recalls += 1
-        v.recent_recalls = [
-            {
-                "recall_number": r.recall_number,
-                "product": r.product_description[:200],
-                "reason": r.reason_for_recall[:300],
-                "classification": r.classification,
-                "severity": r.severity,
-                "firm": r.recalling_firm,
-                "date": r.recall_date,
-                "status": r.status,
-            }
-            for r in recalls[:5]
-        ]
-    elif isinstance(recalls, Exception):
-        logger.warning(f"FDA recall check failed: {recalls}")
+    # Process FDA recalls — merge brand-specific + generic (dedupe by recall_number)
+    all_recalls: list[FDARecall] = []
+    seen_recall_nums: set = set()
+    for key in ["recalls", "recalls_generic"]:
+        batch = task_results.get(key)
+        if isinstance(batch, list):
+            for r in batch:
+                if isinstance(r, FDARecall) and r.recall_number not in seen_recall_nums:
+                    seen_recall_nums.add(r.recall_number)
+                    all_recalls.append(r)
+        elif isinstance(batch, Exception):
+            logger.warning(f"FDA recall check failed ({key}): {batch}")
 
-    # Process adverse event counts
-    ae_counts = task_results.get("adverse_counts")
-    if isinstance(ae_counts, dict):
-        v.adverse_event_total = ae_counts.get("total", 0)
-        v.adverse_deaths = ae_counts.get("deaths", 0)
-        v.adverse_hospitalizations = ae_counts.get("hospitalizations", 0)
-        v.adverse_serious = ae_counts.get("serious", 0)
-    elif isinstance(ae_counts, Exception):
-        logger.warning(f"Adverse event count failed: {ae_counts}")
+    v.recall_count = len(all_recalls)
+    for r in all_recalls:
+        sev = r.severity
+        if sev == "critical":
+            v.class_i_recalls += 1
+        elif sev == "moderate":
+            v.class_ii_recalls += 1
+        elif sev == "low":
+            v.class_iii_recalls += 1
+    v.recent_recalls = [
+        {
+            "recall_number": r.recall_number,
+            "product": r.product_description[:200],
+            "reason": r.reason_for_recall[:300],
+            "classification": r.classification,
+            "severity": r.severity,
+            "firm": r.recalling_firm,
+            "date": r.recall_date,
+            "status": r.status,
+        }
+        for r in all_recalls[:5]
+    ]
+
+    # Process adverse event counts — take max across brand + generic searches
+    # (brand-specific may undercount if the brand name differs from what's in CAERS)
+    for key in ["adverse_counts", "adverse_counts_generic"]:
+        ae_counts = task_results.get(key)
+        if isinstance(ae_counts, dict):
+            v.adverse_event_total = max(v.adverse_event_total, ae_counts.get("total", 0))
+            v.adverse_deaths = max(v.adverse_deaths, ae_counts.get("deaths", 0))
+            v.adverse_hospitalizations = max(v.adverse_hospitalizations, ae_counts.get("hospitalizations", 0))
+            v.adverse_serious = max(v.adverse_serious, ae_counts.get("serious", 0))
+        elif isinstance(ae_counts, Exception):
+            logger.warning(f"Adverse event count failed ({key}): {ae_counts}")
 
     # Process clinical evidence
     pubmed_ids = task_results.get("pubmed")
