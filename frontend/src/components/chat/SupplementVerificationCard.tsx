@@ -155,6 +155,11 @@ export default function SupplementVerificationCard({ verification: v }: Suppleme
           {v.clinical_evidence.papers_found} papers
           {v.clinical_evidence.cochrane_reviews > 0 && ` (${v.clinical_evidence.cochrane_reviews} Cochrane)`}
         </span>
+        {v.market_presence && v.market_presence.iherb_products_found > 0 && (
+          <span className="flex items-center gap-1 text-slate-600">
+            {v.market_presence.iherb_avg_rating >= 4.0 ? '★' : '☆'} {v.market_presence.iherb_avg_rating.toFixed(1)} iHerb ({v.market_presence.iherb_total_reviews} reviews)
+          </span>
+        )}
       </div>
 
       {/* Expanded detail */}
@@ -275,6 +280,62 @@ export default function SupplementVerificationCard({ verification: v }: Suppleme
                   <p className="text-[10px] text-slate-500">Deaths</p>
                 </div>
               </div>
+            </div>
+          )}
+
+          {/* Market Presence — iHerb brand data */}
+          {v.market_presence && v.market_presence.iherb_products_found > 0 && (
+            <div>
+              <h4 className="text-xs font-bold text-slate-700 uppercase tracking-wider mb-2">
+                Market Presence — iHerb
+              </h4>
+              <div className="grid grid-cols-3 gap-2 mb-2">
+                <div className="text-center">
+                  <p className="text-lg font-bold text-slate-800">{v.market_presence.iherb_products_found}</p>
+                  <p className="text-[10px] text-slate-500">Products</p>
+                </div>
+                <div className="text-center">
+                  <p className={`text-lg font-bold ${v.market_presence.iherb_avg_rating >= 4.0 ? 'text-emerald-600' : v.market_presence.iherb_avg_rating >= 3.0 ? 'text-amber-600' : 'text-red-600'}`}>
+                    {v.market_presence.iherb_avg_rating > 0 ? `${v.market_presence.iherb_avg_rating}★` : '—'}
+                  </p>
+                  <p className="text-[10px] text-slate-500">Avg Rating</p>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-slate-800">
+                    {v.market_presence.iherb_total_reviews > 1000
+                      ? `${(v.market_presence.iherb_total_reviews / 1000).toFixed(1)}k`
+                      : v.market_presence.iherb_total_reviews}
+                  </p>
+                  <p className="text-[10px] text-slate-500">Reviews</p>
+                </div>
+              </div>
+              {v.market_presence.iherb_top_products.length > 0 && (
+                <div className="space-y-1">
+                  {v.market_presence.iherb_top_products.map((p, i) => (
+                    <a
+                      key={i}
+                      href={p.url || v.market_presence!.iherb_brand_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center justify-between text-xs text-slate-600 hover:text-lena-600 transition-colors"
+                    >
+                      <span className="truncate font-medium">{p.name}</span>
+                      <span className="flex-shrink-0 ml-2 text-slate-400">
+                        {p.rating > 0 && `${p.rating}★`}
+                        {p.review_count > 0 && ` · ${p.review_count} reviews`}
+                      </span>
+                    </a>
+                  ))}
+                </div>
+              )}
+              <a
+                href={v.market_presence.iherb_brand_url}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="inline-block mt-1.5 text-[10px] text-lena-600 hover:text-lena-700 font-medium"
+              >
+                View on iHerb →
+              </a>
             </div>
           )}
 

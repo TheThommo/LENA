@@ -473,18 +473,38 @@ _RELEVANCE_STOPWORDS: set[str] = {
     "younger", "elderly", "aged", "treatment", "treatments", "therapy",
     "therapies", "condition", "conditions", "disease", "diseases",
     "related", "associated", "use", "uses", "using", "used",
+    # Brand-credibility / supplement-verification filler — queries like
+    # "is Nutricost a credible brand" should NOT send "credible" or "brand"
+    # to PubMed; those words match nothing useful in academic databases.
+    "credible", "credibility", "legitimate", "legit", "trustworthy", "safe",
+    "safety", "quality", "brand", "brands", "company", "companies",
+    "reputation", "genuine", "authentic", "fake", "counterfeit", "scam",
+    "reliable", "real", "recommend", "recommended", "worth", "worthwhile",
+    "trusted", "certified", "certification", "verified", "verification",
+    "tested", "testing", "approved", "pure", "purity", "potency", "potent",
+    "effective", "effectiveness", "bogus", "fraudulent", "recall", "recalled",
+    "money", "price", "cheap", "expensive", "affordable", "budget",
+    "work", "works", "working", "product", "products", "pill", "pills",
+    "capsule", "capsules", "tablet", "tablets", "powder", "liquid",
+    "take", "taking", "dose", "dosage", "daily", "compare", "comparison",
+    "actually", "really", "truly", "still", "ever", "never", "always",
+    "help", "helps", "helping", "cause", "causes", "prevent", "prevents",
+    "know", "think", "believe", "guess", "wonder", "worry",
 }
 
 
-def _subject_terms(query: str, max_terms: int = 3, min_len: int = 4) -> list[str]:
+def _subject_terms(query: str, max_terms: int = 4, min_len: int = 4) -> list[str]:
     """Pull distinctive subject tokens out of the user's query.
 
-    Picks the N longest non-stopword tokens of at least `min_len` chars.
-    Length is a cheap proxy for specificity ("magnesium" > "benefits" >
-    "male"). Returns empty list when nothing distinctive exists so the
-    filter becomes a no-op rather than a hard block.
+    Known supplement/herbal/alternative keywords are prioritized so that
+    brand names ("Nutricost", "Solgar") don't crowd them out of the
+    max_terms window.  Within each tier, longer tokens win (length is a
+    cheap proxy for specificity).  Returns empty list when nothing
+    distinctive exists so the filter becomes a no-op rather than a hard
+    block.
     """
     import re
+    _academic = _SUPPLEMENTS_KEYWORDS | _HERBAL_KEYWORDS | _ALTERNATIVES_KEYWORDS
     tokens = re.findall(r"[a-z][a-z0-9-]{2,}", query.lower())
     candidates = [
         t for t in tokens
@@ -498,7 +518,8 @@ def _subject_terms(query: str, max_terms: int = 3, min_len: int = 4) -> list[str
             continue
         seen.add(t)
         ordered.append(t)
-    ordered.sort(key=len, reverse=True)
+    # Sort: academic (supplement/herbal) terms first, then by length desc
+    ordered.sort(key=lambda t: (0 if t in _academic else 1, -len(t)))
     return ordered[:max_terms]
 
 
@@ -688,7 +709,17 @@ async def run_search(
     # hits on PubMed. Send the distinctive subject tokens instead so we
     # get broad recall; the relevance filter below then trims noise.
     subjects = _subject_terms(query)
-    source_query = " ".join(subjects) if subjects else query
+
+    # Separate subject terms into "academic" (supplement/herbal keywords
+    # that PubMed would recognise) and "brand-like" (everything else —
+    # e.g. "nutricost"). Brand names AND-concat with academic terms and
+    # cause zero hits on academic databases. We keep them in `subjects`
+    # for the relevance filter (which uses OR logic), but exclude them
+    # from the source query.
+    _academic_vocab = _SUPPLEMENTS_KEYWORDS | _HERBAL_KEYWORDS | _ALTERNATIVES_KEYWORDS
+    academic_terms = [t for t in subjects if t.lower() in _academic_vocab]
+    brand_terms = [t for t in subjects if t.lower() not in _academic_vocab]
+    source_query = " ".join(academic_terms or subjects) if subjects else query
     if source_query != query:
         logger.info("Source query rewritten: %r -> %r", query, source_query)
     raw_results_by_source, errors = await search_all_sources(

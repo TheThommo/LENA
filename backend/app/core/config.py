@@ -85,12 +85,16 @@ class Settings(BaseSettings):
     billing_success_url: str = "https://lena-app.up.railway.app/?billing=success"
     billing_cancel_url: str = "https://lena-app.up.railway.app/?billing=cancelled"
 
+    # RapidAPI (iHerb product data, etc.)
+    rapidapi_key: Optional[str] = None
+
     # Rate limiting
     rate_limit_per_minute: int = 60
 
     @field_validator(
         "openai_api_key", "supabase_url", "supabase_anon_key",
         "supabase_service_role_key", "ncbi_api_key", "ncbi_email", "resend_api_key",
+        "rapidapi_key",
         "stripe_secret_key", "stripe_publishable_key", "stripe_webhook_secret",
         "stripe_price_pro_monthly", "stripe_price_pro_annual", "stripe_price_pro_founding",
         mode="before",

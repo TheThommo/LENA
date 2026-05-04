@@ -110,6 +110,20 @@ export interface SupplementVerification {
     papers_found: number;
     cochrane_reviews: number;
   };
+  market_presence?: {
+    iherb_products_found: number;
+    iherb_avg_rating: number;
+    iherb_total_reviews: number;
+    iherb_brand_url: string;
+    iherb_top_products: {
+      name: string;
+      brand: string;
+      rating: number;
+      review_count: number;
+      price: string | null;
+      url: string;
+    }[];
+  } | null;
   verification_time_ms: number;
 }
 

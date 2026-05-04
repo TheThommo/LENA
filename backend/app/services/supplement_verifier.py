@@ -5,11 +5,12 @@ Orchestrates parallel checks against FDA, DSLD, PubMed and openFDA to
 produce a "Supplement Trust Score" plus a structured verification report.
 
 Trust Score formula (0-100):
-  +20  DSLD registered — product exists in NIH label database
-  +25  No FDA recalls — clean enforcement history
-  +20  Low adverse events — few/no CAERS reports relative to market
-  +25  Clinical evidence — PubMed/Cochrane papers on the ingredient
+  +15  DSLD registered — product exists in NIH label database
+  +20  No FDA recalls — clean enforcement history
+  +15  Low adverse events — few/no CAERS reports relative to market
+  +20  Clinical evidence — PubMed/Cochrane papers on the ingredient
   +10  No Class I recalls — no "dangerous" enforcement action
+  +20  Market presence — iHerb ratings, review volume, availability
 
 Score buckets:
   85-100  VERIFIED — strong multi-source backing
@@ -24,7 +25,7 @@ from dataclasses import dataclass, field
 from typing import Optional
 
 from app.core.logging import get_logger
-from app.services import ods_dsld, openfda
+from app.services import ods_dsld, openfda, iherb
 from app.services.openfda_enforcement import search_recalls, count_adverse_events, FDARecall
 
 logger = get_logger("lena.supplement_verifier")
@@ -64,6 +65,12 @@ class SupplementVerification:
     clinical_evidence_count: int = 0
     cochrane_reviews: int = 0
 
+    # iHerb marketplace data
+    iherb_brand_summary: dict = field(default_factory=dict)
+    iherb_products_found: int = 0
+    iherb_avg_rating: float = 0.0
+    iherb_total_reviews: int = 0
+
     # Timing
     verification_time_ms: float = 0
 
@@ -96,70 +103,86 @@ class SupplementVerification:
                 "papers_found": self.clinical_evidence_count,
                 "cochrane_reviews": self.cochrane_reviews,
             },
+            "market_presence": {
+                "iherb_products_found": self.iherb_products_found,
+                "iherb_avg_rating": round(self.iherb_avg_rating, 1),
+                "iherb_total_reviews": self.iherb_total_reviews,
+                "iherb_brand_url": self.iherb_brand_summary.get("brand_url", ""),
+                "iherb_top_products": self.iherb_brand_summary.get("top_products", []),
+            } if self.iherb_products_found > 0 else None,
             "verification_time_ms": self.verification_time_ms,
         }
 
 
 def _compute_trust_score(v: SupplementVerification) -> tuple[int, str, dict]:
-    """Compute composite trust score from multi-source signals."""
+    """Compute composite trust score from multi-source signals.
+
+    Weights (total 100):
+      DSLD registered        +15
+      No FDA recalls         +20
+      Low adverse events     +15
+      Clinical evidence      +20
+      No Class I recalls     +10
+      Market presence (iHerb)+20
+    """
     score = 0
     breakdown: dict = {}
 
-    # 1. DSLD registration (+20)
+    # 1. DSLD registration (+15)
     if v.dsld_registered:
-        dsld_score = 20
-        breakdown["dsld_registered"] = {"points": 20, "status": "pass", "detail": f"{v.dsld_products_found} products in NIH database"}
+        dsld_score = 15
+        breakdown["dsld_registered"] = {"points": 15, "status": "pass", "detail": f"{v.dsld_products_found} products in NIH database"}
     else:
         dsld_score = 0
         breakdown["dsld_registered"] = {"points": 0, "status": "fail", "detail": "Not found in NIH Dietary Supplement Label Database"}
     score += dsld_score
 
-    # 2. No FDA recalls (+25)
+    # 2. No FDA recalls (+20)
     if v.recall_count == 0:
-        recall_score = 25
-        breakdown["fda_recalls"] = {"points": 25, "status": "pass", "detail": "No FDA recalls found"}
+        recall_score = 20
+        breakdown["fda_recalls"] = {"points": 20, "status": "pass", "detail": "No FDA recalls found"}
     elif v.class_i_recalls > 0:
         recall_score = 0
         breakdown["fda_recalls"] = {"points": 0, "status": "critical", "detail": f"{v.class_i_recalls} Class I (dangerous) recall(s)"}
     elif v.class_ii_recalls > 0:
-        recall_score = 10
-        breakdown["fda_recalls"] = {"points": 10, "status": "warning", "detail": f"{v.class_ii_recalls} Class II recall(s)"}
+        recall_score = 8
+        breakdown["fda_recalls"] = {"points": 8, "status": "warning", "detail": f"{v.class_ii_recalls} Class II recall(s)"}
     else:
-        recall_score = 20
-        breakdown["fda_recalls"] = {"points": 20, "status": "minor", "detail": f"{v.class_iii_recalls} Class III (low-risk) recall(s) only"}
+        recall_score = 15
+        breakdown["fda_recalls"] = {"points": 15, "status": "minor", "detail": f"{v.class_iii_recalls} Class III (low-risk) recall(s) only"}
     score += recall_score
 
-    # 3. Low adverse events (+20)
+    # 3. Low adverse events (+15)
     if v.adverse_event_total == 0:
-        ae_score = 20
-        breakdown["adverse_events"] = {"points": 20, "status": "pass", "detail": "No adverse events reported"}
+        ae_score = 15
+        breakdown["adverse_events"] = {"points": 15, "status": "pass", "detail": "No adverse events reported"}
     elif v.adverse_deaths > 0:
         ae_score = 0
         breakdown["adverse_events"] = {"points": 0, "status": "critical", "detail": f"{v.adverse_deaths} death(s) reported in FDA CAERS"}
     elif v.adverse_serious > 5:
-        ae_score = 5
-        breakdown["adverse_events"] = {"points": 5, "status": "warning", "detail": f"{v.adverse_serious} serious events, {v.adverse_event_total} total reports"}
+        ae_score = 3
+        breakdown["adverse_events"] = {"points": 3, "status": "warning", "detail": f"{v.adverse_serious} serious events, {v.adverse_event_total} total reports"}
     elif v.adverse_event_total > 20:
-        ae_score = 10
-        breakdown["adverse_events"] = {"points": 10, "status": "caution", "detail": f"{v.adverse_event_total} total adverse event reports"}
+        ae_score = 7
+        breakdown["adverse_events"] = {"points": 7, "status": "caution", "detail": f"{v.adverse_event_total} total adverse event reports"}
     else:
-        ae_score = 15
-        breakdown["adverse_events"] = {"points": 15, "status": "low", "detail": f"{v.adverse_event_total} reports (within normal range)"}
+        ae_score = 12
+        breakdown["adverse_events"] = {"points": 12, "status": "low", "detail": f"{v.adverse_event_total} reports (within normal range)"}
     score += ae_score
 
-    # 4. Clinical evidence (+25)
+    # 4. Clinical evidence (+20)
     if v.cochrane_reviews > 0:
-        ev_score = 25
-        breakdown["clinical_evidence"] = {"points": 25, "status": "strong", "detail": f"{v.cochrane_reviews} Cochrane review(s) + {v.clinical_evidence_count} papers"}
-    elif v.clinical_evidence_count >= 10:
         ev_score = 20
-        breakdown["clinical_evidence"] = {"points": 20, "status": "good", "detail": f"{v.clinical_evidence_count} peer-reviewed papers found"}
+        breakdown["clinical_evidence"] = {"points": 20, "status": "strong", "detail": f"{v.cochrane_reviews} Cochrane review(s) + {v.clinical_evidence_count} papers"}
+    elif v.clinical_evidence_count >= 10:
+        ev_score = 17
+        breakdown["clinical_evidence"] = {"points": 17, "status": "good", "detail": f"{v.clinical_evidence_count} peer-reviewed papers found"}
     elif v.clinical_evidence_count >= 3:
-        ev_score = 15
-        breakdown["clinical_evidence"] = {"points": 15, "status": "moderate", "detail": f"{v.clinical_evidence_count} papers found"}
+        ev_score = 12
+        breakdown["clinical_evidence"] = {"points": 12, "status": "moderate", "detail": f"{v.clinical_evidence_count} papers found"}
     elif v.clinical_evidence_count >= 1:
-        ev_score = 8
-        breakdown["clinical_evidence"] = {"points": 8, "status": "limited", "detail": f"Only {v.clinical_evidence_count} paper(s) found"}
+        ev_score = 6
+        breakdown["clinical_evidence"] = {"points": 6, "status": "limited", "detail": f"Only {v.clinical_evidence_count} paper(s) found"}
     else:
         ev_score = 0
         breakdown["clinical_evidence"] = {"points": 0, "status": "none", "detail": "No peer-reviewed clinical evidence found"}
@@ -173,6 +196,33 @@ def _compute_trust_score(v: SupplementVerification) -> tuple[int, str, dict]:
         safety_score = 0
         breakdown["safety_record"] = {"points": 0, "status": "critical", "detail": f"{v.class_i_recalls} dangerous recall(s) — FDA determined these posed serious health risk"}
     score += safety_score
+
+    # 6. Market presence via iHerb (+20)
+    if v.iherb_products_found > 0 and v.iherb_avg_rating >= 4.0 and v.iherb_total_reviews >= 100:
+        market_score = 20
+        breakdown["market_presence"] = {
+            "points": 20, "status": "strong",
+            "detail": f"{v.iherb_products_found} products on iHerb, {v.iherb_avg_rating:.1f} avg rating, {v.iherb_total_reviews:,} reviews",
+        }
+    elif v.iherb_products_found > 0 and v.iherb_avg_rating >= 3.5:
+        market_score = 15
+        breakdown["market_presence"] = {
+            "points": 15, "status": "good",
+            "detail": f"{v.iherb_products_found} products on iHerb, {v.iherb_avg_rating:.1f} avg rating",
+        }
+    elif v.iherb_products_found > 0:
+        market_score = 10
+        breakdown["market_presence"] = {
+            "points": 10, "status": "limited",
+            "detail": f"{v.iherb_products_found} products on iHerb, {v.iherb_total_reviews} reviews",
+        }
+    else:
+        market_score = 0
+        breakdown["market_presence"] = {
+            "points": 0, "status": "none",
+            "detail": "Not found on iHerb marketplace (may still be sold elsewhere)",
+        }
+    score += market_score
 
     # Determine trust level
     if score >= 85:
@@ -229,6 +279,12 @@ async def verify_supplement(
         from app.services import pubmed, cochrane
         tasks["pubmed"] = pubmed.search_pubmed(name, max_results=20)
         tasks["cochrane"] = cochrane.search_cochrane(name, max_results=5)
+
+    # iHerb marketplace data for brand verification
+    tasks["iherb"] = iherb.get_brand_summary(
+        brand=brand or name,
+        supplement_name=name if brand else None,
+    )
 
     task_names = list(tasks.keys())
     task_coros = list(tasks.values())
@@ -318,6 +374,16 @@ async def verify_supplement(
     elif isinstance(cochrane_ids, Exception):
         logger.warning(f"Cochrane check failed: {cochrane_ids}")
 
+    # Process iHerb marketplace data
+    iherb_result = task_results.get("iherb")
+    if isinstance(iherb_result, iherb.IHerbBrandSummary):
+        v.iherb_brand_summary = iherb_result.to_dict()
+        v.iherb_products_found = iherb_result.products_found
+        v.iherb_avg_rating = iherb_result.avg_rating
+        v.iherb_total_reviews = iherb_result.total_reviews
+    elif isinstance(iherb_result, Exception):
+        logger.warning(f"iHerb check failed: {iherb_result}")
+
     # Compute trust score
     v.trust_score, v.trust_level, v.trust_breakdown = _compute_trust_score(v)
     v.verification_time_ms = (time.time() - start) * 1000
@@ -325,7 +391,7 @@ async def verify_supplement(
     logger.info(
         f"Supplement verification: '{name}' score={v.trust_score} level={v.trust_level} "
         f"dsld={v.dsld_products_found} recalls={v.recall_count} ae={v.adverse_event_total} "
-        f"evidence={v.clinical_evidence_count} in {v.verification_time_ms:.0f}ms"
+        f"evidence={v.clinical_evidence_count} iherb={v.iherb_products_found} in {v.verification_time_ms:.0f}ms"
     )
 
     return v
