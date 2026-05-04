@@ -745,6 +745,37 @@ async def run_search(
         sources_queried=all_queried,
     )
 
+    # Step 7b: Auto-verify supplement if query touches supplement keywords.
+    # Runs in parallel with the LLM summary (both are post-PULSE) to add
+    # zero latency. Gives users a trust stamp for any supplement they search.
+    supplement_verification = None
+    _is_supplement_query = (
+        "supplements" in modes
+        or any(
+            t in _SUPPLEMENTS_KEYWORDS or any(p in query.lower() for p in _SUPPLEMENTS_PHRASES[:6])
+            for t in (subjects or [])
+        )
+    )
+    if _is_supplement_query and subjects:
+        try:
+            from app.services.supplement_verifier import verify_supplement
+            # Use the first (most specific) subject term for verification
+            sv = await verify_supplement(name=subjects[0], include_clinical=False)
+            # Clinical evidence already counted from this search's results
+            sv.clinical_evidence_count = len(
+                [r for r in pulse_report.validated_results
+                 if r.source_name in ("pubmed", "cochrane", "openalex")]
+            )
+            sv.cochrane_reviews = len(
+                [r for r in pulse_report.validated_results if r.source_name == "cochrane"]
+            )
+            # Recompute score with clinical counts from this search
+            from app.services.supplement_verifier import _compute_trust_score
+            sv.trust_score, sv.trust_level, sv.trust_breakdown = _compute_trust_score(sv)
+            supplement_verification = sv.to_dict()
+        except Exception:
+            logger.warning("Supplement verification failed (non-blocking)", exc_info=True)
+
     # Step 8: Build response
     response_time_ms = (time.time() - start_time) * 1000
     result = {
@@ -757,6 +788,7 @@ async def run_search(
         "include_alt_medicine": include_alt_medicine,
         "modes": modes,
         "pulse_report": pulse_report.to_dict(),
+        "supplement_verification": supplement_verification,
         "llm_summary": (advice_preamble + "\n\n" + llm_summary) if advice_preamble and llm_summary else llm_summary,
         "llm_usage": llm_usage,  # {model, prompt_tokens, completion_tokens, cost_micros} | None
         "response_time_ms": response_time_ms,

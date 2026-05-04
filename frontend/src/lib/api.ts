@@ -69,6 +69,50 @@ export interface PulseReport {
   edge_cases: ValidatedResult[];
 }
 
+export interface SupplementVerification {
+  supplement_name: string;
+  brand: string | null;
+  trust_score: number;
+  trust_level: 'verified' | 'caution' | 'warning' | 'alert';
+  trust_breakdown: Record<string, {
+    points: number;
+    status: string;
+    detail: string;
+  }>;
+  dsld: {
+    registered: boolean;
+    products_found: number;
+    sample_products: { name: string; brand: string; url: string }[];
+  };
+  fda_recalls: {
+    total: number;
+    class_i: number;
+    class_ii: number;
+    class_iii: number;
+    recent: {
+      recall_number: string;
+      product: string;
+      reason: string;
+      classification: string;
+      severity: string;
+      firm: string;
+      date: string | null;
+      status: string;
+    }[];
+  };
+  adverse_events: {
+    total: number;
+    deaths: number;
+    hospitalizations: number;
+    serious: number;
+  };
+  clinical_evidence: {
+    papers_found: number;
+    cochrane_reviews: number;
+  };
+  verification_time_ms: number;
+}
+
 export interface SearchResponse {
   search_id: string;
   session_id: string;
@@ -85,6 +129,7 @@ export interface SearchResponse {
   modes?: ResultMode[];
   response_time_ms: number;
   pulse_report: PulseReport;
+  supplement_verification?: SupplementVerification | null;
   llm_summary?: string | null;
 }
 
@@ -406,4 +451,19 @@ export async function requestPasswordReset(email: string): Promise<{ message: st
     body: JSON.stringify({ email }),
   });
   return readJsonOrThrow(r, 'Request password reset');
+}
+
+/**
+ * Standalone supplement verification — calls the /supplements/verify endpoint.
+ * Use this for on-demand verification (e.g. from a "Verify" button) separate
+ * from the auto-verification that happens during search.
+ */
+export async function verifySupplementStandalone(
+  name: string,
+  brand?: string,
+): Promise<SupplementVerification> {
+  const params = new URLSearchParams({ name });
+  if (brand) params.set('brand', brand);
+  const r = await fetch(`${API_BASE}/supplements/verify?${params}`);
+  return readJsonOrThrow(r, 'Verify supplement');
 }

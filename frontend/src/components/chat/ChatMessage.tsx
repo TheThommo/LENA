@@ -3,7 +3,8 @@
 import { useState, useMemo, useEffect, useRef } from 'react';
 import Image from 'next/image';
 import { branding } from '@/config/branding';
-import type { SearchResponse, ValidatedResult, ResultMode } from '@/lib/api';
+import type { SearchResponse, ValidatedResult, ResultMode, SupplementVerification } from '@/lib/api';
+import SupplementVerificationCard from './SupplementVerificationCard';
 
 /* ────────────────────────────────────────
    Lightweight Markdown → JSX renderer
@@ -883,6 +884,14 @@ export default function ChatMessage({
               </p>
             )}
             <SourceCardList allResults={filteredResults} query={response?.query || ''} />
+
+            {/* Supplement Verification Card — auto-shown when search returns
+                a supplement trust score from the verifier engine */}
+            {response?.supplement_verification && (
+              <div className="mt-3">
+                <SupplementVerificationCard verification={response.supplement_verification} />
+              </div>
+            )}
           </>
         )}
         {filteredResults.length === 0 && allResults.length > 0 && (
