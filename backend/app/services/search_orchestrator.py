@@ -490,18 +490,29 @@ _RELEVANCE_STOPWORDS: set[str] = {
     "actually", "really", "truly", "still", "ever", "never", "always",
     "help", "helps", "helping", "cause", "causes", "prevent", "prevents",
     "know", "think", "believe", "guess", "wonder", "worry",
+    # Generic medical/research verbs & descriptors — match almost every paper
+    "manage", "managing", "management", "option", "options", "approach",
+    "approaches", "strategy", "strategies", "method", "methods",
+    "latest", "current", "recent", "new", "novel", "emerging", "update",
+    "updated", "guidelines", "guideline", "guide", "recommendation",
+    "recommendations", "standard", "standards", "protocol", "protocols",
+    "overview", "comprehensive", "narrative", "systematic", "meta-analysis",
+    "diagnosis", "diagnostic", "prognosis", "prognostic", "screening",
+    "prevention", "preventive", "intervention", "interventions",
+    "role", "potential", "possible", "early", "advanced", "modern",
 }
 
 
-def _subject_terms(query: str, max_terms: int = 4, min_len: int = 4) -> list[str]:
+def _subject_terms(query: str, max_terms: int = 4, min_len: int = 3) -> list[str]:
     """Pull distinctive subject tokens out of the user's query.
 
     Known supplement/herbal/alternative keywords are prioritized so that
     brand names ("Nutricost", "Solgar") don't crowd them out of the
     max_terms window.  Within each tier, longer tokens win (length is a
-    cheap proxy for specificity).  Returns empty list when nothing
-    distinctive exists so the filter becomes a no-op rather than a hard
-    block.
+    cheap proxy for specificity).  min_len=3 keeps critical medical
+    acronyms (GBM, CKD, ALS, HIV, IBS, DVT, etc.) that would otherwise
+    be dropped.  Returns empty list when nothing distinctive exists so
+    the filter becomes a no-op rather than a hard block.
     """
     import re
     _academic = _SUPPLEMENTS_KEYWORDS | _HERBAL_KEYWORDS | _ALTERNATIVES_KEYWORDS

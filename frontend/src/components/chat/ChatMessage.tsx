@@ -509,8 +509,10 @@ export default function ChatMessage({
   const [createError, setCreateError] = useState<string | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [sharePos, setSharePos] = useState<{ top: number; right: number } | null>(null);
   const pickerRef = useRef<HTMLDivElement>(null);
   const shareRef = useRef<HTMLDivElement>(null);
+  const shareBtnRef = useRef<HTMLButtonElement>(null);
 
   // Close picker on outside click
   useEffect(() => {
@@ -527,17 +529,30 @@ export default function ChatMessage({
     return () => document.removeEventListener('mousedown', handler);
   }, [projectPickerOpen]);
 
-  // Close share menu on outside click
+  // Close share menu on outside click or scroll
   useEffect(() => {
     if (!shareOpen) return;
-    const handler = (e: MouseEvent) => {
+    const handleClick = (e: MouseEvent) => {
       if (shareRef.current && !shareRef.current.contains(e.target as Node)) {
         setShareOpen(false);
       }
     };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
+    const handleScroll = () => setShareOpen(false);
+    document.addEventListener('mousedown', handleClick);
+    window.addEventListener('scroll', handleScroll, true);
+    return () => {
+      document.removeEventListener('mousedown', handleClick);
+      window.removeEventListener('scroll', handleScroll, true);
+    };
   }, [shareOpen]);
+
+  /** Open share dropdown, computing fixed position from the triggering button. */
+  const openShare = (e: React.MouseEvent<HTMLButtonElement>) => {
+    if (shareOpen) { setShareOpen(false); return; }
+    const rect = e.currentTarget.getBoundingClientRect();
+    setSharePos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+    setShareOpen(true);
+  };
   if (type === 'user') {
     return (
       <div className="flex justify-end mb-4">
@@ -731,9 +746,10 @@ export default function ChatMessage({
 
           {/* Share - brand pill with social channel menu */}
           {response && (
-            <div className="relative" ref={shareRef}>
+            <div ref={shareRef}>
               <button
-                onClick={() => setShareOpen(!shareOpen)}
+                ref={shareBtnRef}
+                onClick={openShare}
                 className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-lena-700 bg-white border border-lena-300 hover:bg-lena-50 rounded-lg shadow-sm transition-colors"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -742,8 +758,11 @@ export default function ChatMessage({
                 Share
               </button>
 
-              {shareOpen && (
-                <div className="absolute right-0 top-full mt-1 w-56 bg-white border border-slate-200/80 rounded-lg shadow-xl shadow-slate-900/5 z-50 overflow-hidden">
+              {shareOpen && sharePos && (
+                <div
+                  className="fixed w-56 bg-white border border-slate-200/80 rounded-lg shadow-xl shadow-slate-900/5 z-[9999] overflow-hidden"
+                  style={{ top: sharePos.top, right: sharePos.right }}
+                >
                   <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-100 bg-slate-50/80 font-medium">
                     Share this research
                   </div>
@@ -916,7 +935,7 @@ export default function ChatMessage({
                   </span>
                 )}
                 <button
-                  onClick={() => setShareOpen(!shareOpen)}
+                  onClick={openShare}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-lena-700 bg-white border border-lena-300 hover:bg-lena-50 rounded-lg shadow-sm transition-colors"
                 >
                   <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24">
