@@ -1,0 +1,588 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>LENA HQ Console</title>
+<link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg-base: #0A1628;
+  --bg-surface: #0F1D33;
+  --bg-elevated: #152640;
+  --bg-hover: #1A3050;
+  --border: rgba(229,49,22,0.12);
+  --border-strong: rgba(229,49,22,0.28);
+  --text-primary: #FFFFFF;
+  --text-secondary: rgba(255,255,255,0.6);
+  --text-muted: rgba(255,255,255,0.3);
+  --hq-500: #E53116;
+  --hq-400: #FF4D2E;
+  --hq-600: #C42812;
+  --accent-green: #34D399;
+  --accent-amber: #FFB400;
+  --accent-red: #FF4D4F;
+  --sidebar-w: 220px;
+  --topbar-h: 56px;
+}
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: 'DM Sans', sans-serif; background: var(--bg-base); color: var(--text-primary); font-size: 14px; line-height: 1.5; }
+#loginOverlay { position: fixed; inset: 0; z-index: 9999; background: var(--bg-base); display: flex; align-items: center; justify-content: center; transition: opacity 0.3s; }
+#loginOverlay.hidden { opacity: 0; pointer-events: none; }
+.login-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 16px; padding: 48px 40px; width: 400px; max-width: 90vw; }
+.login-logo { width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg, var(--hq-500), var(--hq-600)); display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; font-weight: 700; font-size: 18px; }
+.login-title { text-align: center; font-size: 24px; font-weight: 700; margin-bottom: 8px; }
+.login-subtitle { text-align: center; color: var(--text-secondary); margin-bottom: 32px; }
+.form-group { margin-bottom: 16px; }
+.form-label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
+.form-input { width: 100%; padding: 10px 14px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); font-family: inherit; font-size: 14px; outline: none; }
+.form-input:focus { border-color: var(--hq-500); }
+.btn-primary { width: 100%; padding: 12px; background: var(--hq-500); color: white; border: none; border-radius: 8px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px; }
+.btn-primary:hover { background: var(--hq-400); }
+.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
+.login-error { color: var(--accent-red); font-size: 13px; text-align: center; margin-top: 12px; min-height: 20px; }
+.sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w); background: var(--bg-surface); border-right: 1px solid var(--border); z-index: 100; display: flex; flex-direction: column; }
+.sidebar-header { padding: 20px 16px; border-bottom: 1px solid var(--border); }
+.sidebar-brand { font-weight: 700; font-size: 16px; }
+.sidebar-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
+.sidebar-menu { flex: 1; padding: 12px 0; overflow-y: auto; }
+.sidebar-item { padding: 10px 16px; cursor: pointer; color: var(--text-secondary); font-size: 13px; font-weight: 500; border-left: 3px solid transparent; transition: all 0.15s; }
+.sidebar-item:hover { background: var(--bg-elevated); color: var(--text-primary); }
+.sidebar-item.active { color: var(--hq-400); border-left-color: var(--hq-500); background: rgba(229,49,22,0.08); }
+.sidebar-footer { padding: 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted); }
+.sidebar-footer a { color: var(--hq-400); text-decoration: none; }
+.topbar { position: fixed; top: 0; left: var(--sidebar-w); right: 0; height: var(--topbar-h); background: var(--bg-surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; z-index: 90; }
+.topbar-title { font-size: 18px; font-weight: 600; }
+.topbar-meta { font-size: 12px; color: var(--text-muted); }
+.main { margin-left: var(--sidebar-w); margin-top: var(--topbar-h); padding: 24px; min-height: calc(100vh - var(--topbar-h)); }
+.section { display: none; }
+.section.active { display: block; }
+.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
+.stat-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
+.stat-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
+.stat-value { font-size: 28px; font-weight: 700; font-family: 'DM Mono', monospace; }
+.panel { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 24px; overflow: hidden; }
+.panel-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.panel-title { font-weight: 600; }
+.panel-body { padding: 20px; }
+.panel-body.no-pad { padding: 0; }
+.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
+.data-table th { text-align: left; padding: 10px 16px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
+.data-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text-secondary); }
+.data-table tr.clickable-row { cursor: pointer; }
+.data-table tr.clickable-row:hover td { background: var(--bg-hover); color: var(--text-primary); }
+.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
+.badge-active { background: rgba(52,211,153,0.15); color: var(--accent-green); }
+.badge-trial { background: rgba(255,180,0,0.15); color: var(--accent-amber); }
+.badge-cancelled { background: rgba(255,77,79,0.15); color: var(--accent-red); }
+.badge-inactive { background: rgba(255,255,255,0.08); color: var(--text-muted); }
+.btn-sm { padding: 6px 12px; border-radius: 6px; border: none; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
+.toolbar-input { padding: 8px 12px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); font-family: inherit; font-size: 13px; min-width: 200px; }
+.empty-state { text-align: center; padding: 40px; color: var(--text-muted); }
+#drawerBackdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
+#drawerBackdrop.open { opacity: 1; pointer-events: auto; }
+#drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 480px; max-width: 100vw; background: var(--bg-surface); border-left: 1px solid var(--border); z-index: 201; transform: translateX(100%); transition: transform 0.25s ease; display: flex; flex-direction: column; }
+#drawer.open { transform: translateX(0); }
+.drawer-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
+.drawer-title { font-size: 18px; font-weight: 700; }
+.drawer-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
+.drawer-body { padding: 20px; overflow-y: auto; flex: 1; }
+.detail-row { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
+.detail-label { color: var(--text-muted); }
+.detail-value { color: var(--text-primary); text-align: right; }
+.action-block { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+.action-block h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 12px; }
+.action-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
+#toastContainer { position: fixed; bottom: 24px; right: 24px; z-index: 9998; display: flex; flex-direction: column; gap: 8px; }
+.toast { background: var(--bg-elevated); border: 1px solid var(--border-strong); padding: 12px 16px; border-radius: 8px; font-size: 13px; animation: fadeIn 0.2s; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
+@media (max-width: 768px) {
+  .sidebar { transform: translateX(-100%); }
+  .sidebar.open { transform: translateX(0); }
+  .main, .topbar { margin-left: 0; left: 0; }
+}
+</style>
+</head>
+<body>
+
+<div id="loginOverlay">
+  <div class="login-card">
+    <div class="login-logo">HQ</div>
+    <div class="login-title">LENA HQ</div>
+    <div class="login-subtitle">Business operations console</div>
+    <form id="loginForm">
+      <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="loginEmail" required autocomplete="username"></div>
+      <div class="form-group"><label class="form-label">Password</label><input class="form-input" type="password" id="loginPassword" required autocomplete="current-password"></div>
+      <button type="submit" class="btn-primary" id="loginBtn">Sign In</button>
+      <div class="login-error" id="loginError"></div>
+    </form>
+  </div>
+</div>
+
+<nav class="sidebar">
+  <div class="sidebar-header">
+    <div class="sidebar-brand">LENA HQ</div>
+    <div class="sidebar-label">Operations Console</div>
+  </div>
+  <div class="sidebar-menu">
+    <div class="sidebar-item active" data-tab="overview" onclick="switchTab('overview', this)">Overview</div>
+    <div class="sidebar-item" data-tab="subscriptions" onclick="switchTab('subscriptions', this)">Subscriptions</div>
+    <div class="sidebar-item" data-tab="users" onclick="switchTab('users', this)">Users</div>
+  </div>
+  <div class="sidebar-footer">
+    <div id="hqEmail">—</div>
+    <div style="margin-top:8px"><a href="/admin.html">← Product Admin</a></div>
+    <div style="margin-top:8px"><a href="#" onclick="logout(); return false;">Logout</a></div>
+  </div>
+</nav>
+
+<header class="topbar">
+  <div class="topbar-title" id="pageTitle">Overview</div>
+  <div class="topbar-meta"><span id="clock">--</span> · <span id="syncLabel">Not synced</span></div>
+</header>
+
+<div class="main">
+  <section id="overview" class="section active">
+    <div class="stat-grid">
+      <div class="stat-card"><div class="stat-label">MRR</div><div class="stat-value" id="kpi-mrr">--</div></div>
+      <div class="stat-card"><div class="stat-label">Active Subscriptions</div><div class="stat-value" id="kpi-subs">--</div></div>
+      <div class="stat-card"><div class="stat-label">Total Users</div><div class="stat-value" id="kpi-users">--</div></div>
+      <div class="stat-card"><div class="stat-label">Tenants</div><div class="stat-value" id="kpi-tenants">--</div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Tenant Summary</span><button class="btn-sm" style="background:var(--hq-500);color:white" onclick="loadOverview()">Refresh</button></div>
+      <div class="panel-body no-pad">
+        <table class="data-table" id="tenantsTable"><thead><tr><th>Tenant</th><th>Users</th><th>Searches</th><th>MRR</th><th>Active Subs</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <section id="subscriptions" class="section">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">All Subscriptions</span>
+        <button class="btn-sm" style="background:var(--hq-500);color:white" onclick="loadSubscriptions()">Refresh</button>
+      </div>
+      <div class="panel-body no-pad">
+        <table class="data-table" id="subsTable"><thead><tr><th>Tenant</th><th>Plan</th><th>Status</th><th>Period End</th><th>Usage</th><th>Override</th><th>Price</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </section>
+
+  <section id="users" class="section">
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">User Directory</span>
+        <div style="display:flex;gap:8px;flex-wrap:wrap">
+          <input class="toolbar-input" id="userSearch" placeholder="Search email or name..." oninput="debounceUserSearch()">
+          <select class="toolbar-input" id="userRoleFilter" onchange="loadUsers()" style="min-width:140px">
+            <option value="">All roles</option>
+            <option value="platform_admin">Platform admin</option>
+            <option value="tenant_admin">Tenant admin</option>
+            <option value="public_user">Public user</option>
+            <option value="researcher">Researcher</option>
+            <option value="practitioner">Practitioner</option>
+          </select>
+          <button class="btn-sm" style="background:var(--hq-500);color:white" onclick="loadUsers()">Refresh</button>
+        </div>
+      </div>
+      <div class="panel-body no-pad">
+        <table class="data-table" id="usersTable"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Persona</th><th>Tenant</th><th>Active</th><th>Last Login</th><th>Joined</th></tr></thead><tbody></tbody></table>
+      </div>
+    </div>
+  </section>
+</div>
+
+<div id="drawerBackdrop" onclick="closeDrawer()"></div>
+<div id="drawer" role="dialog">
+  <div class="drawer-header">
+    <div><div class="drawer-title" id="drawerTitle">—</div><div class="drawer-sub" id="drawerSub"></div></div>
+    <button class="btn-sm" style="background:var(--bg-elevated);color:var(--text-secondary)" onclick="closeDrawer()">Close</button>
+  </div>
+  <div class="drawer-body" id="drawerBody"></div>
+</div>
+<div id="toastContainer"></div>
+
+<script>
+const API_BASE = window.LENA_API_BASE || 'https://lena-production-health.up.railway.app';
+let authToken = null;
+let subsCache = [];
+let usersCache = [];
+let plansCache = [];
+let userSearchTimer = null;
+let drawerMode = null;
+let drawerIdx = null;
+
+function getStoredAuth() {
+  try { return JSON.parse(sessionStorage.getItem('lena_hq') || 'null'); } catch { return null; }
+}
+function storeAuth(token, email) { sessionStorage.setItem('lena_hq', JSON.stringify({ token, email })); }
+function clearAuth() { sessionStorage.removeItem('lena_hq'); authToken = null; }
+
+async function apiFetch(path) {
+  const res = await fetch(`${API_BASE}/api${path}`, { headers: { Authorization: `Bearer ${authToken}` } });
+  if (res.status === 401 || res.status === 403) { clearAuth(); document.getElementById('loginOverlay').classList.remove('hidden'); throw new Error('Session expired'); }
+  if (!res.ok) throw new Error(`API ${res.status}`);
+  return res.json();
+}
+
+async function apiPost(path, body) {
+  const res = await fetch(`${API_BASE}/api${path}`, {
+    method: 'POST',
+    headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  if (res.status === 401 || res.status === 403) { clearAuth(); document.getElementById('loginOverlay').classList.remove('hidden'); throw new Error('Session expired'); }
+  if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || `API ${res.status}`); }
+  return res.json();
+}
+
+async function apiPatch(path, body) {
+  const res = await fetch(`${API_BASE}/api${path}`, {
+    method: 'PATCH',
+    headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+    body: JSON.stringify(body || {}),
+  });
+  if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || `API ${res.status}`); }
+  return res.json();
+}
+
+function showToast(msg) {
+  const t = document.createElement('div');
+  t.className = 'toast';
+  t.textContent = msg;
+  document.getElementById('toastContainer').appendChild(t);
+  setTimeout(() => t.remove(), 3500);
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s ?? '';
+  return d.innerHTML;
+}
+
+function fmtMoney(cents) {
+  if (cents == null) return '—';
+  return '$' + (cents / 100).toFixed(2);
+}
+
+function fmtDate(iso) {
+  if (!iso) return '—';
+  return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+}
+
+function statusBadge(status) {
+  const map = { active: 'badge-active', trialing: 'badge-trial', past_due: 'badge-trial', cancelled: 'badge-cancelled' };
+  return `<span class="badge ${map[status] || 'badge-inactive'}">${escHtml(status || '—')}</span>`;
+}
+
+function switchTab(id, el) {
+  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.sidebar-item').forEach(s => s.classList.remove('active'));
+  document.getElementById(id).classList.add('active');
+  if (el) el.classList.add('active');
+  const titles = { overview: 'Overview', subscriptions: 'Subscriptions', users: 'Users' };
+  document.getElementById('pageTitle').textContent = titles[id] || id;
+  if (id === 'overview') loadOverview();
+  if (id === 'subscriptions') loadSubscriptions();
+  if (id === 'users') loadUsers();
+}
+
+function logout() {
+  clearAuth();
+  document.getElementById('loginOverlay').classList.remove('hidden');
+}
+
+async function verifyAccess() {
+  const me = await apiFetch('/auth/me');
+  if (me.role !== 'platform_admin') throw new Error('Platform admin access required');
+  return me;
+}
+
+async function loadOverview() {
+  try {
+    const [revenue, tenants] = await Promise.all([
+      apiFetch('/dashboard/platform/revenue'),
+      apiFetch('/dashboard/platform/tenants'),
+    ]);
+    document.getElementById('kpi-mrr').textContent = fmtMoney(revenue.mrr || 0);
+    document.getElementById('kpi-subs').textContent = revenue.active_subscriptions ?? '—';
+    document.getElementById('kpi-users').textContent = (tenants.tenants || []).reduce((s, t) => s + (t.user_count || 0), 0);
+    document.getElementById('kpi-tenants').textContent = (tenants.tenants || []).length;
+    const tbody = document.querySelector('#tenantsTable tbody');
+    const rows = tenants.tenants || [];
+    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No tenants yet</td></tr>'; return; }
+    tbody.innerHTML = rows.map(t => `<tr>
+      <td style="color:var(--text-primary)">${escHtml(t.tenant_name)}</td>
+      <td>${t.user_count ?? 0}</td>
+      <td>${t.search_count ?? 0}</td>
+      <td>${fmtMoney(t.mrr || 0)}</td>
+      <td>${t.active_subscriptions ?? 0}</td>
+    </tr>`).join('');
+    document.getElementById('syncLabel').textContent = 'Just synced';
+  } catch (e) {
+    console.error(e);
+    showToast('Could not load overview');
+  }
+}
+
+async function loadSubscriptions() {
+  try {
+    const [data, plans] = await Promise.all([
+      apiFetch('/dashboard/platform/subscriptions'),
+      apiFetch('/dashboard/platform/subscriptions/plans'),
+    ]);
+    subsCache = data.subscriptions || [];
+    plansCache = plans.plans || [];
+    const tbody = document.querySelector('#subsTable tbody');
+    if (!subsCache.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No subscriptions yet</td></tr>'; return; }
+    tbody.innerHTML = subsCache.map((s, i) => `<tr class="clickable-row" data-sub-idx="${i}">
+      <td style="color:var(--text-primary)">${escHtml(s.tenant_name || s.tenant_slug || '—')}</td>
+      <td>${escHtml(s.plan_name || s.plan_slug || '—')}</td>
+      <td>${statusBadge(s.status)}</td>
+      <td style="font-family:'DM Mono',monospace;font-size:12px">${fmtDate(s.current_period_end)}</td>
+      <td>${s.searches_used_this_month ?? 0}</td>
+      <td>${s.override_max_searches_per_day ?? '—'}</td>
+      <td>${fmtMoney(s.plan_monthly_price_cents)}</td>
+    </tr>`).join('');
+    document.getElementById('syncLabel').textContent = 'Just synced';
+  } catch (e) {
+    console.error(e);
+    showToast('Could not load subscriptions');
+  }
+}
+
+function openSubDrawer(idx) {
+  const s = subsCache[idx];
+  if (!s) return;
+  drawerMode = 'sub';
+  drawerIdx = idx;
+  document.getElementById('drawerTitle').textContent = s.tenant_name || 'Subscription';
+  document.getElementById('drawerSub').textContent = s.billing_email || s.tenant_slug || '';
+  const planOptions = plansCache.map(p => `<option value="${p.id}" ${p.id === s.plan_id ? 'selected' : ''}>${escHtml(p.name)} (${fmtMoney(p.monthly_price_cents)}/mo)</option>`).join('');
+  document.getElementById('drawerBody').innerHTML = `
+    <div class="detail-row"><span class="detail-label">Plan</span><span class="detail-value">${escHtml(s.plan_name)}</span></div>
+    <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${statusBadge(s.status)}</span></div>
+    <div class="detail-row"><span class="detail-label">Period end</span><span class="detail-value">${fmtDate(s.current_period_end)}</span></div>
+    <div class="detail-row"><span class="detail-label">Searches this month</span><span class="detail-value">${s.searches_used_this_month ?? 0}</span></div>
+    <div class="detail-row"><span class="detail-label">Daily cap override</span><span class="detail-value">${s.override_max_searches_per_day ?? 'None'}</span></div>
+    <div class="detail-row"><span class="detail-label">Stripe customer</span><span class="detail-value" style="font-size:11px">${escHtml(s.stripe_customer_id || '—')}</span></div>
+    <div class="action-block">
+      <h4>Actions</h4>
+      <div class="action-row">
+        <input class="toolbar-input" type="number" id="extendDays" value="30" min="1" max="365" style="width:100px;min-width:0">
+        <button class="btn-sm" style="background:var(--hq-500);color:white" onclick="extendSub()">Extend period</button>
+      </div>
+      <div class="action-row">
+        <input class="toolbar-input" type="number" id="overrideCap" placeholder="Daily search cap" style="width:140px;min-width:0">
+        <button class="btn-sm" style="background:var(--bg-elevated);color:var(--text-primary)" onclick="setOverride()">Set override</button>
+        <button class="btn-sm" style="background:var(--bg-elevated);color:var(--text-secondary)" onclick="clearOverride()">Clear</button>
+      </div>
+      <div class="action-row">
+        <select class="toolbar-input" id="changePlanSelect" style="min-width:180px">${planOptions}</select>
+        <button class="btn-sm" style="background:var(--hq-500);color:white" onclick="changePlan()">Change plan</button>
+      </div>
+    </div>`;
+  document.getElementById('drawerBackdrop').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+}
+
+async function extendSub() {
+  const s = subsCache[drawerIdx];
+  const days = parseInt(document.getElementById('extendDays').value, 10);
+  try {
+    await apiPost(`/dashboard/platform/subscriptions/${s.id}/extend`, { days });
+    showToast(`Extended by ${days} days`);
+    await loadSubscriptions();
+    openSubDrawer(subsCache.findIndex(x => x.id === s.id));
+  } catch (e) { showToast(e.message); }
+}
+
+async function setOverride() {
+  const s = subsCache[drawerIdx];
+  const val = parseInt(document.getElementById('overrideCap').value, 10);
+  if (Number.isNaN(val)) { showToast('Enter a number'); return; }
+  try {
+    await apiPost(`/dashboard/platform/subscriptions/${s.id}/override-usage`, { override_max_searches_per_day: val });
+    showToast('Override set');
+    await loadSubscriptions();
+    openSubDrawer(subsCache.findIndex(x => x.id === s.id));
+  } catch (e) { showToast(e.message); }
+}
+
+async function clearOverride() {
+  const s = subsCache[drawerIdx];
+  try {
+    await apiPost(`/dashboard/platform/subscriptions/${s.id}/override-usage`, { override_max_searches_per_day: null });
+    showToast('Override cleared');
+    await loadSubscriptions();
+    openSubDrawer(subsCache.findIndex(x => x.id === s.id));
+  } catch (e) { showToast(e.message); }
+}
+
+async function changePlan() {
+  const s = subsCache[drawerIdx];
+  const planId = document.getElementById('changePlanSelect').value;
+  try {
+    await apiPost(`/dashboard/platform/subscriptions/${s.id}/change-plan`, { plan_id: planId });
+    showToast('Plan changed');
+    await loadSubscriptions();
+    openSubDrawer(subsCache.findIndex(x => x.id === s.id));
+  } catch (e) { showToast(e.message); }
+}
+
+function debounceUserSearch() {
+  clearTimeout(userSearchTimer);
+  userSearchTimer = setTimeout(loadUsers, 300);
+}
+
+async function loadUsers() {
+  try {
+    const search = document.getElementById('userSearch').value.trim();
+    const role = document.getElementById('userRoleFilter').value;
+    const params = new URLSearchParams({ limit: '200' });
+    if (search) params.set('search', search);
+    if (role) params.set('role', role);
+    const data = await apiFetch(`/dashboard/platform/user-directory?${params}`);
+    usersCache = data.users || [];
+    const tbody = document.querySelector('#usersTable tbody');
+    if (!usersCache.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No users found</td></tr>'; return; }
+    tbody.innerHTML = usersCache.map((u, i) => `<tr class="clickable-row" data-user-idx="${i}">
+      <td style="color:var(--text-primary)">${escHtml(u.name || '—')}</td>
+      <td>${escHtml(u.email)}</td>
+      <td><span class="badge badge-inactive">${escHtml(u.role || '—')}</span></td>
+      <td style="font-size:12px">${escHtml(u.persona_type || '—')}</td>
+      <td>${escHtml(u.tenant_name || u.tenant_slug || '—')}</td>
+      <td>${u.is_active !== false ? '<span class="badge badge-active">Yes</span>' : '<span class="badge badge-cancelled">No</span>'}</td>
+      <td style="font-size:12px;font-family:'DM Mono',monospace">${fmtDate(u.last_login_at)}</td>
+      <td style="font-size:12px;font-family:'DM Mono',monospace">${fmtDate(u.created_at)}</td>
+    </tr>`).join('');
+    document.getElementById('syncLabel').textContent = 'Just synced';
+  } catch (e) {
+    console.error(e);
+    showToast('Could not load users');
+  }
+}
+
+function openUserDrawer(idx) {
+  const u = usersCache[idx];
+  if (!u) return;
+  drawerMode = 'user';
+  drawerIdx = idx;
+  document.getElementById('drawerTitle').textContent = u.name || u.email;
+  document.getElementById('drawerSub').textContent = u.email;
+  const roles = ['platform_admin','tenant_admin','public_user','researcher','practitioner'];
+  const personas = ['general','clinician','researcher','medical_student','pharmacist','patient','lecturer','physiotherapist'];
+  document.getElementById('drawerBody').innerHTML = `
+    <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${escHtml(u.email)}</span></div>
+    <div class="detail-row"><span class="detail-label">Tenant</span><span class="detail-value">${escHtml(u.tenant_name || '—')}</span></div>
+    <div class="detail-row"><span class="detail-label">Joined</span><span class="detail-value">${fmtDate(u.created_at)}</span></div>
+    <div class="detail-row"><span class="detail-label">Last login</span><span class="detail-value">${fmtDate(u.last_login_at)}</span></div>
+    <div class="action-block">
+      <h4>Edit user</h4>
+      <div class="action-row">
+        <select class="toolbar-input" id="editRole">${roles.map(r => `<option value="${r}" ${u.role===r?'selected':''}>${r}</option>`).join('')}</select>
+        <select class="toolbar-input" id="editPersona">${personas.map(p => `<option value="${p}" ${u.persona_type===p?'selected':''}>${p}</option>`).join('')}</select>
+      </div>
+      <div class="action-row">
+        <label style="display:flex;align-items:center;gap:8px;color:var(--text-secondary);font-size:13px">
+          <input type="checkbox" id="editActive" ${u.is_active !== false ? 'checked' : ''}> Account active
+        </label>
+        <button class="btn-sm" style="background:var(--hq-500);color:white" onclick="saveUser()">Save changes</button>
+      </div>
+      <div class="action-row" style="margin-top:16px">
+        <button class="btn-sm" style="background:var(--bg-elevated);color:var(--text-primary)" onclick="sendUserReset()">Send password reset email</button>
+      </div>
+    </div>`;
+  document.getElementById('drawerBackdrop').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
+}
+
+async function saveUser() {
+  const u = usersCache[drawerIdx];
+  try {
+    await apiPatch(`/dashboard/platform/user-directory/${u.id}`, {
+      role: document.getElementById('editRole').value,
+      persona_type: document.getElementById('editPersona').value,
+      is_active: document.getElementById('editActive').checked,
+    });
+    showToast('User updated');
+    await loadUsers();
+    openUserDrawer(usersCache.findIndex(x => x.id === u.id));
+  } catch (e) { showToast(e.message); }
+}
+
+async function sendUserReset() {
+  const u = usersCache[drawerIdx];
+  try {
+    const res = await apiPost(`/dashboard/platform/user-directory/${u.id}/send-reset`);
+    showToast(res.message || 'Reset email sent');
+  } catch (e) { showToast(e.message); }
+}
+
+function closeDrawer() {
+  document.getElementById('drawerBackdrop').classList.remove('open');
+  document.getElementById('drawer').classList.remove('open');
+}
+
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
+}
+
+document.addEventListener('DOMContentLoaded', () => {
+  updateClock();
+  setInterval(updateClock, 1000);
+
+  document.getElementById('subsTable').addEventListener('click', e => {
+    const row = e.target.closest('tr[data-sub-idx]');
+    if (row) openSubDrawer(parseInt(row.dataset.subIdx, 10));
+  });
+  document.getElementById('usersTable').addEventListener('click', e => {
+    const row = e.target.closest('tr[data-user-idx]');
+    if (row) openUserDrawer(parseInt(row.dataset.userIdx, 10));
+  });
+  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
+
+  document.getElementById('loginForm').addEventListener('submit', async e => {
+    e.preventDefault();
+    const email = document.getElementById('loginEmail').value;
+    const password = document.getElementById('loginPassword').value;
+    const btn = document.getElementById('loginBtn');
+    const errEl = document.getElementById('loginError');
+    btn.disabled = true;
+    errEl.textContent = '';
+    try {
+      const res = await fetch(`${API_BASE}/api/auth/login`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || 'Login failed'); }
+      const data = await res.json();
+      authToken = data.access_token;
+      storeAuth(authToken, email);
+      await verifyAccess();
+      document.getElementById('loginOverlay').classList.add('hidden');
+      document.getElementById('hqEmail').textContent = email;
+      loadOverview();
+    } catch (err) {
+      clearAuth();
+      errEl.textContent = err.message;
+    } finally {
+      btn.disabled = false;
+    }
+  });
+
+  const stored = getStoredAuth();
+  if (stored?.token) {
+    authToken = stored.token;
+    verifyAccess().then(() => {
+      document.getElementById('loginOverlay').classList.add('hidden');
+      document.getElementById('hqEmail').textContent = stored.email;
+      loadOverview();
+    }).catch(() => clearAuth());
+  }
+});
+</script>
+</body>
+</html>
