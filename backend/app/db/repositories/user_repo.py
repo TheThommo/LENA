@@ -82,7 +82,7 @@ class UserRepository:
     async def get_by_id(user_id: UUID) -> Optional[User]:
         """Get a user by ID."""
         try:
-            client = get_supabase_client()
+            client = get_supabase_admin_client()
             response = client.table("users").select("*").eq("id", str(user_id)).execute()
             if response.data and len(response.data) > 0:
                 return User(**response.data[0])
