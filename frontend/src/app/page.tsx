@@ -32,6 +32,7 @@ import {
   normalizeRecentSession,
   sessionNeedsTimestampMigration,
 } from '@/lib/sessionTime';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 
 interface Message {
   id: string;
@@ -71,8 +72,6 @@ export default function Home() {
   // Persisted per user so filters survive logout/reload (Lauren bug: "have to select every login").
   const resultModesKey = user?.id ? `lena_result_modes_${user.id}` : null;
   const [resultModes, setResultModes] = useState<ResultMode[]>(['all']);
-  const [modesOpen, setModesOpen] = useState(false);
-  const modesMenuRef = useRef<HTMLDivElement>(null);
 
   // Load saved result modes for this user on login
   useEffect(() => {
@@ -84,35 +83,13 @@ export default function Home() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [resultModesKey]);
 
-  const toggleMode = (mode: ResultMode) => {
-    setResultModes(prev => {
-      const has = prev.includes(mode);
-      let next: ResultMode[] = has ? prev.filter(m => m !== mode) : [...prev, mode];
-      // If user deselects everything, fall back to 'all'
-      if (next.length === 0) next = ['all'];
-      // 'all' is exclusive of the others — selecting 'all' clears filters;
-      // selecting a filter removes 'all'.
-      if (!has && mode === 'all') next = ['all'];
-      else if (!has && mode !== 'all') next = next.filter(m => m !== 'all');
-      // Persist per user
-      if (resultModesKey) {
-        try { localStorage.setItem(resultModesKey, JSON.stringify(next)); } catch {}
-      }
-      return next;
-    });
-  };
+  const handleResultModesChange = useCallback((next: ResultMode[]) => {
+    setResultModes(next);
+    if (resultModesKey) {
+      try { localStorage.setItem(resultModesKey, JSON.stringify(next)); } catch {}
+    }
+  }, [resultModesKey]);
 
-  // Close mode dropdown on outside click
-  useEffect(() => {
-    if (!modesOpen) return;
-    const handler = (e: MouseEvent) => {
-      if (modesMenuRef.current && !modesMenuRef.current.contains(e.target as Node)) {
-        setModesOpen(false);
-      }
-    };
-    document.addEventListener('mousedown', handler);
-    return () => document.removeEventListener('mousedown', handler);
-  }, [modesOpen]);
   const [recentSessions, setRecentSessions] = useState<RecentSessionRecord[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
@@ -1085,78 +1062,17 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            {/* Result-mode checkbox dropdown (scalable for future filters) */}
-            {(() => {
-              const MODE_OPTIONS: { id: ResultMode; label: string; desc: string }[] = [
-                { id: 'all',          label: 'All results',  desc: 'Unfiltered corpus' },
-                { id: 'supplements',  label: 'Supplements',  desc: 'Vitamins, minerals, probiotics, nutraceuticals' },
-                { id: 'herbal',       label: 'Herbal',       desc: 'Botanicals, plant extracts, medicinal herbs' },
-                { id: 'alternatives', label: 'Alternatives', desc: 'Acupuncture, TCM, Ayurveda, homeopathy' },
-                { id: 'outlier',      label: 'Outlier',      desc: 'Heterodox peer-reviewed authors' },
-              ];
-              const activeNonAll = resultModes.filter(m => m !== 'all');
-              const buttonLabel =
-                resultModes.includes('all') && activeNonAll.length === 0
-                  ? 'All results'
-                  : activeNonAll.length === 1
-                    ? MODE_OPTIONS.find(o => o.id === activeNonAll[0])?.label ?? 'Filters'
-                    : `${activeNonAll.length} filters`;
-              return (
-                <div className="relative" ref={modesMenuRef}>
-                  <button
-                    type="button"
-                    onClick={() => setModesOpen(o => !o)}
-                    aria-haspopup="listbox"
-                    aria-expanded={modesOpen}
-                    title="PULSE scores within the selected scope."
-                    className="flex items-center gap-1.5 px-2.5 py-1 border border-slate-200/70 rounded-full text-[11px] font-medium text-slate-600 hover:text-slate-900 hover:border-slate-300 bg-white transition-all"
-                  >
-                    <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
-                    </svg>
-                    <span className="hidden sm:inline">{buttonLabel}</span>
-                    <span className="sm:hidden">Filters</span>
-                    <svg className={`w-2.5 h-2.5 transition-transform ${modesOpen ? 'rotate-180' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                      <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
-                    </svg>
-                  </button>
-                  {modesOpen && (
-                    <div
-                      role="listbox"
-                      aria-label="Result modes"
-                      className="absolute right-0 mt-1.5 w-64 bg-white border border-slate-200/80 rounded-lg shadow-xl shadow-slate-900/5 z-50 overflow-hidden"
-                    >
-                      <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-100 bg-slate-50/80 font-medium">
-                        Result lenses
-                      </div>
-                      {MODE_OPTIONS.map(opt => {
-                        const checked = resultModes.includes(opt.id);
-                        return (
-                          <label
-                            key={opt.id}
-                            className="flex items-start gap-2.5 px-3 py-2 hover:bg-slate-50 cursor-pointer"
-                          >
-                            <input
-                              type="checkbox"
-                              checked={checked}
-                              onChange={() => toggleMode(opt.id)}
-                              className="mt-0.5 w-4 h-4 text-lena-600 border-slate-300 rounded focus:ring-lena-500 focus:ring-1"
-                            />
-                            <span className="flex-1 min-w-0">
-                              <span className="block text-xs font-medium text-slate-800">{opt.label}</span>
-                              <span className="block text-[11px] text-slate-500">{opt.desc}</span>
-                            </span>
-                          </label>
-                        );
-                      })}
-                      <div className="px-3 py-2 border-t border-slate-100 bg-slate-50 text-[11px] text-slate-500">
-                        PULSE scores within your selected scope.
-                      </div>
-                    </div>
-                  )}
-                </div>
-              );
-            })()}
+            <SegmentedControl
+              options={[
+                { id: 'all', label: 'All', shortLabel: 'All' },
+                { id: 'supplements', label: 'Supplements', shortLabel: 'Supp.' },
+                { id: 'herbal', label: 'Herbal', shortLabel: 'Herbal' },
+                { id: 'alternatives', label: 'Alt.', shortLabel: 'Alt.' },
+                { id: 'outlier', label: 'Outlier', shortLabel: 'Out.' },
+              ]}
+              value={resultModes}
+              onChange={handleResultModesChange}
+            />
 
             {/* Session search — only visible in chat view with messages */}
             {activeView === 'chat' && messages.length > 0 && (

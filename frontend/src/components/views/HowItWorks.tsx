@@ -53,12 +53,12 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: 'What is PULSE?',
     answer:
-      'PULSE (Published Literature Source Evaluation) cross-references your query against multiple peer-reviewed databases and scores how well the evidence agrees across independent sources.',
+      'PULSE (Published Literature Source Evaluation) reads claims from paper abstracts, then checks whether independent databases report the same finding. It is not keyword matching — each corroborated claim across PubMed, Cochrane, OpenAlex, and others increases confidence, weighted by evidence type (systematic reviews rank highest).\n\nTap any PULSE score in Chat or the Research Panel to see the full breakdown: sources responded, cross-validated claims, the confidence formula (45% corroboration · 30% coverage · 25% theme agreement), and why the score is not higher when applicable.',
   },
   {
     question: 'What do confidence levels mean?',
     answer:
-      'High (80%+): strong consensus across sources. Medium (60–79%): moderate agreement. Edge Case (40–59%): evidence exists but sources diverge. Low (<40%): limited agreement — topic may be emerging or under-researched.',
+      'PULSE scores are transparent percentages, not black-box ratings. 70%+ (green): strong cross-database corroboration. 45–69%: moderate agreement with some gaps. 25–44%: limited validation — review sources directly. Below 25%: sparse or contested evidence. The expanded PULSE card always shows exactly which databases responded and which claims matched.',
   },
   {
     question: 'Where does LENA get its data?',
@@ -68,7 +68,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: 'Is my data private?',
     answer:
-      'Yes. LENA is GDPR and CCPA compliant. Search queries are never sold to third parties. Profile and saved documents are stored on your device today; cloud sync will be optional and consent-based.',
+      'Yes. LENA is GDPR and CCPA compliant. Search queries are never sold to third parties. When signed in, your profile and saved documents sync to your account in the cloud. Research session history stays on your device for now. You control what you save and share.',
   },
   {
     question: 'Is this medical advice?',

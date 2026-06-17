@@ -1,8 +1,10 @@
 'use client';
 
-import { useMemo, useState, useCallback, useEffect } from 'react';
+import { useMemo, useState, useCallback, useEffect, type ReactNode } from 'react';
 import type { SearchResponse, ValidatedResult, SourceAgreement, ResultMode } from '@/lib/api';
 import { makeDocumentId, saveDocument, listDocuments } from '@/lib/savedDocuments';
+import PulseExplainer from '@/components/pulse/PulseExplainer';
+import { SegmentedControl } from '@/components/ui/SegmentedControl';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -132,15 +134,6 @@ function highestEvidenceLevel(levels: EvidenceLevel[]): EvidenceLevel {
   return order[best];
 }
 
-function confidenceInterpretation(score: number): string {
-  if (score >= 90) return 'Strong cross-source consensus. Findings are well-supported across multiple high-quality databases and suitable for informing clinical reasoning.';
-  if (score >= 75) return 'Good agreement across sources. Evidence is converging, though some databases may show minor variations in emphasis or scope.';
-  if (score >= 60) return 'Moderate consensus. Sources broadly agree on key findings but notable differences exist -- consider reviewing divergent sources directly.';
-  if (score >= 40) return 'Mixed evidence. Substantial disagreement between sources. Exercise caution and review contradictions before drawing conclusions.';
-  if (score >= 20) return 'Limited validation. Few sources agree. The evidence base for this query is sparse or contested -- further primary research is recommended.';
-  return 'Insufficient consensus. The available evidence does not converge. Treat all findings as preliminary and unvalidated.';
-}
-
 function citationKey(c: CitationEntry): string {
   return `${c.source}::${c.title}`;
 }
@@ -214,6 +207,42 @@ function AgreementDot({ type }: { type: 'consensus' | 'divergent' | 'contradicti
     ? 'bg-amber-500'
     : 'bg-red-500';
   return <span className={`inline-block w-2 h-2 rounded-full ${cls} flex-shrink-0`} />;
+}
+
+function FilterChip({
+  active,
+  onClick,
+  children,
+  color,
+}: {
+  active: boolean;
+  onClick: () => void;
+  children: ReactNode;
+  color?: string;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`inline-flex items-center gap-1.5 px-2.5 py-1 rounded-full text-[10px] font-semibold transition-all duration-200 ${
+        active
+          ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80'
+          : 'bg-slate-100/80 text-slate-500 hover:text-slate-700 hover:bg-slate-100'
+      }`}
+    >
+      {color && <span className="w-1.5 h-1.5 rounded-full flex-shrink-0" style={{ backgroundColor: color }} />}
+      {children}
+    </button>
+  );
+}
+
+function StatTile({ value, label }: { value: string | number; label: string }) {
+  return (
+    <div className="glass-stat rounded-2xl p-3 text-center">
+      <div className="text-lg font-semibold text-slate-900 tabular-nums tracking-tight">{value}</div>
+      <div className="text-[10px] text-slate-500 font-medium mt-0.5">{label}</div>
+    </div>
+  );
 }
 
 // ---------------------------------------------------------------------------
@@ -487,18 +516,6 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
   // Derived values
   // ---------------------------------------------------------------------------
 
-  const confidenceColor = analysis.avgConfidence >= 80
-    ? 'text-emerald-600' : analysis.avgConfidence >= 60
-    ? 'text-amber-600' : 'text-red-500';
-
-  const confidenceBarColor = analysis.avgConfidence >= 80
-    ? '#059669' : analysis.avgConfidence >= 60
-    ? '#D97706' : '#EF4444';
-
-  const confidenceLabel = analysis.avgConfidence >= 80
-    ? 'High Consensus' : analysis.avgConfidence >= 60
-    ? 'Moderate Consensus' : analysis.avgConfidence >= 40
-    ? 'Mixed Evidence' : 'Limited Evidence';
 
   // ---------------------------------------------------------------------------
   // Report generation
@@ -681,16 +698,15 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
 
   // --- Section: Evidence Quality Overview ---
   const renderOverview = () => {
-    const { bestEvidence, avgConfidence: conf, totalResults, uniqueSources, yearRange: yr } = analysis;
+    const { bestEvidence, totalResults, uniqueSources, yearRange: yr, responses } = analysis;
     return (
       <div className="space-y-4">
-        {/* Evidence Level Hero */}
         {bestEvidence && (
-          <div className="flex items-start gap-3 p-3 rounded-xl bg-gradient-to-br from-slate-50 to-white border border-slate-100">
+          <div className="flex items-start gap-3 p-3.5 rounded-2xl glass-panel">
             <EvidencePyramidIcon level={bestEvidence} size={36} />
             <div className="flex-1 min-w-0">
               <div className="flex items-center gap-2 mb-0.5">
-                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">Highest Evidence</span>
+                <span className="text-[10px] font-semibold text-slate-500 uppercase tracking-wider">Highest Evidence</span>
                 <EvidenceBadge level={bestEvidence} />
               </div>
               <p className="text-[11px] text-slate-500 leading-snug">{EVIDENCE_LEVEL_LABELS[bestEvidence]}</p>
@@ -698,43 +714,29 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
           </div>
         )}
 
-        {/* Stats Grid */}
         <div className="grid grid-cols-2 gap-2">
-          <div className="bg-slate-50 rounded-xl p-3 text-center">
-            <div className="text-lg font-bold text-slate-900">{totalResults}</div>
-            <div className="text-[10px] text-slate-500 font-medium mt-0.5">Results Found</div>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-3 text-center">
-            <div className="text-lg font-bold text-slate-900">{analysis.citations.length}</div>
-            <div className="text-[10px] text-slate-500 font-medium mt-0.5">Citations</div>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-3 text-center">
-            <div className="text-lg font-bold text-slate-900">{uniqueSources}</div>
-            <div className="text-[10px] text-slate-500 font-medium mt-0.5">Databases</div>
-          </div>
-          <div className="bg-slate-50 rounded-xl p-3 text-center">
-            <div className="text-lg font-bold text-slate-900">
-              {yr ? `${yr.min}--${yr.max}` : '--'}
-            </div>
-            <div className="text-[10px] text-slate-500 font-medium mt-0.5">Year Range</div>
-          </div>
+          <StatTile value={totalResults} label="Results Found" />
+          <StatTile value={analysis.citations.length} label="Citations" />
+          <StatTile value={uniqueSources} label="Databases" />
+          <StatTile value={yr ? `${yr.min}–${yr.max}` : '—'} label="Year Range" />
         </div>
 
-        {/* PULSE Confidence */}
-        <div className="bg-slate-50 rounded-xl p-3">
-          <div className="flex items-center justify-between mb-1.5">
-            <span className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider">PULSE Confidence</span>
-            <span className={`text-xs font-semibold ${confidenceColor}`}>{conf}% -- {confidenceLabel}</span>
-          </div>
-          <div className="w-full bg-slate-200 rounded-full h-2 mb-2">
-            <div
-              className="h-2 rounded-full transition-all duration-700"
-              style={{ width: `${conf}%`, background: confidenceBarColor }}
-            />
-          </div>
-          <p className="text-[10px] text-slate-500 leading-relaxed">
-            {confidenceInterpretation(conf)}
-          </p>
+        <div className="space-y-3">
+          {responses.map((resp, i) => (
+            <div key={`${resp.query}-${i}`}>
+              {responses.length > 1 && (
+                <p className="text-[11px] font-medium text-slate-600 mb-2 truncate px-0.5" title={resp.query}>
+                  Q{i + 1}: {resp.query}
+                </p>
+              )}
+              <PulseExplainer
+                report={resp.pulse_report}
+                sourcesQueried={resp.sources_queried}
+                sourcesFailed={resp.sources_failed}
+                compact={responses.length > 1}
+              />
+            </div>
+          ))}
         </div>
 
         {/* Key Themes */}
@@ -883,39 +885,59 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
 
   // --- Section: References ---
   const renderReferences = () => {
+    const starredCount = analysis.citations.filter(c => starredKeys.has(citationKey(c))).length;
+    const evidenceLevels = (['I', 'II', 'III', 'IV', 'V'] as EvidenceLevel[]).filter(lv =>
+      analysis.citations.some(c => c.evidenceLevel === lv)
+    );
+
     return (
       <div className="space-y-3">
-        {/* Filter bar */}
-        <div className="flex items-center gap-2">
-          <select
-            value={citationFilter}
-            onChange={e => setCitationFilter(e.target.value)}
-            className="flex-1 text-[10px] text-slate-600 bg-white border border-slate-200 rounded-md px-2 py-1 focus:outline-none focus:border-[#1B6B93]"
-          >
-            <option value="all">All ({analysis.citations.length})</option>
-            <option value="starred">Starred ({analysis.citations.filter(c => starredKeys.has(citationKey(c))).length})</option>
-            <optgroup label="By Source">
-              {Object.entries(analysis.sourceCounts).map(([src, cnt]) => (
-                <option key={src} value={src}>{getSourceLabel(src)} ({cnt})</option>
+        <div className="space-y-2">
+          <div className="flex flex-wrap gap-1.5">
+            <FilterChip active={citationFilter === 'all'} onClick={() => setCitationFilter('all')}>
+              All ({analysis.citations.length})
+            </FilterChip>
+            <FilterChip active={citationFilter === 'starred'} onClick={() => setCitationFilter('starred')}>
+              Starred ({starredCount})
+            </FilterChip>
+          </div>
+          <div className="flex flex-wrap gap-1.5">
+            {Object.entries(analysis.sourceCounts)
+              .sort((a, b) => b[1] - a[1])
+              .map(([src, cnt]) => (
+                <FilterChip
+                  key={src}
+                  active={citationFilter === src}
+                  onClick={() => setCitationFilter(src)}
+                  color={getSourceColor(src)}
+                >
+                  {getSourceLabel(src)} ({cnt})
+                </FilterChip>
               ))}
-            </optgroup>
-            <optgroup label="By Evidence Level">
-              {(['I', 'II', 'III', 'IV', 'V'] as EvidenceLevel[])
-                .filter(lv => analysis.citations.some(c => c.evidenceLevel === lv))
-                .map(lv => (
-                  <option key={lv} value={`level:${lv}`}>
-                    Level {lv} ({analysis.citations.filter(c => c.evidenceLevel === lv).length})
-                  </option>
-                ))}
-            </optgroup>
-          </select>
-          <button
-            onClick={() => setCitationSort(s => s === 'relevance' ? 'year' : 'relevance')}
-            className="text-[10px] text-slate-500 border border-slate-200 rounded-md px-2 py-1 hover:bg-slate-50 transition-colors flex-shrink-0"
-            title={`Sort by ${citationSort === 'relevance' ? 'year' : 'relevance'}`}
-          >
-            {citationSort === 'relevance' ? 'By Relevance' : 'By Year'}
-          </button>
+          </div>
+          {evidenceLevels.length > 0 && (
+            <div className="flex flex-wrap gap-1.5">
+              {evidenceLevels.map(lv => (
+                <FilterChip
+                  key={lv}
+                  active={citationFilter === `level:${lv}`}
+                  onClick={() => setCitationFilter(`level:${lv}`)}
+                >
+                  Level {lv} ({analysis.citations.filter(c => c.evidenceLevel === lv).length})
+                </FilterChip>
+              ))}
+            </div>
+          )}
+          <SegmentedControl
+            multi={false}
+            options={[
+              { id: 'relevance', label: 'By Relevance' },
+              { id: 'year', label: 'By Year' },
+            ]}
+            value={[citationSort]}
+            onChange={(next) => setCitationSort(next[0] as CitationSortMode)}
+            className="w-full"
+          />
         </div>
 
         {/* Citation cards */}
@@ -1169,9 +1191,9 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
   // ---------------------------------------------------------------------------
 
   return (
-    <aside className="flex flex-col h-full overflow-hidden">
+    <aside className="flex flex-col h-full overflow-hidden bg-gradient-to-b from-white to-slate-50/80">
       {/* Header */}
-      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200 flex-shrink-0">
+      <div className="flex items-center justify-between px-4 py-3 border-b border-slate-200/80 flex-shrink-0 bg-white/90 backdrop-blur-xl">
         <div className="flex items-center gap-2">
           <div
             className="w-5 h-5 rounded flex items-center justify-center"
@@ -1212,7 +1234,7 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
                 }
               }}
               placeholder="Search within results..."
-              className="w-full pl-7 pr-7 py-1.5 text-[11px] bg-white border border-slate-200 rounded-md focus:outline-none focus:border-[#1B6B93] text-slate-700 placeholder-slate-400"
+              className="w-full pl-7 pr-7 py-2 text-[11px] bg-slate-100/60 border border-slate-200/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-lena-500/20 focus:border-lena-400/50 text-slate-700 placeholder-slate-400 transition-all"
             />
             {citationSearch && (
               <button
@@ -1231,28 +1253,22 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
 
       {/* Tab navigation */}
       {hasData && (
-        <div className="flex border-b border-slate-200 flex-shrink-0 overflow-x-auto">
-          {SECTION_TABS.map(tab => (
-            <button
-              key={tab.key}
-              onClick={() => setActiveSection(tab.key)}
-              className={`flex-1 min-w-0 px-1 py-2 text-[10px] font-medium transition-colors whitespace-nowrap ${
-                activeSection === tab.key
-                  ? 'text-[#1B6B93] border-b-2 border-[#1B6B93]'
-                  : 'text-slate-400 hover:text-slate-600'
-              }`}
-            >
-              {tab.label}
-              {tab.key === 'gaps' && analysis.gaps.length > 0 && (
-                <span className="ml-0.5 inline-flex items-center justify-center w-3.5 h-3.5 text-[8px] font-bold text-amber-700 bg-amber-100 rounded-full">
-                  {analysis.gaps.length}
-                </span>
-              )}
-              {tab.key === 'references' && (
-                <span className="ml-0.5 text-[9px] text-slate-400">{analysis.citations.length}</span>
-              )}
-            </button>
-          ))}
+        <div className="px-3 py-2 border-b border-slate-200/80 flex-shrink-0 bg-white/80">
+          <SegmentedControl
+            multi={false}
+            options={SECTION_TABS.map(tab => ({
+              id: tab.key,
+              label:
+                tab.key === 'gaps' && analysis.gaps.length > 0
+                  ? `${tab.label} (${analysis.gaps.length})`
+                  : tab.key === 'references'
+                    ? `${tab.label} (${analysis.citations.length})`
+                    : tab.label,
+            }))}
+            value={[activeSection]}
+            onChange={(next) => setActiveSection(next[0] as ActiveSection)}
+            className="w-full"
+          />
         </div>
       )}
 

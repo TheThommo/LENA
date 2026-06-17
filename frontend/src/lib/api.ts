@@ -31,15 +31,6 @@ export interface PersonaInfo {
   depth: string;
 }
 
-export interface SourceAgreement {
-  source: string;
-  result_count: number;
-  overlap_score: number;
-  shared_keywords: string[];
-  unique_keywords: string[];
-  is_consensus: boolean;
-}
-
 export type ResultMode = 'all' | 'supplements' | 'herbal' | 'alternatives' | 'outlier';
 
 export interface ValidatedResult {
@@ -52,18 +43,57 @@ export interface ValidatedResult {
   keywords: string[];
   authors?: string[];
   matched_modes?: ResultMode[];
+  study_type?: string;
+  cross_validations?: number;
+}
+
+export interface SourceAgreement {
+  source: string;
+  result_count: number;
+  overlap_score: number;
+  shared_keywords: string[];
+  unique_keywords: string[];
+  is_consensus: boolean;
+  study_types?: string[];
+  cross_validations?: number;
+}
+
+export interface PulseCrossValidation {
+  paper_a: string;
+  source_a: string;
+  paper_b: string;
+  source_b: string;
+  similarity: number;
+  weight: number;
+}
+
+export interface PulseConfidenceBreakdown {
+  ratio: number;
+  cross_validation_density: number;
+  source_coverage: number;
+  source_agreement: number;
+  coverage_factor: number;
+  edge_case_penalty: number;
+  contradiction_penalty: number;
 }
 
 export interface PulseReport {
   query: string;
   status: 'validated' | 'edge_case' | 'insufficient_validation' | 'pending';
   confidence_ratio: number;
+  confidence_breakdown?: PulseConfidenceBreakdown;
   source_count: number;
+  sources_attempted?: number;
+  sources_failed?: number;
   agreement_count: number;
   consensus_keywords: string[];
   consensus_summary: string;
   validated_count: number;
   edge_case_count: number;
+  total_claims_extracted?: number;
+  total_cross_validations?: number;
+  total_contradictions?: number;
+  cross_validations?: PulseCrossValidation[];
   source_agreements: SourceAgreement[];
   validated_results: ValidatedResult[];
   edge_cases: ValidatedResult[];

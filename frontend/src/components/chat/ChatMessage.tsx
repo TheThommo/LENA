@@ -7,6 +7,7 @@ import type { SearchResponse, ValidatedResult, ResultMode, SupplementVerificatio
 import { logShareEvent } from '@/lib/api';
 import SupplementVerificationCard from './SupplementVerificationCard';
 import ShareModal from './ShareModal';
+import PulseExplainer from '@/components/pulse/PulseExplainer';
 
 /* ────────────────────────────────────────
    Lightweight Markdown → JSX renderer
@@ -597,11 +598,8 @@ export default function ChatMessage({
   };
   if (type === 'user') {
     return (
-      <div className="flex justify-end mb-4">
-        <div
-          className="max-w-[75%] px-4 py-2.5 rounded-2xl rounded-br-lg text-white shadow-sm"
-          style={{ backgroundColor: '#1B6B93' }}
-        >
+      <div className="flex justify-end mb-4 animate-fade-in">
+        <div className="max-w-[75%] px-4 py-2.5 rounded-[20px] rounded-br-md text-white user-bubble">
           <p className="text-[14px] leading-relaxed">{content}</p>
         </div>
       </div>
@@ -647,7 +645,8 @@ export default function ChatMessage({
   const hiddenByFilter = allResults.length - filteredResults.length;
 
   return (
-    <div className="mb-5 w-full">
+    <div className="mb-5 w-full animate-fade-in">
+      <div className="chat-assistant-card rounded-3xl p-4 sm:p-5">
       {/* Header row */}
       <div className="flex items-center justify-between mb-2.5">
         <div className="flex items-center gap-2">
@@ -801,34 +800,20 @@ export default function ChatMessage({
       </div>
 
       {/* Natural language summary */}
-      <div className="ml-10 space-y-4">
+      <div className="space-y-4">
         <FormattedContent text={summary} />
 
-        {/* PULSE status badge — only when pulse_report exists (not for guardrail responses) */}
+        {/* PULSE explainability — full transparent breakdown */}
         {response && response.pulse_report && (
-          <div className="flex items-center gap-2 flex-wrap">
-            <span
-              className={`px-2 py-0.5 text-[10px] font-semibold rounded-full tracking-wide ${
-                response.pulse_report.status === 'validated'
-                  ? 'bg-emerald-50 text-emerald-700 ring-1 ring-emerald-200/60'
-                  : response.pulse_report.status === 'edge_case'
-                  ? 'bg-purple-50 text-purple-700 ring-1 ring-purple-200/60'
-                  : response.pulse_report.status === 'insufficient_validation'
-                  ? 'bg-red-50 text-red-700 ring-1 ring-red-200/60'
-                  : 'bg-slate-100 text-slate-600'
-              }`}
-            >
-              PULSE · {(response.pulse_report.status || 'pending').replace(/_/g, ' ').replace(/\b\w/g, (c: string) => c.toUpperCase())}
-            </span>
-            <span className="text-[11px] text-slate-500 tabular-nums">
-              {Math.round((response.pulse_report.confidence_ratio || 0) * 100)}% confidence
-              <span className="mx-1 text-slate-300">·</span>
-              {response.response_time_ms}ms
-            </span>
-          </div>
+          <PulseExplainer
+            report={response.pulse_report}
+            sourcesQueried={response.sources_queried}
+            sourcesFailed={response.sources_failed}
+            compact={false}
+          />
         )}
 
-        {/* Source status indicators — only when sources exist (not for guardrail responses) */}
+        {/* Source status indicators — compact row under PULSE */}
         {response && response.sources_queried && response.sources_queried.length > 0 && (
           <div className="flex items-center gap-1 flex-wrap">
             {response.sources_queried.map((src) => {
@@ -929,6 +914,7 @@ export default function ChatMessage({
             </div>
           </div>
         )}
+      </div>
       </div>
 
       {projectPickerOpen && pickerPos && onAddToProject && (

@@ -346,26 +346,27 @@ class PULSEReport:
 
     @property
     def confidence_ratio(self) -> float:
-        """
-        Dynamic confidence based on ACTUAL cross-validation of findings,
-        not just source-level keyword overlap.
+        return self._compute_confidence()["ratio"]
 
-        Three components:
-        1. Source coverage: what fraction of queried sources returned data?
-        2. Cross-validation density: how many findings were corroborated
-           across independent sources?
-        3. Evidence quality: weighted by study type hierarchy.
+    def _compute_confidence(self) -> dict:
+        """
+        Dynamic confidence based on ACTUAL cross-validation of findings.
+        Returns ratio plus transparent breakdown for the UI.
         """
         if self.source_count == 0:
-            return 0.0
+            return {
+                "ratio": 0.0,
+                "cross_validation_density": 0.0,
+                "source_coverage": 0.0,
+                "source_agreement": 0.0,
+                "coverage_factor": 1.0,
+                "edge_case_penalty": 0.0,
+                "contradiction_penalty": 0.0,
+            }
 
         total_queried = self.sources_queried_count
-
-        # Component 1: Source coverage (0 to 1)
         coverage = self.source_count / max(total_queried, 1)
 
-        # Component 2: Cross-validation density (0 to 1)
-        # What fraction of papers have at least one cross-validation?
         total_papers = len(self.validated_results) + len(self.edge_cases)
         if total_papers > 0:
             papers_with_xval = sum(
@@ -376,42 +377,50 @@ class PULSEReport:
         else:
             xval_density = 0.0
 
-        # Component 3: Source agreement (legacy keyword overlap, still useful)
-        if total_queried > 0:
-            agreement_ratio = self.agreement_count / total_queried
-        else:
-            agreement_ratio = 0.0
+        agreement_ratio = self.agreement_count / total_queried if total_queried > 0 else 0.0
 
-        # Blend: cross-validation density matters most, then coverage, then agreement
         raw_confidence = (
-            xval_density * 0.45 +      # actual finding-level corroboration
-            coverage * 0.30 +            # how many sources responded
-            agreement_ratio * 0.25       # keyword-level agreement (legacy, still useful)
+            xval_density * 0.45 +
+            coverage * 0.30 +
+            agreement_ratio * 0.25
         )
 
-        # Coverage factor: sqrt scaling so low coverage is penalized but not crushed
+        coverage_factor = 1.0
         if total_queried > 1:
             coverage_factor = 0.4 + (0.6 * math.sqrt(coverage))
             raw_confidence *= coverage_factor
 
-        # Edge-case penalty
+        edge_penalty = 0.0
         if self.edge_cases:
-            penalty = len(self.edge_cases) / max(1, total_papers)
-            raw_confidence *= (1.0 - (penalty * 0.20))
+            edge_penalty = len(self.edge_cases) / max(1, total_papers)
+            raw_confidence *= (1.0 - (edge_penalty * 0.20))
 
-        # Contradiction penalty
+        contradiction_penalty = 0.0
         if self.total_contradictions > 0 and self.total_cross_validations > 0:
-            contradiction_ratio = self.total_contradictions / (self.total_cross_validations + self.total_contradictions)
-            raw_confidence *= (1.0 - (contradiction_ratio * 0.30))
+            contradiction_penalty = self.total_contradictions / (
+                self.total_cross_validations + self.total_contradictions
+            )
+            raw_confidence *= (1.0 - (contradiction_penalty * 0.30))
 
-        return min(max(raw_confidence, 0.0), 0.95)
+        ratio = min(max(raw_confidence, 0.0), 0.95)
+        return {
+            "ratio": ratio,
+            "cross_validation_density": round(xval_density, 2),
+            "source_coverage": round(coverage, 2),
+            "source_agreement": round(agreement_ratio, 2),
+            "coverage_factor": round(coverage_factor, 2),
+            "edge_case_penalty": round(edge_penalty, 2),
+            "contradiction_penalty": round(contradiction_penalty, 2),
+        }
 
     def to_dict(self) -> dict:
         """Serialise the report to a dictionary for API responses."""
+        conf = self._compute_confidence()
         return {
             "query": self.query,
             "status": self.status.value,
-            "confidence_ratio": round(self.confidence_ratio, 2),
+            "confidence_ratio": round(conf["ratio"], 2),
+            "confidence_breakdown": conf,
             "source_count": self.source_count,
             "sources_attempted": self.sources_queried_count,
             "sources_failed": self.sources_failed_count,
