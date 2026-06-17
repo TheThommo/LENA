@@ -112,11 +112,6 @@ export function Sidebar({
                 >
                   <Icon className="w-4 h-4 shrink-0" />
                   <span>{item.label}</span>
-                  {item.badge && (
-                    <span className="ml-auto text-[9px] font-semibold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full leading-none tracking-wide">
-                      {item.badge}
-                    </span>
-                  )}
                 </button>
               </li>
             );
