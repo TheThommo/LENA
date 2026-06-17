@@ -15,6 +15,7 @@ from app.core.auth import require_auth, require_role
 from app.db.supabase import get_supabase_admin_client
 from app.models.enums import UserRole
 from app.services.console_permissions import console_nav, map_lena_role
+from app.services.db_explorer import get_db_explorer_catalog, mask_row
 from app.services.dashboard_queries import (
     _get_date_range,
     get_funnel_metrics,
@@ -31,39 +32,6 @@ router = APIRouter(
     tags=["dashboard_console"],
     dependencies=[Depends(require_role([UserRole.PLATFORM_ADMIN.value]))],
 )
-
-TABLE_GROUPS: Dict[str, List[str]] = {
-    "Users and access": [
-        "users", "user_tenants", "roles", "permissions", "role_permissions", "user_personas",
-    ],
-    "Tenancy": ["tenants", "tenant_config"],
-    "Billing": ["plan_tiers", "tenant_subscriptions", "trial_config"],
-    "Search and product": [
-        "searches", "search_logs", "search_results", "sessions", "pulse_scores",
-        "saved_results", "search_feedback", "collections", "collection_items",
-    ],
-    "Compliance and audit": ["audit_log", "disclaimer_acceptances", "event_log"],
-    "Usage analytics": ["usage_daily", "usage_monthly", "platform_metrics"],
-    "Agent and docs": [
-        "agent_memory", "agent_guardrail_triggers", "tenant_documents", "document_tags",
-        "notifications", "notification_preferences", "shared_results",
-    ],
-}
-
-SENSITIVE_COLUMNS = {
-    "password_hash", "reset_token_hash", "reset_token_expires_at", "query_vector",
-}
-
-ALLOWED_TABLES = {table for tables in TABLE_GROUPS.values() for table in tables}
-
-
-def _mask_row(row: dict) -> dict:
-    masked = dict(row)
-    for key in list(masked.keys()):
-        if key in SENSITIVE_COLUMNS:
-            masked[key] = "[redacted]"
-    return masked
-
 
 @router.get("/permissions")
 async def get_console_permissions(user=Depends(require_auth)):
@@ -222,9 +190,14 @@ async def list_audit_log(
 
 
 @router.get("/db/tables")
-async def list_db_tables():
-    """Grouped table list for DB Explorer sidebar."""
-    return {"groups": TABLE_GROUPS}
+async def list_db_tables(refresh: bool = Query(False)):
+    """Grouped table list for DB Explorer sidebar (live Supabase discovery)."""
+    catalog = await get_db_explorer_catalog(force_refresh=refresh)
+    return {
+        "groups": catalog["groups"],
+        "discovered_count": catalog["discovered_count"],
+        "source": catalog["source"],
+    }
 
 
 @router.get("/db/{table_name}")
@@ -238,7 +211,8 @@ async def browse_db_table(
     filter_val: Optional[str] = Query(None),
 ):
     """Paginated, sortable table browse via admin client (bypasses RLS)."""
-    if table_name not in ALLOWED_TABLES:
+    catalog = await get_db_explorer_catalog()
+    if table_name not in catalog["allowed_tables"]:
         raise HTTPException(status_code=404, detail="Table not available in explorer")
 
     client = get_supabase_admin_client()
@@ -259,10 +233,11 @@ async def browse_db_table(
             if filter_col and filter_val:
                 q = q.ilike(filter_col, f"%{filter_val}%")
             res = q.range(offset, offset + limit - 1).execute()
+            sort_col = sort or "id"
         except Exception as inner:
             raise HTTPException(status_code=400, detail=str(inner)) from inner
 
-    rows = [_mask_row(r) for r in (res.data or [])]
+    rows = [mask_row(r) for r in (res.data or [])]
     columns = list(rows[0].keys()) if rows else []
 
     return {
@@ -285,16 +260,22 @@ async def export_db_table_csv(
     order: str = Query("desc"),
 ):
     """CSV export for the current table slice."""
-    if table_name not in ALLOWED_TABLES:
+    catalog = await get_db_explorer_catalog()
+    if table_name not in catalog["allowed_tables"]:
         raise HTTPException(status_code=404, detail="Table not available in explorer")
 
     client = get_supabase_admin_client()
     sort_col = sort or "created_at"
     ascending = order.lower() == "asc"
 
-    q = client.table(table_name).select("*").order(sort_col, desc=not ascending).limit(limit)
-    res = q.execute()
-    rows = [_mask_row(r) for r in (res.data or [])]
+    try:
+        q = client.table(table_name).select("*").order(sort_col, desc=not ascending).limit(limit)
+        res = q.execute()
+    except Exception:
+        q = client.table(table_name).select("*").limit(limit)
+        res = q.execute()
+        sort_col = sort or "id"
+    rows = [mask_row(r) for r in (res.data or [])]
 
     output = io.StringIO()
     if rows:

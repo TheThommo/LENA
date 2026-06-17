@@ -3,26 +3,26 @@
 @tailwind utilities;
 
 :root {
-  /* Brand Colors (RGB) - LENA Teal */
-  --brand-primary: 27 107 147;
-  --brand-primary-light: 232 244 248;
-  --brand-primary-dark: 20 83 114;
-  --brand-accent: 27 107 147;
-  --brand-surface: 255 251 240;
+  /* Brand Colors (RGB) — refined clinical teal */
+  --brand-primary: 19 107 122;
+  --brand-primary-light: 232 246 248;
+  --brand-primary-dark: 14 84 96;
+  --brand-accent: 45 140 155;
+  --brand-surface: 255 255 255;
 
   /* Text Colors */
-  --brand-text: 26 26 46;
-  --brand-text-secondary: 100 116 139;
+  --brand-text: 15 23 42;
+  --brand-text-secondary: 71 85 105;
   --brand-text-muted: 148 163 184;
 
   /* UI Colors */
   --brand-border: 226 232 240;
-  --brand-bg: 255 251 240;
+  --brand-bg: 247 248 250;
   --brand-bg-white: 255 255 255;
 
   /* Status Colors */
-  --brand-success: 34 197 94;
-  --brand-warning: 234 179 8;
+  --brand-success: 16 185 129;
+  --brand-warning: 245 158 11;
   --brand-danger: 239 68 68;
 
   /* Brand Identity */
@@ -30,36 +30,31 @@
 }
 
 html, body {
-  /* Prevent iOS pull-to-refresh and rubber-band scroll fighting in-app scroll regions */
   overscroll-behavior-y: contain;
-  /* Smoother momentum scrolling on iOS */
   -webkit-text-size-adjust: 100%;
-  /* Apple-style system font stack - falls back to Inter on non-Apple OS */
-  font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Display', 'SF Pro Text', 'Inter', system-ui, sans-serif;
+  font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-  /* Tighter letter-spacing like Apple UI */
-  letter-spacing: -0.011em;
-  /* Better kerning */
+  letter-spacing: -0.015em;
   font-feature-settings: 'kern', 'liga', 'calt';
 }
 
 body {
   color: rgb(var(--brand-text));
-  background: rgb(var(--brand-bg));
+  background:
+    radial-gradient(ellipse 80% 50% at 50% -20%, rgba(var(--brand-primary) / 0.06), transparent),
+    rgb(var(--brand-bg));
 }
 
-/* Apple-style display headings - tighter tracking, sharper */
 h1, h2, h3 {
-  letter-spacing: -0.022em;
+  letter-spacing: -0.025em;
   font-weight: 600;
 }
 
 h1 {
-  letter-spacing: -0.028em;
+  letter-spacing: -0.03em;
 }
 
-/* Subtle scrollbar like macOS */
 ::-webkit-scrollbar {
   width: 8px;
   height: 8px;
@@ -68,14 +63,13 @@ h1 {
   background: transparent;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(0, 0, 0, 0.15);
-  border-radius: 4px;
+  background: rgba(15, 23, 42, 0.12);
+  border-radius: 999px;
 }
 ::-webkit-scrollbar-thumb:hover {
-  background: rgba(0, 0, 0, 0.25);
+  background: rgba(15, 23, 42, 0.2);
 }
 
-/* Utility Classes */
 .text-brand {
   @apply text-[rgb(var(--brand-primary))];
 }
@@ -116,7 +110,6 @@ h1 {
   @apply text-[rgb(var(--brand-danger))];
 }
 
-/* Animations */
 @keyframes spin {
   from { transform: rotate(0deg); }
   to { transform: rotate(360deg); }

@@ -769,7 +769,7 @@ export default function Home() {
       <div className="flex flex-col h-full">
         {/* Session search bar (shown when toggled in header) */}
         {sessionSearchOpen && messages.length > 0 && (
-          <div className="border-b border-slate-200/70 bg-white/90 px-4 py-2 flex items-center gap-2">
+          <div className="border-b border-slate-200/80 bg-white/95 px-4 py-2 flex items-center gap-2">
             <svg className="w-4 h-4 text-slate-400 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
               <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
             </svg>
@@ -867,7 +867,7 @@ export default function Home() {
         </div>
 
         {/* Bottom search input */}
-        <div className="border-t border-slate-200/70 bg-white/80 backdrop-blur-xl px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))]">
+        <div className="border-t border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-1px_0_rgba(15,23,42,0.04)]">
           <div className="max-w-3xl mx-auto">
             {/* Active project pill - shows what context the next search
                 will file into. Click X to exit project context and run
@@ -894,7 +894,7 @@ export default function Home() {
                 </button>
               </div>
             )}
-            <div className="flex items-end gap-2.5 bg-white border border-slate-200/80 rounded-xl px-3.5 py-2.5 focus-within:border-lena-400/60 focus-within:ring-2 focus-within:ring-lena-100/60 transition-all shadow-sm">
+            <div className="flex items-end gap-2.5 bg-white border border-slate-200/80 rounded-2xl px-3.5 py-2.5 focus-within:border-lena-400/70 focus-within:ring-2 focus-within:ring-lena-100/80 transition-all shadow-soft">
               <textarea
                 ref={inputRef}
                 value={input}
@@ -959,7 +959,7 @@ export default function Home() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar */}
-        <header className="min-h-[52px] border-b border-slate-200/70 bg-white/80 backdrop-blur-xl flex items-center justify-between px-3 sm:px-4 flex-shrink-0 gap-2">
+        <header className="min-h-[52px] border-b border-slate-200/80 bg-white/95 backdrop-blur-xl flex items-center justify-between px-3 sm:px-4 flex-shrink-0 gap-2 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
           <div className="flex items-center gap-2 flex-shrink-0">
             <button
               onClick={() => setSidebarOpen(!sidebarOpen)}

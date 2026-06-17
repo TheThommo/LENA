@@ -61,7 +61,7 @@ export function Sidebar({
   }, [menuOpen]);
 
   return (
-    <aside className="flex flex-col w-[260px] h-full bg-white/80 backdrop-blur-xl border-r border-gray-200/60 shrink-0">
+    <aside className="flex flex-col w-[260px] h-full bg-white/95 backdrop-blur-xl border-r border-slate-200/80 shrink-0 shadow-[1px_0_0_rgba(15,23,42,0.04)]">
       {/* Logo Section */}
       <div className="px-5 pt-5 pb-3">
         <Image
@@ -78,7 +78,7 @@ export function Sidebar({
       <div className="px-3 pb-3">
         <button
           onClick={onNewSearch}
-          className="flex items-center justify-center gap-2 w-full px-3.5 py-2 bg-lena-500 text-white text-[13px] font-medium rounded-lg hover:bg-lena-700 transition-all shadow-sm hover:shadow"
+          className="flex items-center justify-center gap-2 w-full px-3.5 py-2 bg-lena-500 text-white text-[13px] font-medium rounded-lg hover:bg-lena-700 transition-all shadow-sm hover:shadow-md"
         >
           <SearchIcon className="w-3.5 h-3.5" />
           New Search
@@ -99,8 +99,8 @@ export function Sidebar({
                     flex items-center gap-2.5 w-full px-3 py-2 text-[13px] font-medium rounded-md transition-all
                     ${
                       isActive
-                        ? 'text-lena-600 bg-lena-50'
-                        : 'text-gray-600 hover:text-gray-900 hover:bg-gray-50/80'
+                        ? 'text-lena-700 bg-lena-50/90 shadow-sm'
+                        : 'text-slate-600 hover:text-slate-900 hover:bg-slate-50/90'
                     }
                   `}
                 >

@@ -75,21 +75,21 @@ export default function WelcomeView({ persona, onPromptClick }: WelcomeViewProps
   }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center max-w-xl mx-auto px-5 py-20">
+    <div className="flex flex-col items-center justify-center max-w-xl mx-auto px-5 py-20 animate-fade-in">
       {/* LENA avatar */}
       <Image
         src={branding.avatarSrc}
         alt={branding.name}
-        width={64}
-        height={64}
-        className="rounded-2xl mb-5 shadow-sm ring-1 ring-black/5"
+        width={72}
+        height={72}
+        className="rounded-2xl mb-6 shadow-soft ring-1 ring-slate-900/5"
       />
 
-      {/* Heading - Apple-style tighter display */}
-      <h1 className="text-[28px] font-semibold text-slate-900 text-center mb-2 tracking-tight">
+      {/* Heading */}
+      <h1 className="text-[30px] font-semibold text-slate-900 text-center mb-2.5 tracking-tight">
         What would you like to research?
       </h1>
-      <p className="text-[14px] text-slate-500 text-center mb-12 max-w-md leading-relaxed">
+      <p className="text-[15px] text-slate-500 text-center mb-12 max-w-md leading-relaxed">
         {product.description}
       </p>
 
@@ -118,7 +118,7 @@ export default function WelcomeView({ persona, onPromptClick }: WelcomeViewProps
               <button
                 key={prompt}
                 onClick={() => onPromptClick(prompt)}
-                className="w-full flex items-center gap-3 px-3.5 py-3 text-left rounded-xl border border-slate-200/70 bg-white hover:border-lena-300/60 hover:bg-lena-50/30 transition-all group"
+                className="w-full flex items-center gap-3 px-4 py-3.5 text-left rounded-xl border border-slate-200/80 bg-white/90 hover:border-lena-300/70 hover:bg-lena-50/40 hover:shadow-soft transition-all group"
               >
                 <div className="w-7 h-7 rounded-lg bg-slate-50 group-hover:bg-lena-50 flex items-center justify-center flex-shrink-0 transition-colors">
                   <svg className="w-3.5 h-3.5 text-slate-400 group-hover:text-lena-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -151,7 +151,7 @@ export default function WelcomeView({ persona, onPromptClick }: WelcomeViewProps
               <button
                 key={topic}
                 onClick={() => onPromptClick(topic)}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-full border border-slate-200/70 bg-white hover:border-lena-300/60 hover:bg-lena-50/30 transition-all group"
+                className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-full border border-slate-200/80 bg-white/90 hover:border-lena-300/70 hover:bg-lena-50/40 hover:shadow-soft transition-all group"
               >
                 <span className="text-[12px] text-slate-700 group-hover:text-slate-900 font-medium">{topic}</span>
                 {!is_fallback && count > 0 && (

@@ -19,10 +19,10 @@ export const branding = {
   avatarSrc: '/lena-avatar.jpg',
 
   /** Primary brand color */
-  primaryColor: '#1B6B93',
+  primaryColor: '#136B7A',
 
   /** Dark variant of brand color */
-  primaryDark: '#145372',
+  primaryDark: '#0D4854',
 } as const;
 
 
