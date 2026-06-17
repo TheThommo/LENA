@@ -732,7 +732,7 @@ body {
     </div>
     <div class="panel-body no-pad">
       <table class="data-table" id="leadsTable">
-        <thead><tr><th>Name</th><th>Email</th><th>Institution</th><th>Domain</th><th>Type</th><th>Phone</th><th>Location</th><th>Source</th><th>Searches</th><th>Consent</th><th>Date</th></tr></thead>
+        <thead><tr><th>Name</th><th>Email</th><th>Institution</th><th>Domain</th><th>Type</th><th>Phone</th><th>Location</th><th>Source</th><th>Searches</th><th>3rd-party sharing</th><th>Date</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -1663,7 +1663,7 @@ function openLeadDrawer(idx) {
     ['Source', l.source || 'Direct'],
     ['Registered user', l.registered ? 'Yes' : 'No'],
     ['Disclaimer accepted', l.disclaimer_accepted ? 'Yes' : 'No'],
-    ['Data consent', l.data_consent ? 'Yes' : 'No'],
+    ['Third-party sharing consent', l.data_consent ? 'Yes' : 'No'],
     ['First seen', when],
   ];
 
@@ -1672,19 +1672,23 @@ function openLeadDrawer(idx) {
     html += `<div class="lead-detail-row"><span class="lead-detail-label">${escHtml(label)}</span><span class="lead-detail-value">${escHtml(value)}</span></div>`;
   });
   html += '</div>';
+  html += '<p style="font-size:11px;color:var(--text-muted);margin:0 0 12px;line-height:1.4">Third-party sharing consent controls whether data may be shared outside LENA. Queries remain visible here for internal product learning regardless of this setting.</p>';
 
   const emailKey = (l.email || '').toLowerCase();
-  const related = (_questionsCache || []).filter(q =>
-    (q.user_email || '').toLowerCase() === emailKey
-  ).slice(0, 8);
+  const related = (l.recent_queries && l.recent_queries.length)
+    ? l.recent_queries
+    : (_questionsCache || []).filter(q =>
+        (q.user_email || '').toLowerCase() === emailKey
+      ).slice(0, 8);
 
   html += '<div class="lead-questions-title">Questions asked</div>';
   if (!related.length) {
-    html += '<p style="font-size:12px;color:var(--text-muted)">No questions linked to this email in the current date range. Widen the date filter and refresh.</p>';
+    html += '<p style="font-size:12px;color:var(--text-muted)">No questions found for this lead yet.</p>';
   } else {
     related.forEach(q => {
       const qWhen = q.created_at ? new Date(q.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
-      html += `<div class="lead-question-item"><strong>${escHtml(q.query || '')}</strong><span class="lead-question-meta">${escHtml(qWhen)} · ${escHtml(q.pulse_status || '—')} · ${q.result_count ?? 0} results</span></div>`;
+      const resultCount = q.total_results ?? q.result_count ?? 0;
+      html += `<div class="lead-question-item"><strong>${escHtml(q.query || '')}</strong><span class="lead-question-meta">${escHtml(qWhen)} · ${escHtml(q.pulse_status || '—')} · ${resultCount} results</span></div>`;
     });
   }
 
