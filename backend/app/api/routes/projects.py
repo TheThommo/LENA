@@ -336,30 +336,42 @@ async def assign_search_to_project(
     """
     client = get_supabase_admin_client()
     user_id = user["user_id"]
+    sid = str(search_id)
 
-    # Ownership check: try search_logs first, fall back to searches. Some
-    # historic rows landed in only one of the two tables (pre-migration
-    # 008 dropped search_logs writes silently when user_id was missing),
-    # so we accept a hit from either.
-    sr = (
+    # Ownership: row must exist and belong to caller (or be unowned legacy row).
+    log_row = (
         client.table("search_logs")
-        .select("id")
-        .eq("id", str(search_id))
-        .eq("user_id", user_id)
+        .select("id, user_id")
+        .eq("id", sid)
         .limit(1)
         .execute()
     )
-    if not sr.data:
-        sr2 = (
-            client.table("searches")
-            .select("id")
-            .eq("id", str(search_id))
-            .eq("user_id", user_id)
-            .limit(1)
-            .execute()
-        )
-        if not sr2.data:
+    search_row = (
+        client.table("searches")
+        .select("id, user_id")
+        .eq("id", sid)
+        .limit(1)
+        .execute()
+    )
+
+    owner_from_logs = (log_row.data or [None])[0]
+    owner_from_searches = (search_row.data or [None])[0]
+
+    if not owner_from_logs and not owner_from_searches:
+        raise HTTPException(status_code=404, detail="Search not found")
+
+    for row in (owner_from_logs, owner_from_searches):
+        if not row:
+            continue
+        row_user = row.get("user_id")
+        if row_user and row_user != user_id:
             raise HTTPException(status_code=404, detail="Search not found")
+
+    # Backfill user_id on legacy rows that were logged before migration 008.
+    if owner_from_logs and not owner_from_logs.get("user_id"):
+        client.table("search_logs").update({"user_id": user_id}).eq("id", sid).execute()
+    if owner_from_searches and not owner_from_searches.get("user_id"):
+        client.table("searches").update({"user_id": user_id}).eq("id", sid).execute()
 
     # Ownership on the target project (if any)
     target_id: Optional[str] = None
@@ -377,6 +389,6 @@ async def assign_search_to_project(
         target_id = str(body.project_id)
 
     # Write to both tables so admin counts and project view stay in sync.
-    client.table("search_logs").update({"project_id": target_id}).eq("id", str(search_id)).execute()
-    client.table("searches").update({"project_id": target_id}).eq("id", str(search_id)).execute()
-    return {"ok": True, "search_id": str(search_id), "project_id": target_id}
+    client.table("search_logs").update({"project_id": target_id}).eq("id", sid).execute()
+    client.table("searches").update({"project_id": target_id}).eq("id", sid).execute()
+    return {"ok": True, "search_id": sid, "project_id": target_id}

@@ -68,15 +68,8 @@ async def search_literature(
     # Authenticated path (JWT)
     if hasattr(request.state, "user_id") and request.state.user_id:
         resolved_user_id = str(request.state.user_id)
-        # Look up user's default tenant from user_tenants
-        try:
-            from app.db.repositories.user_repo import UserTenantRepository
-            from uuid import UUID as _UUID
-            memberships = await UserTenantRepository.get_by_user_id(_UUID(resolved_user_id))
-            if memberships:
-                resolved_tenant_id = str(memberships[0].tenant_id)
-        except Exception:
-            pass
+        from app.services.tenant_resolver import resolve_tenant_id_for_user
+        resolved_tenant_id = await resolve_tenant_id_for_user(resolved_user_id)
 
     # Anonymous session path
     if not resolved_tenant_id:
