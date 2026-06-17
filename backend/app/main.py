@@ -9,7 +9,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.core.config import settings
-from app.api.routes import health, search, session, auth, dashboard_platform, dashboard_tenant, dashboard_export, dashboard_subscriptions, dashboard_users, projects, discover, billing, supplements
+from app.api.routes import health, search, session, auth, dashboard_platform, dashboard_tenant, dashboard_export, dashboard_subscriptions, dashboard_users, dashboard_console, projects, discover, billing, supplements
 from app.middleware.analytics import AnalyticsMiddleware
 from app.middleware.search_gate import SearchGateMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
@@ -72,6 +72,7 @@ app.include_router(supplements.router, prefix="/api")
 app.include_router(dashboard_platform.router, prefix="/api")
 app.include_router(dashboard_subscriptions.router, prefix="/api")
 app.include_router(dashboard_users.router, prefix="/api")
+app.include_router(dashboard_console.router, prefix="/api")
 app.include_router(dashboard_tenant.router, prefix="/api")
 app.include_router(dashboard_export.router, prefix="/api")
 
