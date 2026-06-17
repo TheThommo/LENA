@@ -1,5 +1,9 @@
 'use client';
 
+/**
+ * Reserved for future in-app email share (recipient tracking).
+ * Not wired in production — Share dropdown uses copy link + social channels.
+ */
 import { useState, useEffect, useCallback } from 'react';
 
 interface ShareModalProps {

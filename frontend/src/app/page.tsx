@@ -7,7 +7,6 @@ import { product } from '@/config/branding';
 import WelcomeView from '@/components/chat/WelcomeView';
 import ChatMessage from '@/components/chat/ChatMessage';
 import ResearchPanel from '@/components/chat/ResearchPanel';
-import ShareModal from '@/components/chat/ShareModal';
 import ThinkingIndicator from '@/components/search/ThinkingIndicator';
 import SearchLimitModal from '@/components/funnel/SearchLimitModal';
 import DisclaimerCard from '@/components/chat/DisclaimerCard';
@@ -55,7 +54,6 @@ export default function Home() {
   // UI state
   const [activeView, setActiveView] = useState('chat');
   const [panelOpen, setPanelOpen] = useState(false);
-  const [shareModal, setShareModal] = useState<{ isOpen: boolean; title?: string }>({ isOpen: false });
   const [sessionSearchOpen, setSessionSearchOpen] = useState(false);
   const [sessionSearch, setSessionSearch] = useState('');
   // Result-mode multi-select: 'all' (default), 'supplements', 'herbal', 'alternatives', 'outlier'. Multiple may be active.
@@ -829,7 +827,6 @@ export default function Home() {
                     response={msg.response}
                     activeModes={resultModes}
                     onFollowUp={(q) => handleSend(q)}
-                    onShare={(title) => setShareModal({ isOpen: true, title })}
                     projects={isAuthenticated ? projects.filter(p => !p.archived_at).map(p => ({
                       id: p.id, name: p.name, emoji: p.emoji,
                     })) : undefined}
@@ -1131,16 +1128,6 @@ export default function Home() {
         </div>
       </div>
 
-      {/* Share Modal */}
-      <ShareModal
-        isOpen={shareModal.isOpen}
-        onClose={() => setShareModal({ isOpen: false })}
-        resultTitle={shareModal.title}
-        onShare={(data) => {
-          console.log('Share:', data);
-          setShareModal({ isOpen: false });
-        }}
-      />
     </div>
   );
 }
