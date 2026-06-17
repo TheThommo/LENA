@@ -46,7 +46,7 @@ class Settings(BaseSettings):
     # Authentication & JWT
     jwt_secret_key: str = "change-me-in-production"
     jwt_algorithm: str = "HS256"
-    jwt_expiration_minutes: int = 480  # 8 hours (admin tokens live 8h, not 24h)
+    jwt_expiration_minutes: int = 10080  # 7 days — stay signed in until logout or expiry
 
     # Freemium
     # Anonymous visitors get 1 free search before signup CTA (demo mode).

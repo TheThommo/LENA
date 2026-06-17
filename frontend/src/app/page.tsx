@@ -123,6 +123,9 @@ export default function Home() {
 
   const sessionsKey = user?.id ? `lena_recent_sessions_${user.id}` : null;
   const threadsKey = user?.id ? `lena_session_threads_${user.id}` : null;
+  const activeSessionKey = user?.id ? `lena_active_session_${user.id}` : null;
+  const restoringThreadRef = useRef(false);
+  const hasAutoRestoredRef = useRef(false);
 
   // One-time cleanup: remove pre-fix un-namespaced keys so they can never
   // flash on screen during auth state transitions.
@@ -195,6 +198,52 @@ export default function Home() {
     }
   }, [threadsKey]);
 
+  // Restore the user's last active chat after reload (e.g. floaters search).
+  useEffect(() => {
+    if (!isAuthenticated || !threadsKey || hasAutoRestoredRef.current) return;
+    if (recentSessions.length === 0 || messages.length > 0) return;
+
+    const pickLatest = (sessions: RecentSessionRecord[]) =>
+      [...sessions].sort(
+        (a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime(),
+      )[0];
+
+    const savedActiveId = activeSessionKey ? localStorage.getItem(activeSessionKey) : null;
+    const target =
+      (savedActiveId ? recentSessions.find(s => s.id === savedActiveId) : undefined) ||
+      pickLatest(recentSessions);
+
+    const thread = loadSessionThread(target.id);
+    if (!thread?.length) return;
+
+    restoringThreadRef.current = true;
+    currentSessionIdRef.current = target.id;
+    if (target.projectId) setActiveProjectId(target.projectId);
+    setMessages(thread);
+    setActiveView('chat');
+    hasAutoRestoredRef.current = true;
+  }, [
+    isAuthenticated,
+    recentSessions,
+    threadsKey,
+    activeSessionKey,
+    loadSessionThread,
+    messages.length,
+    setActiveProjectId,
+  ]);
+
+  // Flush chat thread to localStorage if the tab closes mid-session.
+  useEffect(() => {
+    if (!isAuthenticated || !threadsKey) return;
+    const flush = () => {
+      if (messages.length > 0) {
+        persistSessionThread(currentSessionIdRef.current, messages);
+      }
+    };
+    window.addEventListener('beforeunload', flush);
+    return () => window.removeEventListener('beforeunload', flush);
+  }, [isAuthenticated, threadsKey, messages, persistSessionThread]);
+
   // Auto-scroll to bottom on new messages
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: 'smooth' });
@@ -215,6 +264,9 @@ export default function Home() {
     const sid = currentSessionIdRef.current;
     const pid = activeProjectId || null;
     const now = new Date().toISOString();
+    if (activeSessionKey) {
+      try { localStorage.setItem(activeSessionKey, sid); } catch {}
+    }
     setRecentSessions(prev => {
       const existing = prev.find(s => s.id === sid);
       let updated: RecentSessionRecord[];
@@ -252,7 +304,7 @@ export default function Home() {
       }
       return updated;
     });
-  }, [isAuthenticated, sessionsKey, activeProjectId]);
+  }, [isAuthenticated, sessionsKey, activeProjectId, activeSessionKey]);
 
   const deleteRecentSession = useCallback((sessionId: string) => {
     if (!isAuthenticated || !sessionsKey || !threadsKey) return;
@@ -476,7 +528,6 @@ export default function Home() {
   // restoringThreadRef guards the case where handleRecentSessionClick is
   // explicitly restoring a session; that path already sets its own
   // activeProjectId and shouldn't be wiped.
-  const restoringThreadRef = useRef(false);
   const lastProjectIdRef = useRef<string | null>(null);
   useEffect(() => {
     if (restoringThreadRef.current) {

@@ -27,18 +27,24 @@ const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
 const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
+function readStoredUser(): User | null {
+  if (typeof window === 'undefined') return null;
+  try {
+    const stored = localStorage.getItem('lena_user');
+    return stored ? JSON.parse(stored) : null;
+  } catch {
+    return null;
+  }
+}
+
+function readStoredToken(): string | null {
+  if (typeof window === 'undefined') return null;
+  return localStorage.getItem('lena_token');
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
-  const [user, setUser] = useState<User | null>(() => {
-    if (typeof window === 'undefined') return null;
-    try {
-      const stored = localStorage.getItem('lena_user');
-      return stored ? JSON.parse(stored) : null;
-    } catch { return null; }
-  });
-  const [token, setToken] = useState<string | null>(() => {
-    if (typeof window === 'undefined') return null;
-    return localStorage.getItem('lena_token');
-  });
+  const [user, setUser] = useState<User | null>(() => readStoredUser());
+  const [token, setToken] = useState<string | null>(() => readStoredToken());
   const [isLoading, setIsLoading] = useState(true);
 
   // Persist token and user to localStorage whenever they change
@@ -60,14 +66,22 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   useEffect(() => {
     refreshUser();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   const refreshUser = async () => {
-    // Use token from state or fall back to localStorage (for initial mount)
-    const activeToken = token || (typeof window !== 'undefined' ? localStorage.getItem('lena_token') : null);
+    const activeToken = token || readStoredToken();
     if (!activeToken) {
       setIsLoading(false);
       return;
+    }
+
+    if (!token) {
+      setToken(activeToken);
+    }
+    if (!user) {
+      const cached = readStoredUser();
+      if (cached) setUser(cached);
     }
 
     try {
@@ -75,17 +89,18 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
         headers: { Authorization: `Bearer ${activeToken}` },
       });
 
-      if (!response.ok) {
+      if (response.status === 401 || response.status === 403) {
         setToken(null);
         setUser(null);
-      } else {
+      } else if (response.ok) {
         const userData = await response.json();
         setUser(userData);
       }
+      // Non-auth failures (5xx, network blips): keep cached session alive
     } catch (error) {
       console.error('Error refreshing user:', error);
-      setToken(null);
-      setUser(null);
+      const cached = readStoredUser();
+      if (cached) setUser(cached);
     } finally {
       setIsLoading(false);
     }
@@ -153,7 +168,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       value={{
         user,
         token,
-        isAuthenticated: !!user,
+        isAuthenticated: !!user && !!token,
         isLoading,
         login,
         register,
