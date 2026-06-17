@@ -52,7 +52,8 @@ interface UserProfile {
   notes: string;
 }
 
-const LS_KEY = 'lena_user_brain';
+const LS_KEY = 'lena_user_profile';
+const LEGACY_LS_KEY = 'lena_user_brain';
 
 const DEFAULT_PROFILE: UserProfile = {
   specialty: '',
@@ -92,7 +93,7 @@ const SPECIALTIES = [
   'Alternative & Integrative Medicine', 'Other',
 ];
 
-export default function MyBrain() {
+export default function ProfileSettings() {
   const { setPersona } = useSession();
   const { user, isAuthenticated } = useAuth();
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
@@ -102,18 +103,18 @@ export default function MyBrain() {
 
   useEffect(() => {
     try {
-      const stored = localStorage.getItem(LS_KEY);
+      const stored = localStorage.getItem(LS_KEY) || localStorage.getItem(LEGACY_LS_KEY);
       if (stored) {
         const parsed: UserProfile = JSON.parse(stored);
         setProfile(parsed);
-        // Restore the top-bar persona to match the saved specialty so the
-        // selector reflects what the user signed up as on first paint.
+        if (!localStorage.getItem(LS_KEY)) {
+          localStorage.setItem(LS_KEY, stored);
+        }
         if (parsed.specialty && SPECIALTY_TO_PERSONA[parsed.specialty]) {
           setPersona(SPECIALTY_TO_PERSONA[parsed.specialty]);
         }
       }
     } catch {}
-  // setPersona is stable from context; intentionally only run on mount.
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
@@ -245,26 +246,17 @@ export default function MyBrain() {
           </div>
         )}
 
-        {/* ── Research profile ───────────────────────────────────── */}
-        {/* Header */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-2">
-            <div
-              className="w-10 h-10 rounded-xl flex items-center justify-center"
-              style={{ background: 'linear-gradient(135deg, #1B6B93, #145372)' }}
-            >
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="white">
-                <path d="M12 2C12 2 14.5 8.5 15.5 9.5C16.5 10.5 22 12 22 12C22 12 16.5 13.5 15.5 14.5C14.5 15.5 12 22 12 22C12 22 9.5 15.5 8.5 14.5C7.5 13.5 2 12 2 12C2 12 7.5 10.5 8.5 9.5C9.5 8.5 12 2 12 2Z" />
-              </svg>
-            </div>
-            <div>
-              <h2 className="text-xl font-bold text-slate-900">My Brain</h2>
-              <p className="text-sm text-slate-500">Help LENA understand you better</p>
-            </div>
-          </div>
-          <p className="text-sm text-slate-500 leading-relaxed mt-3">
-            The more LENA knows about your background and research focus, the more relevant and precisely tailored your results will be. This information stays on your device and shapes how LENA interprets queries, prioritises sources, and frames findings.
+          <h2 className="text-xl font-bold text-slate-900 mb-1">Profile &amp; Settings</h2>
+          <p className="text-sm text-slate-500 leading-relaxed">
+            Your account, research background, database preferences, and personal context — so LENA can tailor every answer to you.
           </p>
+        </div>
+
+        {/* Research profile */}
+        <div className="mb-6">
+          <h3 className="text-sm font-semibold text-slate-800">Research Profile</h3>
+          <p className="text-xs text-slate-400 mt-1">Specialty, focus areas, and how LENA should communicate with you.</p>
         </div>
 
         {/* Completeness indicator */}
@@ -414,10 +406,24 @@ export default function MyBrain() {
             />
           </section>
 
-          {/* Preferred Sources */}
+          {/* Personal context — future uploads */}
           <section className="bg-white border border-slate-200 rounded-xl p-5">
-            <h3 className="text-sm font-semibold text-slate-800 mb-1">Preferred Sources</h3>
-            <p className="text-xs text-slate-400 mb-3">Select databases LENA should prioritise. All sources are still searched, but preferred ones are weighted higher.</p>
+            <div className="flex items-center justify-between gap-2 mb-1">
+              <h3 className="text-sm font-semibold text-slate-800">Personal Context</h3>
+              <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full">COMING SOON</span>
+            </div>
+            <p className="text-xs text-slate-400 mb-3">
+              Upload your own medical reports, lab results, or health notes so LENA can personalise answers with your consent. This replaces the old &quot;My Brain&quot; concept — personal context lives here, under Profile.
+            </p>
+            <div className="rounded-lg border border-dashed border-slate-200 bg-slate-50/80 px-4 py-6 text-center">
+              <p className="text-xs text-slate-500">Secure document upload and encrypted sync will be available in a future release.</p>
+            </div>
+          </section>
+
+          {/* Preferred databases */}
+          <section className="bg-white border border-slate-200 rounded-xl p-5">
+            <h3 className="text-sm font-semibold text-slate-800 mb-1">Preferred Databases</h3>
+            <p className="text-xs text-slate-400 mb-3">Which research databases LENA should prioritise when searching. This is not where saved papers live — use My Documents for that.</p>
             <div className="space-y-2">
               {AVAILABLE_SOURCES.map(src => {
                 const isSelected = profile.preferredSources.includes(src.key);
@@ -516,7 +522,7 @@ export default function MyBrain() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Your profile is stored locally on this device and is never sent to external servers. It is used only to personalise your LENA experience. When you sign in, this data will optionally sync to your encrypted account.
+              Your profile is stored locally on this device today. It personalises your LENA experience only — it is never sold or shared with third parties. Cloud sync and personal document upload will be optional and consent-based.
             </p>
           </div>
         </div>

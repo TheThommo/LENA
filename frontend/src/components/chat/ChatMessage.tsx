@@ -301,18 +301,18 @@ function SourceCard({ result, isEdgeCase, index, query }: { result: ValidatedRes
   const [saved, setSaved] = useState(false);
 
   useEffect(() => {
-    import('@/lib/mySources').then(m => {
-      setSaved(m.isSaved(result.source, result.title));
+    import('@/lib/savedDocuments').then((m) => {
+      setSaved(m.isDocumentSaved(result.source, result.title));
     }).catch(() => {});
   }, [result.source, result.title]);
 
   const handleSave = async () => {
-    const m = await import('@/lib/mySources');
+    const m = await import('@/lib/savedDocuments');
     if (saved) {
-      m.removeSource(m.makeSourceId(result.source, result.title));
+      m.removeDocument(m.makeDocumentId(result.source, result.title));
       setSaved(false);
     } else {
-      m.saveSource({
+      m.saveDocument({
         source: result.source,
         title: result.title,
         url: result.url,
@@ -433,9 +433,9 @@ function SourceCard({ result, isEdgeCase, index, query }: { result: ValidatedRes
                   ? 'text-emerald-700 bg-emerald-50 hover:bg-emerald-100'
                   : 'text-slate-700 bg-slate-100 hover:bg-slate-200'
               }`}
-              title={saved ? 'Saved to My Sources - click to remove' : 'Save to My Sources'}
+              title={saved ? 'Saved to My Documents — click to remove' : 'Save to My Documents'}
             >
-              {saved ? 'Saved' : 'Save'}
+              {saved ? 'Saved' : 'Save to Documents'}
             </button>
           </div>
         </div>

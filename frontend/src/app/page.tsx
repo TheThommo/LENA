@@ -15,8 +15,7 @@ import PersonaSelector from '@/components/PersonaSelector';
 import ComingSoon, { COMMUNITY_CONFIG, CONTRIBUTION_CONFIG } from '@/components/views/ComingSoon';
 import HowItWorks from '@/components/views/HowItWorks';
 import MyDocuments from '@/components/views/MyDocuments';
-import MySources from '@/components/views/MySources';
-import MyBrain from '@/components/views/MyBrain';
+import ProfileSettings from '@/components/views/MyBrain';
 import { useSession } from '@/contexts/SessionContext';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { useAuth } from '@/contexts/AuthContext';
@@ -34,6 +33,12 @@ interface Message {
   content: string;
   response?: SearchResponse;
   timestamp: Date;
+}
+
+function normalizeView(view: string): string {
+  if (view === 'sources') return 'documents';
+  if (view === 'brain') return 'profile';
+  return view;
 }
 
 export default function Home() {
@@ -567,7 +572,7 @@ export default function Home() {
       window.history.replaceState({ lenaView: 'chat' }, '');
     }
     const onPop = (e: PopStateEvent) => {
-      const v = (e.state && e.state.lenaView) || 'chat';
+      const v = normalizeView((e.state && e.state.lenaView) || 'chat');
       popInProgressRef.current = true;
       setActiveView(v);
     };
@@ -623,10 +628,11 @@ export default function Home() {
         return <HowItWorks />;
       case 'documents':
         return <MyDocuments />;
-      case 'sources':
-        return <MySources />;
+      case 'profile':
       case 'brain':
-        return <MyBrain />;
+        return <ProfileSettings />;
+      case 'sources':
+        return <MyDocuments />;
       case 'projects':
         return renderProjectView();
       default:

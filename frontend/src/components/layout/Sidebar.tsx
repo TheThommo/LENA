@@ -25,11 +25,9 @@ interface SidebarProps {
 const navItems = [
   { id: 'chat', label: 'Chat', icon: ChatIcon },
   { id: 'documents', label: 'My Documents', icon: FolderIcon },
-  { id: 'sources', label: 'My Sources', icon: BookIcon },
-  { id: 'brain', label: 'My Brain', icon: BrainIcon },
+  { id: 'how-it-works', label: 'How It Works', icon: BookIcon },
   { id: 'community', label: 'Community', icon: UsersIcon, badge: 'SOON' },
   { id: 'contribution', label: 'Contribution', icon: UploadIcon, badge: 'SOON' },
-  { id: 'how-it-works', label: 'How It Works', icon: BookIcon },
 ];
 
 export function Sidebar({
@@ -213,7 +211,7 @@ export function Sidebar({
                 <div className="py-1.5">
                   {/* Profile Settings */}
                   <button
-                    onClick={() => { setMenuOpen(false); onViewChange('brain'); }}
+                    onClick={() => { setMenuOpen(false); onViewChange('profile'); }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors group"
                   >
                     <SettingsIcon className="w-4 h-4 text-gray-400 group-hover:text-lena-500" />
@@ -433,24 +431,6 @@ function FolderIcon({ className }: { className?: string }) {
       strokeLinejoin="round"
     >
       <path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z" />
-    </svg>
-  );
-}
-
-function BrainIcon({ className }: { className?: string }) {
-  return (
-    <svg
-      className={className}
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-    >
-      <path d="M12 2a7 7 0 0 0-7 7c0 2.38 1.19 4.47 3 5.74V17a2 2 0 0 0 2 2h4a2 2 0 0 0 2-2v-2.26c1.81-1.27 3-3.36 3-5.74a7 7 0 0 0-7-7z" />
-      <path d="M10 21v1a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-1" />
-      <line x1="9" y1="17" x2="15" y2="17" />
     </svg>
   );
 }

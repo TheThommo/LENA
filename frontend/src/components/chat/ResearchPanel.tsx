@@ -2,6 +2,7 @@
 
 import { useMemo, useState, useCallback, useEffect } from 'react';
 import type { SearchResponse, ValidatedResult, SourceAgreement, ResultMode } from '@/lib/api';
+import { makeDocumentId, saveDocument, listDocuments } from '@/lib/savedDocuments';
 
 // ---------------------------------------------------------------------------
 // Types
@@ -99,9 +100,7 @@ const SECTION_TABS: { key: ActiveSection; label: string }[] = [
 ];
 
 const LS_KEY_STARS = 'lena_starred_citations';
-const LS_KEY_STARRED_DATA = 'lena_starred_citation_data'; // full objects, keyed by citationKey
 const LS_KEY_NOTES = 'lena_citation_notes';
-const LS_KEY_SAVED = 'lena_saved_research';
 
 // ---------------------------------------------------------------------------
 // Helpers
@@ -252,7 +251,6 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
   const [exporting, setExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
   const [copySuccess, setCopySuccess] = useState(false);
-  const [savedToLibrary, setSavedToLibrary] = useState(false);
   const [citationSearch, setCitationSearch] = useState('');
 
   // Load persisted stars / notes from localStorage on mount
@@ -261,38 +259,31 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
     setCitationNotes(loadJsonFromLS<Record<string, string>>(LS_KEY_NOTES, {}));
   }, []);
 
-  // Persist stars — also write / remove full citation data so My Documents
-  // can render a "Starred Citations" section without needing the panel open.
+  // Persist stars in My Documents as favourited papers.
   const toggleStar = useCallback((c: CitationEntry) => {
     const key = citationKey(c);
     setStarredKeys(prev => {
       const next = new Set(prev);
+      const docId = makeDocumentId(c.source, c.title);
       if (next.has(key)) {
         next.delete(key);
-        // Remove persisted citation data
-        try {
-          const data = loadJsonFromLS<Record<string, unknown>>(LS_KEY_STARRED_DATA, {});
-          delete data[key];
-          localStorage.setItem(LS_KEY_STARRED_DATA, JSON.stringify(data));
-        } catch {}
+        const existing = listDocuments().find((doc) => doc.id === docId);
+        if (existing) {
+          saveDocument({ ...existing, is_favourite: false });
+        }
       } else {
         next.add(key);
-        // Persist full citation so My Documents can display it
-        try {
-          const data = loadJsonFromLS<Record<string, unknown>>(LS_KEY_STARRED_DATA, {});
-          data[key] = {
-            source: c.source,
-            title: c.title,
-            url: c.url,
-            doi: c.doi,
-            year: c.year,
-            evidenceLevel: c.evidenceLevel,
-            query: c.query,
-            keywords: c.keywords,
-            starredAt: new Date().toISOString(),
-          };
-          localStorage.setItem(LS_KEY_STARRED_DATA, JSON.stringify(data));
-        } catch {}
+        saveDocument({
+          source: c.source,
+          title: c.title,
+          url: c.url,
+          doi: c.doi,
+          year: c.year,
+          keywords: c.keywords,
+          query: c.query,
+          evidence_level: c.evidenceLevel,
+          is_favourite: true,
+        });
       }
       try { localStorage.setItem(LS_KEY_STARS, JSON.stringify(Array.from(next))); } catch {}
       return next;
@@ -666,40 +657,6 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
       setTimeout(() => setCopySuccess(false), 3000);
     });
   }, [generateReport]);
-
-  const handleSaveToDocuments = useCallback(() => {
-    try {
-      const saved = loadJsonFromLS<unknown[]>(LS_KEY_SAVED, []);
-      // Persist the full citation list (title + URL + DOI + source + year
-      // + relevance + keywords) so My Documents can render each row as a
-      // clickable link back to the original paper. Lauren's feedback: the
-      // saved doc used to be metadata-only, no way back to the sources.
-      saved.unshift({
-        id: `research-${Date.now()}`,
-        date: new Date().toISOString(),
-        persona,
-        queries: analysis.userQueries,
-        citationCount: analysis.citations.length,
-        avgConfidence: analysis.avgConfidence,
-        totalResults: analysis.totalResults,
-        evidenceLevel: analysis.bestEvidence,
-        citations: analysis.citations.map(c => ({
-          source: c.source,
-          title: c.title,
-          url: c.url,
-          doi: c.doi,
-          year: c.year,
-          relevanceScore: c.relevanceScore,
-          keywords: c.keywords,
-          query: c.query,
-          evidenceLevel: c.evidenceLevel,
-        })),
-      });
-      localStorage.setItem(LS_KEY_SAVED, JSON.stringify(saved.slice(0, 50)));
-      setSavedToLibrary(true);
-      setTimeout(() => setSavedToLibrary(false), 3000);
-    } catch {}
-  }, [analysis, persona]);
 
   // ---------------------------------------------------------------------------
   // Render helpers
@@ -1347,20 +1304,11 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
               </svg>
               {copySuccess ? 'Copied' : 'Copy to Clipboard'}
             </button>
-            <button
-              onClick={handleSaveToDocuments}
-              className={`flex-1 flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
-                savedToLibrary
-                  ? 'text-emerald-700 bg-emerald-50 border border-emerald-200'
-                  : 'text-slate-600 bg-slate-100 hover:bg-slate-200'
-              }`}
-            >
-              <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M5 5a2 2 0 012-2h10a2 2 0 012 2v16l-7-3.5L5 21V5z" />
-              </svg>
-              {savedToLibrary ? 'Saved' : 'Save to Documents'}
-            </button>
           </div>
+          <p className="text-[10px] text-slate-400 leading-relaxed mt-2 px-0.5">
+            Save individual papers via <strong className="text-slate-500">Save to Documents</strong> on each source in Chat.
+            Keep whole research threads organised with <strong className="text-slate-500">Projects</strong> in the sidebar.
+          </p>
         </div>
       )}
     </aside>
