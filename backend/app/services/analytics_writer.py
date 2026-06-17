@@ -17,6 +17,33 @@ from app.db.supabase import get_supabase_admin_client
 
 logger = logging.getLogger(__name__)
 
+# Postgres persona_type enum (001_initial_schema.sql) — Python personas like
+# "general" must be mapped before writing to searches.persona_used.
+_DB_PERSONA_VALUES = frozenset({
+    "medical_student",
+    "clinician",
+    "nurse_practitioner",
+    "pharmacist",
+    "researcher",
+    "patient",
+    "caregiver",
+    "alternative_practitioner",
+    "wellness_coach",
+})
+
+_PERSONA_DB_FALLBACK = {
+    "general": "researcher",
+    "lecturer": "researcher",
+    "physiotherapist": "researcher",
+    "neuroscientist": "researcher",
+}
+
+
+def _persona_for_searches_table(persona: str) -> str:
+    if persona in _DB_PERSONA_VALUES:
+        return persona
+    return _PERSONA_DB_FALLBACK.get(persona, "researcher")
+
 
 async def log_session_start(
     session_id: str,
@@ -62,6 +89,22 @@ async def _session_exists(client, session_id: str) -> bool:
         return False
 
 
+def _insert_row(client, table: str, payload: dict[str, Any]) -> bool:
+    try:
+        client.table(table).insert(payload).execute()
+        return True
+    except Exception:
+        return False
+
+
+def _search_log_exists(client, search_id: str) -> bool:
+    try:
+        resp = client.table("search_logs").select("id").eq("id", search_id).limit(1).execute()
+        return bool(resp.data)
+    except Exception:
+        return False
+
+
 async def log_search_event(
     search_id: str,
     session_id: Optional[str],
@@ -76,13 +119,15 @@ async def log_search_event(
     user_id: Optional[str] = None,
     llm_usage: Optional[dict] = None,
     project_id: Optional[str] = None,
-) -> None:
+) -> bool:
     """
     Log a search event to `search_logs` (detailed) and `searches` (rollup).
     user_id is None for anonymous searches; session_id is None (or a not-in-DB
     placeholder) for authenticated searches that bypass the session flow.
 
-    On failure we log the exact payload so the next schema drift is debuggable.
+    Returns True when search_logs row exists (required for Add to Project).
+    On failure we retry with a slimmer payload so optional-column schema
+    drift (llm_*, project_id) does not drop the whole row.
     """
     client = get_supabase_admin_client()
 
@@ -119,24 +164,33 @@ async def log_search_event(
         log_payload["llm_completion_tokens"] = llm_usage.get("completion_tokens")
         log_payload["llm_cost_micros"] = llm_usage.get("cost_micros")
 
-    try:
-        client.table("search_logs").insert(log_payload).execute()
+    search_logs_ok = _insert_row(client, "search_logs", log_payload)
+    if not search_logs_ok:
+        slim_log = {k: v for k, v in log_payload.items() if k not in {
+            "llm_model", "llm_prompt_tokens", "llm_completion_tokens",
+            "llm_cost_micros", "project_id",
+        }}
+        search_logs_ok = _insert_row(client, "search_logs", slim_log)
+        if not search_logs_ok:
+            logger.error(
+                "search_logs insert FAILED after retry — payload=%s", slim_log, exc_info=True
+            )
+
+    if search_logs_ok:
         logger.info(
             "search_logs write ok: search_id=%s sources=%d/%d results=%d ms=%.0f",
             search_id, len(sources_succeeded), len(sources_queried),
             total_results, response_time_ms,
         )
-    except Exception:
-        logger.error(
-            "search_logs insert FAILED — payload=%s", log_payload, exc_info=True
-        )
+    elif _search_log_exists(client, search_id):
+        search_logs_ok = True
 
     # 2. Write to searches table (rollup for dashboard counts)
     search_payload: dict[str, Any] = {
         "id": search_id,
         "tenant_id": tenant_id,
         "query_text": query,
-        "persona_used": persona,
+        "persona_used": _persona_for_searches_table(persona),
         "result_count": total_results,
         "duration_ms": int(response_time_ms),
         "status": pulse_status,
@@ -146,13 +200,16 @@ async def log_search_event(
     if project_id:
         search_payload["project_id"] = project_id
 
-    try:
-        client.table("searches").insert(search_payload).execute()
+    if not _insert_row(client, "searches", search_payload):
+        slim_search = {k: v for k, v in search_payload.items() if k != "project_id"}
+        if not _insert_row(client, "searches", slim_search):
+            logger.error(
+                "searches insert FAILED — payload=%s", slim_search, exc_info=True
+            )
+    else:
         logger.debug("searches write ok: search_id=%s", search_id)
-    except Exception:
-        logger.error(
-            "searches insert FAILED — payload=%s", search_payload, exc_info=True
-        )
+
+    return search_logs_ok
 
 
 async def log_usage_event(

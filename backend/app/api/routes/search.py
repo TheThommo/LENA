@@ -68,8 +68,12 @@ async def search_literature(
     # Authenticated path (JWT)
     if hasattr(request.state, "user_id") and request.state.user_id:
         resolved_user_id = str(request.state.user_id)
-        from app.services.tenant_resolver import resolve_tenant_id_for_user
-        resolved_tenant_id = await resolve_tenant_id_for_user(resolved_user_id)
+        jwt_tenant = getattr(request.state, "tenant_id", None)
+        if jwt_tenant:
+            resolved_tenant_id = str(jwt_tenant)
+        if not resolved_tenant_id:
+            from app.services.tenant_resolver import resolve_tenant_id_for_user
+            resolved_tenant_id = await resolve_tenant_id_for_user(resolved_user_id)
 
     # Anonymous session path
     if not resolved_tenant_id:
@@ -137,11 +141,17 @@ async def search_literature(
         except Exception:
             logger.warning("session search_count bump failed (non-blocking)", exc_info=True)
 
-    # Step 5c: Log analytics (fire-and-forget, never blocks). search_logs
-    # is the source of truth for the registered 24h quota, so ONLY
-    # chargeable searches are logged here. Zero-result "teething" searches
-    # must not count against the user's 5-per-day allowance.
-    if chargeable and resolved_tenant_id:
+    # Step 5c: Log analytics. search_logs is the source of truth for the
+    # registered 24h quota, so ONLY chargeable searches are logged for quota.
+    # Authenticated users always get a persisted row when not guardrail-blocked
+    # so "Add to Project" never 404s on a fresh search.
+    search_logged = False
+    should_persist = (
+        not search_result.get("guardrail_triggered")
+        and resolved_tenant_id
+        and chargeable
+    )
+    if should_persist:
         response_time_ms = search_result.get("response_time_ms", 0)
         sources_queried = search_result.get("sources_queried", [])
         sources_failed = search_result.get("sources_failed", {})
@@ -177,7 +187,7 @@ async def search_literature(
         # flows still fire-and-forget so guest latency doesn't regress.
         if resolved_user_id:
             try:
-                await log_search_event(
+                search_logged = await log_search_event(
                     search_id=search_id,
                     session_id=session_id,
                     query=q,
@@ -192,6 +202,12 @@ async def search_literature(
                     llm_usage=search_result.get("llm_usage"),
                     project_id=resolved_project_id,
                 )
+                if not search_logged:
+                    logger.error(
+                        "search persist failed for authed user=%s search_id=%s",
+                        resolved_user_id,
+                        search_id,
+                    )
             except Exception:
                 logger.warning("log_search_event sync failed (non-blocking)", exc_info=True)
         else:
@@ -217,9 +233,16 @@ async def search_literature(
         topics = classify_query_topic(q)
         logger.debug(f"Search topics: {topics}")
 
-    # Step 6: Build response with persona context
+    # Step 6: Build response with persona context.
+    # Authed clients only get search_id when the row was persisted — otherwise
+    # "Add to Project" hits assign and returns 404.
+    if resolved_user_id:
+        response_search_id: Optional[str] = search_id if (should_persist and search_logged) else None
+    else:
+        response_search_id = search_id
+
     return {
-        "search_id": search_id,
+        "search_id": response_search_id,
         "session_id": session_id,
         "query": q,
         "persona": {

@@ -48,6 +48,21 @@ async def test_resolve_tenant_prefers_user_tenants():
     assert resolved == tenant_id
 
 
+def test_get_default_tenant_id_prefers_lena_slug(monkeypatch):
+    import app.services.tenant_resolver as mod
+
+    mod._cached_default_tenant_id = None
+    client = MagicMock()
+    execute_mock = MagicMock()
+    execute_mock.execute.side_effect = [
+        MagicMock(data=[{"id": "tenant-lena"}]),
+    ]
+    client.table.return_value.select.return_value.eq.return_value.limit.return_value = execute_mock
+    monkeypatch.setattr(mod, "get_supabase_admin_client", lambda: client)
+
+    assert get_default_tenant_id() == "tenant-lena"
+
+
 def test_get_default_tenant_id_caches(monkeypatch):
     import app.services.tenant_resolver as mod
 

@@ -177,6 +177,7 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
                 user_id_str = str(jwt_payload["user_id"])
                 if _settings.is_bypass_user(user_id_str):
                     request.state.user_id = user_id_str
+                    request.state.tenant_id = jwt_payload.get("tenant_id")
                     request.state.bypass_all = True
                     request.state.session_id = extract_session_id(request)
                     request.state.session = None
@@ -197,6 +198,8 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
         if jwt_payload and jwt_payload.get("user_id"):
             user_id_str = str(jwt_payload["user_id"])
             request.state.user_id = user_id_str
+            if jwt_payload.get("tenant_id"):
+                request.state.tenant_id = str(jwt_payload["tenant_id"])
 
             # 24h rolling quota for registered (demo free tier).
             used = await _registered_search_count_last_24h(user_id_str)
