@@ -502,6 +502,105 @@ _RELEVANCE_STOPWORDS: set[str] = {
     "role", "potential", "possible", "early", "advanced", "modern",
 }
 
+# Filler tokens that must never appear in supplement brand extraction.
+# If detected, the whole supplement card is suppressed (query too noisy).
+_SUPPLEMENT_BRAND_GARBAGE: set[str] = {
+    "they", "them", "their", "floater", "floaters", "thing", "things",
+    "stuff", "something", "anything", "everything", "someone", "anyone",
+    "help", "helps", "helped", "works", "worked", "working",
+    "does", "did", "doing", "take", "takes", "taking", "took",
+    "should", "could", "would", "might", "maybe",
+    "what", "how", "why", "when", "where", "which", "who", "whom",
+}
+
+_SUPPLEMENT_IDENTITY_STOPWORDS: set[str] = (
+    _RELEVANCE_STOPWORDS
+    | _SUPPLEMENTS_KEYWORDS
+    | _HERBAL_KEYWORDS
+    | _SUPPLEMENT_BRAND_GARBAGE
+    | {
+        "supplement", "supplements", "brand", "product", "review", "reviews", "best",
+        "credible", "trustworthy", "good", "bad", "really", "very",
+        "about", "with", "from", "into", "your", "you", "are", "was", "were",
+        "have", "has", "had", "also", "just", "only", "safe", "effective",
+        "sleep", "for", "the", "and", "not", "but", "can", "get", "use",
+    }
+)
+
+
+def _extract_supplement_identity(
+    query: str,
+    subjects: list[str],
+) -> tuple[str | None, str | None]:
+    """Split a supplement query into ingredient name vs brand.
+
+    Returns (None, None) when extraction confidence is too low — callers
+    should skip rendering the supplement trust card.
+    """
+    import re
+
+    if not subjects:
+        return None, None
+
+    all_tokens = re.findall(r"[A-Za-z][A-Za-z0-9'-]{2,}", query)
+
+    name_parts = [
+        t for t in subjects
+        if t.lower() in _SUPPLEMENTS_KEYWORDS or t.lower() in _HERBAL_KEYWORDS
+    ]
+
+    raw_brand_parts = [
+        t for t in all_tokens
+        if t.lower() not in _SUPPLEMENT_IDENTITY_STOPWORDS
+        and len(t) >= 3
+    ]
+
+    name_token_set = {t.lower() for t in name_parts}
+    if any(
+        t.lower() in _SUPPLEMENT_BRAND_GARBAGE and t.lower() not in name_token_set
+        for t in all_tokens
+    ):
+        return None, None
+
+    def _is_brand_like_token(token: str) -> bool:
+        if token.isupper() and len(token) >= 2:
+            return True
+        if len(token) >= 2 and token[0].isupper() and token[1:].islower():
+            return True
+        return False
+
+    brand_parts = [t for t in raw_brand_parts if _is_brand_like_token(t)][:3]
+    supp_name = " ".join(name_parts) if name_parts else None
+    supp_brand = " ".join(brand_parts) if brand_parts else None
+
+    if not supp_name:
+        # Brand-only credibility queries: "is Nutricost magnesium credible"
+        if any(t.lower() in _SUPPLEMENTS_KEYWORDS | _HERBAL_KEYWORDS for t in subjects):
+            supp_name = " ".join(
+                t for t in subjects
+                if t.lower() in _SUPPLEMENTS_KEYWORDS or t.lower() in _HERBAL_KEYWORDS
+            ) or None
+        elif brand_parts and not any(
+            t.lower() in _SUPPLEMENTS_KEYWORDS | _HERBAL_KEYWORDS for t in subjects
+        ):
+            # Pure brand query — verifier expects name; use first brand token
+            supp_name = brand_parts[0]
+            supp_brand = " ".join(brand_parts[1:3]) if len(brand_parts) > 1 else None
+        else:
+            return None, None
+
+    if not supp_name:
+        return None, None
+
+    if supp_brand:
+        brand_tokens = supp_brand.lower().split()
+        if brand_tokens:
+            garbage = sum(1 for t in brand_tokens if t in _SUPPLEMENT_BRAND_GARBAGE)
+            if garbage / len(brand_tokens) > 0.5:
+                supp_brand = None
+
+    return supp_name, supp_brand
+
 
 def _subject_terms(query: str, max_terms: int = 4, min_len: int = 3) -> list[str]:
     """Pull distinctive subject tokens out of the user's query.
@@ -801,36 +900,21 @@ async def run_search(
     if _is_supplement_query and subjects:
         try:
             from app.services.supplement_verifier import verify_supplement
-            # Split query into supplement name vs brand. Subject terms are the
-            # longest non-stopword tokens; supplement keywords (vitamin, magnesium)
-            # are the NAME, everything else that isn't a stopword is a likely BRAND.
-            # "Nature Made Vitamin D 5000IU" → name="vitamin", brand="Nature Made"
-            import re as _re
-            _all_tokens = _re.findall(r"[A-Za-z][A-Za-z0-9'-]{2,}", query)
-            _supp_name_parts = [t for t in subjects if t.lower() in _SUPPLEMENTS_KEYWORDS or t.lower() in _HERBAL_KEYWORDS]
-            _brand_parts = [
-                t for t in _all_tokens
-                if t.lower() not in _RELEVANCE_STOPWORDS
-                and t.lower() not in _SUPPLEMENTS_KEYWORDS
-                and t.lower() not in _HERBAL_KEYWORDS
-                and t.lower() not in {"supplement", "supplements", "brand", "product", "review", "best"}
-                and len(t) >= 3
-            ]
-            supp_name = " ".join(_supp_name_parts) if _supp_name_parts else subjects[0]
-            supp_brand = " ".join(_brand_parts[:3]) if _brand_parts else None
-            sv = await verify_supplement(name=supp_name, brand=supp_brand, include_clinical=False)
-            # Clinical evidence already counted from this search's results
-            sv.clinical_evidence_count = len(
-                [r for r in pulse_report.validated_results
-                 if r.source_name in ("pubmed", "cochrane", "openalex")]
-            )
-            sv.cochrane_reviews = len(
-                [r for r in pulse_report.validated_results if r.source_name == "cochrane"]
-            )
-            # Recompute score with clinical counts from this search
-            from app.services.supplement_verifier import _compute_trust_score
-            sv.trust_score, sv.trust_level, sv.trust_breakdown = _compute_trust_score(sv)
-            supplement_verification = sv.to_dict()
+            supp_name, supp_brand = _extract_supplement_identity(query, subjects)
+            if supp_name:
+                sv = await verify_supplement(name=supp_name, brand=supp_brand, include_clinical=False)
+                # Clinical evidence already counted from this search's results
+                sv.clinical_evidence_count = len(
+                    [r for r in pulse_report.validated_results
+                     if r.source_name in ("pubmed", "cochrane", "openalex")]
+                )
+                sv.cochrane_reviews = len(
+                    [r for r in pulse_report.validated_results if r.source_name == "cochrane"]
+                )
+                # Recompute score with clinical counts from this search
+                from app.services.supplement_verifier import _compute_trust_score
+                sv.trust_score, sv.trust_level, sv.trust_breakdown = _compute_trust_score(sv)
+                supplement_verification = sv.to_dict()
         except Exception:
             logger.warning("Supplement verification failed (non-blocking)", exc_info=True)
 
