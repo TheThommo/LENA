@@ -4,6 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { branding } from '@/config/branding';
 import { useProjects } from '@/contexts/ProjectsContext';
+import { type Project } from '@/lib/api';
 import { type RecentSessionRecord, formatSessionSubtitle, getSessionDisplayTitle } from '@/lib/sessionTime';
 
 interface SidebarProps {
@@ -21,14 +22,16 @@ interface SidebarProps {
   isAuthenticated?: boolean;
   onSignIn?: () => void;
   onLogout?: () => void;
+  onUpgrade?: () => void;
+  onShareReferral?: () => void;
 }
 
 const navItems = [
   { id: 'chat', label: 'Chat', icon: ChatIcon },
   { id: 'documents', label: 'My Documents', icon: FolderIcon },
   { id: 'how-it-works', label: 'How It Works', icon: BookIcon },
-  { id: 'community', label: 'Community', icon: UsersIcon, badge: 'SOON' },
-  { id: 'contribution', label: 'Contribution', icon: UploadIcon, badge: 'SOON' },
+  { id: 'community', label: 'Community', icon: UsersIcon },
+  { id: 'contribution', label: 'Contribution', icon: UploadIcon },
 ];
 
 export function Sidebar({
@@ -44,8 +47,11 @@ export function Sidebar({
   isAuthenticated,
   onSignIn,
   onLogout,
+  onUpgrade,
+  onShareReferral,
 }: SidebarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
+  const [referralCopied, setReferralCopied] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
 
   // Close menu on outside click
@@ -202,40 +208,41 @@ export function Sidebar({
 
                   <div className="border-t border-gray-100 my-1.5" />
 
-                  {/* Share with Friends */}
+                  {/* Share with Colleagues */}
                   <button
-                    onClick={() => setMenuOpen(false)}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onShareReferral?.();
+                      setReferralCopied(true);
+                      setTimeout(() => setReferralCopied(false), 2500);
+                    }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors group"
                   >
                     <ShareIcon className="w-4 h-4 text-gray-400 group-hover:text-lena-500" />
-                    <div>
-                      <span className="text-sm text-gray-700 group-hover:text-gray-900">Share with Colleagues</span>
-                      <span className="ml-2 text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">SOON</span>
-                    </div>
+                    <span className="text-sm text-gray-700 group-hover:text-gray-900">
+                      {referralCopied ? 'Referral link copied!' : 'Share with Colleagues'}
+                    </span>
                   </button>
 
                   {/* Get 1 Month Free */}
                   <button
-                    onClick={() => setMenuOpen(false)}
+                    onClick={() => {
+                      setMenuOpen(false);
+                      onShareReferral?.();
+                    }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors group"
                   >
                     <GiftIcon className="w-4 h-4 text-gray-400 group-hover:text-lena-500" />
-                    <div>
-                      <span className="text-sm text-gray-700 group-hover:text-gray-900">Get 1 Month Free</span>
-                      <span className="ml-2 text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">SOON</span>
-                    </div>
+                    <span className="text-sm text-gray-700 group-hover:text-gray-900">Get 1 Month Free</span>
                   </button>
 
                   {/* Upgrade Plan */}
                   <button
-                    onClick={() => setMenuOpen(false)}
+                    onClick={() => { setMenuOpen(false); onUpgrade?.(); }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors group"
                   >
                     <SparkleIcon className="w-4 h-4 text-gray-400 group-hover:text-lena-500" />
-                    <div>
-                      <span className="text-sm text-gray-700 group-hover:text-gray-900">Upgrade Plan</span>
-                      <span className="ml-2 text-[9px] font-bold text-amber-600 bg-amber-50 px-1.5 py-0.5 rounded-full">SOON</span>
-                    </div>
+                    <span className="text-sm text-gray-700 group-hover:text-gray-900">Upgrade Plan</span>
                   </button>
 
                   <div className="border-t border-gray-100 my-1.5" />
@@ -629,6 +636,176 @@ function SessionRow({
 }
 
 /**
+ * One project row with rename, archive, delete, and nested sessions.
+ */
+function ProjectRow({
+  project,
+  isActive,
+  filed,
+  isArchived,
+  onOpenProject,
+  onSearchClick,
+  onDeleteSession,
+  onRenameSession,
+}: {
+  project: Project;
+  isActive: boolean;
+  filed: RecentSessionRecord[];
+  isArchived?: boolean;
+  onOpenProject: (projectId: string) => void;
+  onSearchClick?: (sessionId: string, fallbackQuery: string) => void;
+  onDeleteSession?: (sessionId: string) => void;
+  onRenameSession?: (sessionId: string, title: string) => void;
+}) {
+  const { setActiveProjectId, rename, archive, unarchive, remove } = useProjects();
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(project.name);
+  const [busy, setBusy] = useState(false);
+  const menuRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+    const handler = (e: MouseEvent) => {
+      if (menuRef.current && !menuRef.current.contains(e.target as Node)) {
+        setMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handler);
+    return () => document.removeEventListener('mousedown', handler);
+  }, [menuOpen]);
+
+  const commitRename = async () => {
+    const name = draft.trim();
+    if (!name || name === project.name) {
+      setEditing(false);
+      setDraft(project.name);
+      return;
+    }
+    setBusy(true);
+    try {
+      await rename(project.id, name);
+      setEditing(false);
+    } catch {
+      setDraft(project.name);
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (editing) {
+    return (
+      <li className="px-1 py-1">
+        <input
+          value={draft}
+          onChange={e => setDraft(e.target.value)}
+          onKeyDown={e => {
+            if (e.key === 'Enter') commitRename();
+            if (e.key === 'Escape') { setEditing(false); setDraft(project.name); }
+          }}
+          onBlur={commitRename}
+          disabled={busy}
+          className="w-full text-sm border border-lena-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-lena-200 bg-white"
+        />
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <div className="flex items-center gap-0.5 group/proj">
+        <button
+          type="button"
+          onClick={() => { setActiveProjectId(project.id); onOpenProject(project.id); }}
+          className={`flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors
+            ${isActive ? 'bg-lena-50 text-lena-700' : 'text-gray-700 hover:bg-gray-50'}`}
+        >
+          <span className="text-[13px] flex-shrink-0">{project.emoji || '📁'}</span>
+          <span className="truncate flex-1 text-left">{project.name}</span>
+          {(project.search_count > 0 || filed.length > 0) && (
+            <span className="text-[10px] text-gray-400 flex-shrink-0">
+              {Math.max(project.search_count, filed.length)}
+            </span>
+          )}
+        </button>
+        <div className="relative flex-shrink-0" ref={menuRef}>
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
+            className="p-1 rounded text-gray-300 opacity-0 group-hover/proj:opacity-100 hover:text-gray-600 hover:bg-gray-100 transition-all"
+            aria-label="Project options"
+          >
+            <MoreIcon className="w-3.5 h-3.5" />
+          </button>
+          {menuOpen && (
+            <div className="absolute right-0 top-full mt-1 z-50 w-36 bg-white border border-gray-200 rounded-lg shadow-lg py-1 text-xs">
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 hover:bg-gray-50"
+                onClick={() => { setMenuOpen(false); setEditing(true); setDraft(project.name); }}
+              >
+                Rename
+              </button>
+              {isArchived ? (
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-1.5 hover:bg-gray-50"
+                  onClick={async () => { setMenuOpen(false); await unarchive(project.id); }}
+                >
+                  Unarchive
+                </button>
+              ) : (
+                <button
+                  type="button"
+                  className="w-full text-left px-3 py-1.5 hover:bg-gray-50"
+                  onClick={async () => { setMenuOpen(false); await archive(project.id); }}
+                >
+                  Archive
+                </button>
+              )}
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 hover:bg-red-50 text-red-600"
+                onClick={async () => {
+                  setMenuOpen(false);
+                  if (window.confirm(`Delete "${project.name}"? Searches will be unfiled.`)) {
+                    await remove(project.id);
+                  }
+                }}
+              >
+                Delete
+              </button>
+            </div>
+          )}
+        </div>
+      </div>
+      {!isArchived && filed.length > 0 && onSearchClick && (
+        <ul className="ml-6 mt-0.5 mb-1 space-y-0.5 border-l border-gray-100 pl-2">
+          {filed.slice(0, 12).map(sess => (
+            <SessionRow
+              key={sess.id}
+              session={sess}
+              variant="project"
+              onOpen={() => onSearchClick(sess.id, sess.firstQuery)}
+              onDelete={onDeleteSession}
+              onRename={onRenameSession}
+            />
+          ))}
+        </ul>
+      )}
+    </li>
+  );
+}
+
+function MoreIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="currentColor">
+      <circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" />
+    </svg>
+  );
+}
+
+/**
  * ProjectsSection — lists the user's active projects and supports inline
  * create. Clicking a project makes it active (affects subsequent searches)
  * and navigates to the Projects view.
@@ -658,9 +835,11 @@ function ProjectsSection({
   const [newName, setNewName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [inlineErr, setInlineErr] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
   const active = projects.filter(p => !p.archived_at);
+  const archived = projects.filter(p => p.archived_at);
 
   useEffect(() => {
     if (creating) inputRef.current?.focus();
@@ -743,47 +922,45 @@ function ProjectsSection({
       )}
 
       <ul className="space-y-0.5">
-        {active.map(p => {
-          const isActive = activeProjectId === p.id;
-          const filed = (recentSessions || []).filter(s => s.projectId === p.id);
-          return (
-            <li key={p.id}>
-              <button
-                onClick={() => { setActiveProjectId(p.id); onOpenProject(p.id); }}
-                className={`w-full flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors group
-                  ${isActive ? 'bg-lena-50 text-lena-700' : 'text-gray-700 hover:bg-gray-50'}`}
-              >
-                <span className="text-[13px] flex-shrink-0">{p.emoji || '📁'}</span>
-                <span className="truncate flex-1 text-left">{p.name}</span>
-                {(p.search_count > 0 || filed.length > 0) && (
-                  <span className="text-[10px] text-gray-400 flex-shrink-0">
-                    {Math.max(p.search_count, filed.length)}
-                  </span>
-                )}
-              </button>
-
-              {/* Filed sessions nested under this project — always visible,
-                  not only when the project is currently active. This means
-                  added-to-project sessions appear under the folder even after
-                  the user has navigated away (fixes Lauren's "stays on side"). */}
-              {filed.length > 0 && onSearchClick && (
-                <ul className="ml-6 mt-0.5 mb-1 space-y-0.5 border-l border-gray-100 pl-2">
-                  {filed.slice(0, 12).map(sess => (
-                    <SessionRow
-                      key={sess.id}
-                      session={sess}
-                      variant="project"
-                      onOpen={() => onSearchClick!(sess.id, sess.firstQuery)}
-                      onDelete={onDeleteSession}
-                      onRename={onRenameSession}
-                    />
-                  ))}
-                </ul>
-              )}
-            </li>
-          );
-        })}
+        {active.map(p => (
+          <ProjectRow
+            key={p.id}
+            project={p}
+            isActive={activeProjectId === p.id}
+            filed={(recentSessions || []).filter(s => s.projectId === p.id)}
+            onOpenProject={onOpenProject}
+            onSearchClick={onSearchClick}
+            onDeleteSession={onDeleteSession}
+            onRenameSession={onRenameSession}
+          />
+        ))}
       </ul>
+
+      {isAuthenticated && archived.length > 0 && (
+        <div className="mt-3">
+          <button
+            type="button"
+            onClick={() => setShowArchived(v => !v)}
+            className="text-[10px] text-gray-400 hover:text-gray-600 px-2 uppercase tracking-wide"
+          >
+            {showArchived ? 'Hide' : 'Show'} archived ({archived.length})
+          </button>
+          {showArchived && (
+            <ul className="space-y-0.5 mt-1">
+              {archived.map(p => (
+                <ProjectRow
+                  key={p.id}
+                  project={p}
+                  isActive={activeProjectId === p.id}
+                  filed={[]}
+                  isArchived
+                  onOpenProject={onOpenProject}
+                />
+              ))}
+            </ul>
+          )}
+        </div>
+      )}
 
       {isAuthenticated && error && (
         <p className="text-[10px] text-red-500 px-2 mt-2" title={error}>

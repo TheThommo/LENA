@@ -3,8 +3,14 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useSession, PersonaId } from '@/contexts/SessionContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { requestPasswordReset } from '@/lib/api';
+import { requestPasswordReset, fetchProfilePreferences, saveProfilePreferences } from '@/lib/api';
 import { product } from '@/config/branding';
+import {
+  loadLocalProfile,
+  saveLocalProfile,
+  hydrateProfileFromCloud,
+  syncProfileToCloud,
+} from '@/lib/userProfile';
 
 // Map MyBrain specialty -> top-bar PersonaSelector default.
 // The top-right selector controls only LENA's response style — so we map
@@ -52,9 +58,6 @@ interface UserProfile {
   notes: string;
 }
 
-const LS_KEY = 'lena_user_profile';
-const LEGACY_LS_KEY = 'lena_user_brain';
-
 const DEFAULT_PROFILE: UserProfile = {
   specialty: '',
   role: '',
@@ -95,36 +98,58 @@ const SPECIALTIES = [
 
 export default function ProfileSettings() {
   const { setPersona } = useSession();
-  const { user, isAuthenticated } = useAuth();
+  const { user, isAuthenticated, token } = useAuth();
   const [profile, setProfile] = useState<UserProfile>(DEFAULT_PROFILE);
   const [saved, setSaved] = useState(false);
   const [focusInput, setFocusInput] = useState('');
   const [pwResetStatus, setPwResetStatus] = useState<'idle' | 'sending' | 'sent' | 'error'>('idle');
 
   useEffect(() => {
-    try {
-      const stored = localStorage.getItem(LS_KEY) || localStorage.getItem(LEGACY_LS_KEY);
-      if (stored) {
-        const parsed: UserProfile = JSON.parse(stored);
-        setProfile(parsed);
-        if (!localStorage.getItem(LS_KEY)) {
-          localStorage.setItem(LS_KEY, stored);
-        }
-        if (parsed.specialty && SPECIALTY_TO_PERSONA[parsed.specialty]) {
-          setPersona(SPECIALTY_TO_PERSONA[parsed.specialty]);
-        }
+    const applyProfile = (parsed: UserProfile) => {
+      setProfile(parsed);
+      if (parsed.specialty && SPECIALTY_TO_PERSONA[parsed.specialty]) {
+        setPersona(SPECIALTY_TO_PERSONA[parsed.specialty]);
       }
+    };
+
+    if (isAuthenticated && user?.id && token) {
+      void (async () => {
+        const merged = await hydrateProfileFromCloud(token, async (t) => {
+          const remote = await fetchProfilePreferences(t);
+          return {
+            preferences: remote.preferences as unknown as UserProfile,
+            updated_at: remote.updated_at,
+          };
+        });
+        if (merged) applyProfile(merged);
+        else {
+          const local = loadLocalProfile(user.id);
+          if (local) applyProfile(local as UserProfile);
+        }
+      })();
+      return;
+    }
+
+    try {
+      const stored = loadLocalProfile();
+      if (stored) applyProfile(stored as UserProfile);
     } catch {}
   // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isAuthenticated, user?.id, token]);
 
-  const saveProfile = useCallback(() => {
+  const saveProfile = useCallback(async () => {
     try {
-      localStorage.setItem(LS_KEY, JSON.stringify(profile));
+      if (isAuthenticated && token) {
+        await syncProfileToCloud(token, profile, async (t, p) => {
+          await saveProfilePreferences(t, p as unknown as Record<string, unknown>);
+        });
+      } else {
+        saveLocalProfile(profile);
+      }
       setSaved(true);
       setTimeout(() => setSaved(false), 3000);
     } catch {}
-  }, [profile]);
+  }, [profile, isAuthenticated, token]);
 
   const updateField = <K extends keyof UserProfile>(key: K, value: UserProfile[K]) => {
     setProfile(prev => ({ ...prev, [key]: value }));
@@ -152,7 +177,7 @@ export default function ProfileSettings() {
 
   const clearAll = () => {
     setProfile(DEFAULT_PROFILE);
-    localStorage.removeItem(LS_KEY);
+    saveLocalProfile(DEFAULT_PROFILE, user?.id);
   };
 
   const completeness = (() => {
@@ -410,7 +435,7 @@ export default function ProfileSettings() {
           <section className="bg-white border border-slate-200 rounded-xl p-5">
             <div className="flex items-center justify-between gap-2 mb-1">
               <h3 className="text-sm font-semibold text-slate-800">Personal Context</h3>
-              <span className="text-[9px] font-bold text-amber-700 bg-amber-50 px-1.5 py-0.5 rounded-full">COMING SOON</span>
+              <span className="text-[9px] font-bold text-slate-500 bg-slate-100 px-1.5 py-0.5 rounded-full">PLANNED</span>
             </div>
             <p className="text-xs text-slate-400 mb-3">
               Upload your own medical reports, lab results, or health notes so LENA can personalise answers with your consent. This replaces the old &quot;My Brain&quot; concept — personal context lives here, under Profile.
@@ -522,7 +547,7 @@ export default function ProfileSettings() {
               <path strokeLinecap="round" strokeLinejoin="round" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
             </svg>
             <p className="text-xs text-slate-500 leading-relaxed">
-              Your profile is stored locally on this device today. It personalises your LENA experience only — it is never sold or shared with third parties. Cloud sync and personal document upload will be optional and consent-based.
+              Your profile syncs to your account when signed in. It personalises your LENA experience only — it is never sold or shared with third parties. Personal document upload remains planned for a future release.
             </p>
           </div>
         </div>

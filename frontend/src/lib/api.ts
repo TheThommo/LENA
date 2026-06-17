@@ -481,3 +481,87 @@ export async function verifySupplementStandalone(
   const r = await fetch(`${API_BASE}/supplements/verify?${params}`);
   return readJsonOrThrow(r, 'Verify supplement');
 }
+
+// ── User profile, documents, interest, share ─────────────────────────────
+
+export async function fetchProfilePreferences(token: string): Promise<{
+  preferences: Record<string, unknown>;
+  updated_at: string | null;
+}> {
+  const r = await fetch(`${API_BASE}/profile/preferences`, { headers: authHeaders(token) });
+  return readJsonOrThrow(r, 'Fetch profile') as Promise<{
+    preferences: Record<string, unknown>;
+    updated_at: string | null;
+  }>;
+}
+
+export async function saveProfilePreferences(
+  token: string,
+  preferences: Record<string, unknown>,
+): Promise<void> {
+  const r = await fetch(`${API_BASE}/profile/preferences`, {
+    method: 'PUT',
+    headers: authHeaders(token),
+    body: JSON.stringify({ preferences }),
+  });
+  await readJsonOrThrow(r, 'Save profile');
+}
+
+export async function fetchSavedDocuments(token: string): Promise<{ documents: Record<string, unknown>[] }> {
+  const r = await fetch(`${API_BASE}/documents`, { headers: authHeaders(token) });
+  return readJsonOrThrow(r, 'Fetch documents') as Promise<{ documents: Record<string, unknown>[] }>;
+}
+
+export async function upsertSavedDocumentApi(
+  token: string,
+  docKey: string,
+  payload: Record<string, unknown>,
+): Promise<void> {
+  const r = await fetch(`${API_BASE}/documents`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify({ doc_key: docKey, payload }),
+  });
+  await readJsonOrThrow(r, 'Save document');
+}
+
+export async function deleteSavedDocumentApi(token: string, docKey: string): Promise<void> {
+  const r = await fetch(`${API_BASE}/documents/${encodeURIComponent(docKey)}`, {
+    method: 'DELETE',
+    headers: authHeaders(token),
+  });
+  await readJsonOrThrow(r, 'Delete document');
+}
+
+export async function registerFeatureInterest(
+  email: string,
+  feature: string,
+  token?: string | null,
+): Promise<{ ok: boolean; message: string }> {
+  const headers: Record<string, string> = { 'Content-Type': 'application/json' };
+  if (token) headers.Authorization = `Bearer ${token}`;
+  const r = await fetch(`${API_BASE}/interest`, {
+    method: 'POST',
+    headers,
+    body: JSON.stringify({ email, feature }),
+  });
+  return readJsonOrThrow(r, 'Register interest') as Promise<{ ok: boolean; message: string }>;
+}
+
+export async function logShareEvent(
+  token: string,
+  body: {
+    search_id?: string;
+    recipient_type: string;
+    recipient_email?: string;
+    note?: string;
+    result_title?: string;
+  },
+): Promise<void> {
+  const r = await fetch(`${API_BASE}/share`, {
+    method: 'POST',
+    headers: authHeaders(token),
+    body: JSON.stringify(body),
+  });
+  await readJsonOrThrow(r, 'Log share');
+}

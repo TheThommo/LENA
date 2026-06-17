@@ -31,7 +31,10 @@ TABLE_GROUPS: Dict[str, List[str]] = {
     "Sessions and identity": ["sessions", "anon_fingerprints"],
     "Search and product": [
         "searches",
-        "search_logs",
+        "user_profiles",
+        "saved_documents",
+        "feature_interest",
+        "share_events",
         "search_results",
         "pulse_scores",
         "saved_results",

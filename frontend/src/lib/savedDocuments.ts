@@ -1,6 +1,6 @@
 /**
  * My Documents — personal evidence library of saved papers from research.
- * Migrated from legacy My Sources + starred citations on first load.
+ * Per-user localStorage with optional cloud sync when authenticated.
  */
 
 export interface SavedDocument {
@@ -19,18 +19,41 @@ export interface SavedDocument {
   evidence_level?: string;
 }
 
-const LS_KEY = 'lena_saved_documents_v1';
+const LEGACY_LS_KEY = 'lena_saved_documents_v1';
 const LEGACY_SOURCES_KEY = 'lena_my_sources_v1';
 const LEGACY_STARRED_KEY = 'lena_starred_citation_data';
 const MIGRATION_FLAG = 'lena_documents_migrated_v2';
 
 export const DOCUMENTS_CHANGED_EVENT = 'lena:documents-changed';
 
+let currentUserId: string | null = null;
+let currentToken: string | null = null;
+let cloudSyncFns: {
+  listRemote: (token: string) => Promise<SavedDocument[]>;
+  upsertRemote: (token: string, doc: SavedDocument) => Promise<void>;
+  deleteRemote: (token: string, docKey: string) => Promise<void>;
+} | null = null;
+
+function storageKey(userId?: string | null): string {
+  const uid = userId ?? currentUserId;
+  return uid ? `lena_saved_documents_${uid}` : LEGACY_LS_KEY;
+}
+
+export function configureDocumentsSync(
+  userId: string | null,
+  token: string | null,
+  sync?: typeof cloudSyncFns,
+) {
+  currentUserId = userId;
+  currentToken = token;
+  cloudSyncFns = sync ?? null;
+}
+
 function readAll(): SavedDocument[] {
   if (typeof window === 'undefined') return [];
   migrateLegacyData();
   try {
-    const raw = localStorage.getItem(LS_KEY);
+    const raw = localStorage.getItem(storageKey());
     return raw ? (JSON.parse(raw) as SavedDocument[]) : [];
   } catch {
     return [];
@@ -40,8 +63,41 @@ function readAll(): SavedDocument[] {
 function writeAll(list: SavedDocument[]) {
   if (typeof window === 'undefined') return;
   try {
-    localStorage.setItem(LS_KEY, JSON.stringify(list));
+    localStorage.setItem(storageKey(), JSON.stringify(list));
     window.dispatchEvent(new CustomEvent(DOCUMENTS_CHANGED_EVENT));
+  } catch {}
+}
+
+async function syncDocToCloud(doc: SavedDocument) {
+  if (!currentToken || !cloudSyncFns) return;
+  try {
+    await cloudSyncFns.upsertRemote(currentToken, doc);
+  } catch {}
+}
+
+async function deleteDocFromCloud(docKey: string) {
+  if (!currentToken || !cloudSyncFns) return;
+  try {
+    await cloudSyncFns.deleteRemote(currentToken, docKey);
+  } catch {}
+}
+
+export async function hydrateDocumentsFromCloud(): Promise<void> {
+  if (!currentToken || !cloudSyncFns || typeof window === 'undefined') return;
+  try {
+    const remote = await cloudSyncFns.listRemote(currentToken);
+    const local = readAll();
+    const merged = new Map<string, SavedDocument>();
+    for (const doc of local) merged.set(doc.id, doc);
+    for (const doc of remote) {
+      const existing = merged.get(doc.id);
+      if (!existing || Date.parse(doc.saved_at) >= Date.parse(existing.saved_at)) {
+        merged.set(doc.id, doc);
+      }
+    }
+    writeAll(Array.from(merged.values()).sort(
+      (a, b) => Date.parse(b.saved_at) - Date.parse(a.saved_at),
+    ));
   } catch {}
 }
 
@@ -51,8 +107,9 @@ export function makeDocumentId(source: string, title: string): string {
 
 function migrateLegacyData() {
   if (typeof window === 'undefined') return;
-  if (localStorage.getItem(MIGRATION_FLAG)) return;
-  localStorage.setItem(MIGRATION_FLAG, '1');
+  const flagKey = currentUserId ? `${MIGRATION_FLAG}_${currentUserId}` : MIGRATION_FLAG;
+  if (localStorage.getItem(flagKey)) return;
+  localStorage.setItem(flagKey, '1');
 
   const merged = new Map<string, SavedDocument>();
 
@@ -81,7 +138,7 @@ function migrateLegacyData() {
         starredAt?: string;
       }
     >;
-    for (const [key, item] of Object.entries(starred)) {
+    for (const [, item] of Object.entries(starred)) {
       const id = makeDocumentId(item.source, item.title);
       const existing = merged.get(id);
       merged.set(id, {
@@ -103,10 +160,9 @@ function migrateLegacyData() {
   } catch {}
 
   if (merged.size > 0) {
-    try {
-      localStorage.setItem(LS_KEY, JSON.stringify(Array.from(merged.values())));
-      window.dispatchEvent(new CustomEvent(DOCUMENTS_CHANGED_EVENT));
-    } catch {}
+    const existing = readAll();
+    for (const doc of existing) merged.set(doc.id, doc);
+    writeAll(Array.from(merged.values()));
   }
 }
 
@@ -132,6 +188,7 @@ export function saveDocument(entry: Omit<SavedDocument, 'id' | 'saved_at'>): Sav
       is_favourite: entry.is_favourite ?? existing.is_favourite,
     };
     writeAll(list.map((doc) => (doc.id === id ? updated : doc)));
+    void syncDocToCloud(updated);
     return updated;
   }
 
@@ -141,19 +198,23 @@ export function saveDocument(entry: Omit<SavedDocument, 'id' | 'saved_at'>): Sav
     saved_at: new Date().toISOString(),
   };
   writeAll([created, ...list]);
+  void syncDocToCloud(created);
   return created;
 }
 
 export function removeDocument(id: string) {
   writeAll(readAll().filter((doc) => doc.id !== id));
+  void deleteDocFromCloud(id);
 }
 
 export function toggleDocumentFavourite(id: string) {
-  writeAll(
-    readAll().map((doc) =>
-      doc.id === id ? { ...doc, is_favourite: !doc.is_favourite } : doc,
-    ),
+  const list = readAll();
+  const updated = list.map((doc) =>
+    doc.id === id ? { ...doc, is_favourite: !doc.is_favourite } : doc,
   );
+  writeAll(updated);
+  const doc = updated.find(d => d.id === id);
+  if (doc) void syncDocToCloud(doc);
 }
 
 export function setDocumentFavourite(source: string, title: string, favourite: boolean) {
@@ -161,7 +222,10 @@ export function setDocumentFavourite(source: string, title: string, favourite: b
   const list = readAll();
   const existing = list.find((doc) => doc.id === id);
   if (existing) {
-    writeAll(list.map((doc) => (doc.id === id ? { ...doc, is_favourite: favourite } : doc)));
+    const updated = list.map((doc) => (doc.id === id ? { ...doc, is_favourite: favourite } : doc));
+    writeAll(updated);
+    const doc = updated.find(d => d.id === id);
+    if (doc) void syncDocToCloud(doc);
     return;
   }
   if (!favourite) return;

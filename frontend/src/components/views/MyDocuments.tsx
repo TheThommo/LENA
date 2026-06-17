@@ -223,7 +223,7 @@ export default function MyDocuments() {
             <li><strong className="text-slate-600">Profile &amp; Settings</strong> — your background, preferences, and personal context (gear icon).</li>
           </ul>
           <p className="text-[11px] text-slate-400 pt-1">
-            Cloud sync and PDF uploads are coming soon. Saved papers currently stay on this device.
+            Saved papers sync to your account when signed in. PDF uploads are planned next.
           </p>
         </div>
       </div>

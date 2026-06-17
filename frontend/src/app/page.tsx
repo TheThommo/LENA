@@ -20,7 +20,13 @@ import { useSession } from '@/contexts/SessionContext';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
-import { searchLiterature, SearchResponse, ResultMode, listProjectSearches, type ProjectSearch, getBillingStatus, createCheckoutSession, type BillingPlan } from '@/lib/api';
+import { searchLiterature, SearchResponse, ResultMode, listProjectSearches, type ProjectSearch, getBillingStatus, createCheckoutSession, type BillingPlan, fetchSavedDocuments, upsertSavedDocumentApi, deleteSavedDocumentApi } from '@/lib/api';
+import {
+  configureDocumentsSync,
+  hydrateDocumentsFromCloud,
+  type SavedDocument,
+} from '@/lib/savedDocuments';
+import { configureProfileSync } from '@/lib/userProfile';
 import {
   type RecentSessionRecord,
   normalizeRecentSession,
@@ -45,7 +51,7 @@ export default function Home() {
   const router = useRouter();
   const { session, incrementSearch, acceptDisclaimer } = useSession();
   const pendingQueryRef = useRef<string | null>(null);
-  const { activeProject, activeProjectId, setActiveProjectId, refresh: refreshProjects, projects, assignSearch, createNew: createNewProject } = useProjects();
+  const { activeProject, activeProjectId, setActiveProjectId, refresh: refreshProjects, projects, assignSearch, createNew: createNewProject, rename: renameProject, archive: archiveProject } = useProjects();
   const { isAuthenticated, isLoading: authLoading, user, token: authToken, logout } = useAuth();
   const { tenant } = useTenant();
 
@@ -172,6 +178,29 @@ export default function Home() {
       }
     }
   }, [isAuthenticated, user?.id, sessionsKey]);
+
+  // Cloud sync for documents (profile sync is handled in ProfileSettings).
+  useEffect(() => {
+    if (!isAuthenticated || !user?.id || !authToken) {
+      configureDocumentsSync(null, null);
+      configureProfileSync(null, null);
+      return;
+    }
+    configureProfileSync(user.id, authToken);
+    configureDocumentsSync(user.id, authToken, {
+      listRemote: async (token) => {
+        const { documents } = await fetchSavedDocuments(token);
+        return documents as unknown as SavedDocument[];
+      },
+      upsertRemote: async (token, doc) => {
+        await upsertSavedDocumentApi(token, doc.id, doc as unknown as Record<string, unknown>);
+      },
+      deleteRemote: async (token, docKey) => {
+        await deleteSavedDocumentApi(token, docKey);
+      },
+    });
+    void hydrateDocumentsFromCloud();
+  }, [isAuthenticated, user?.id, authToken]);
 
   // Persist the full message thread for a session so clicking a recent
   // session restores it locally instead of re-running the search (which
@@ -534,6 +563,39 @@ export default function Home() {
     handleSend(fallbackQuery);
   }, [loadSessionThread, recentSessions, setActiveProjectId]);
 
+  const handleProjectSearchOpen = useCallback((search: ProjectSearch) => {
+    if (!activeProjectId) return;
+    if (threadsKey) {
+      try {
+        const raw = localStorage.getItem(threadsKey);
+        if (raw) {
+          const all: Record<string, Message[]> = JSON.parse(raw);
+          for (const [sid, msgs] of Object.entries(all)) {
+            if (Array.isArray(msgs) && msgs.some(m => m.response?.search_id === search.id)) {
+              handleRecentSessionClick(sid, search.query);
+              return;
+            }
+          }
+        }
+      } catch {}
+    }
+    const sess = recentSessions.find(
+      s => s.projectId === activeProjectId && s.queries.includes(search.query),
+    );
+    if (sess) {
+      handleRecentSessionClick(sess.id, search.query);
+      return;
+    }
+    setActiveView('chat');
+    void handleSend(search.query);
+  }, [activeProjectId, threadsKey, recentSessions, handleRecentSessionClick]);
+
+  const handleShareReferral = useCallback(() => {
+    if (typeof window === 'undefined') return;
+    const ref = user?.id ? `?ref=${user.id}` : '';
+    void navigator.clipboard.writeText(`${window.location.origin}${ref}`);
+  }, [user?.id]);
+
   // Handle keyboard
   const handleKeyDown = (e: React.KeyboardEvent<HTMLTextAreaElement>) => {
     if (e.key === 'Enter' && !e.shiftKey) {
@@ -638,9 +700,9 @@ export default function Home() {
   const renderContent = () => {
     switch (activeView) {
       case 'community':
-        return <ComingSoon {...COMMUNITY_CONFIG} />;
+        return <ComingSoon {...COMMUNITY_CONFIG} authToken={authToken} />;
       case 'contribution':
-        return <ComingSoon {...CONTRIBUTION_CONFIG} />;
+        return <ComingSoon {...CONTRIBUTION_CONFIG} authToken={authToken} />;
       case 'how-it-works':
         return <HowItWorks />;
       case 'documents':
@@ -717,12 +779,36 @@ export default function Home() {
                 <span>Created {new Date(activeProject.created_at).toLocaleDateString()}</span>
               </div>
             </div>
-            <button
-              onClick={() => { setActiveProjectId(activeProject.id); setActiveView('chat'); }}
-              className="px-4 py-2 bg-lena-500 text-white text-sm font-medium rounded-lg hover:bg-lena-600 transition-colors"
-            >
-              Search in this project
-            </button>
+            <div className="flex items-center gap-2 flex-shrink-0">
+              <button
+                type="button"
+                onClick={async () => {
+                  const name = window.prompt('Rename project', activeProject.name);
+                  if (name?.trim()) await renameProject(activeProject.id, name.trim());
+                }}
+                className="px-3 py-2 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+              >
+                Rename
+              </button>
+              <button
+                type="button"
+                onClick={async () => {
+                  if (window.confirm(`Archive "${activeProject.name}"?`)) {
+                    await archiveProject(activeProject.id);
+                    setActiveView('chat');
+                  }
+                }}
+                className="px-3 py-2 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+              >
+                Archive
+              </button>
+              <button
+                onClick={() => { setActiveProjectId(activeProject.id); setActiveView('chat'); }}
+                className="px-4 py-2 bg-lena-500 text-white text-sm font-medium rounded-lg hover:bg-lena-600 transition-colors"
+              >
+                Search in this project
+              </button>
+            </div>
           </div>
 
           {/* Search threads */}
@@ -738,9 +824,11 @@ export default function Home() {
           {!projectLoading && projectSearches.length > 0 && (
             <div className="space-y-2">
               {projectSearches.map((s) => (
-                <div
+                <button
+                  type="button"
                   key={s.id}
-                  className="w-full text-left p-4 bg-white border border-slate-200 rounded-xl hover:border-lena-300 transition-colors"
+                  onClick={() => handleProjectSearchOpen(s)}
+                  className="w-full text-left p-4 bg-white border border-slate-200 rounded-xl hover:border-lena-300 hover:bg-lena-50/30 transition-colors cursor-pointer"
                 >
                   <div className="flex items-center gap-3">
                     <div className="w-8 h-8 rounded-lg bg-lena-50 flex items-center justify-center flex-shrink-0">
@@ -761,9 +849,10 @@ export default function Home() {
                           }`}>{s.pulse_status}</span>
                         )}
                       </div>
+                      <p className="text-[11px] text-lena-600 mt-1">Click to reopen thread</p>
                     </div>
                   </div>
-                </div>
+                </button>
               ))}
             </div>
           )}
@@ -869,6 +958,7 @@ export default function Home() {
                       const p = await createNewProject({ name });
                       return { id: p.id, name: p.name, emoji: p.emoji };
                     } : undefined}
+                    authToken={authToken}
                   />
                 );
               })}
@@ -969,6 +1059,8 @@ export default function Home() {
           onSearchClick={(sid, q) => { handleRecentSessionClick(sid, q); if (window.innerWidth < 1024) setSidebarOpen(false); }}
           onDeleteSession={deleteRecentSession}
           onRenameSession={renameRecentSession}
+          onUpgrade={() => handleUpgrade('pro_monthly')}
+          onShareReferral={handleShareReferral}
           userName={session.name || user?.name}
           userEmail={user?.email}
           isAuthenticated={isAuthenticated}

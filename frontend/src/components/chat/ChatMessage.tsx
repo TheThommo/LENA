@@ -4,7 +4,9 @@ import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
 import Image from 'next/image';
 import { branding } from '@/config/branding';
 import type { SearchResponse, ValidatedResult, ResultMode, SupplementVerification } from '@/lib/api';
+import { logShareEvent } from '@/lib/api';
 import SupplementVerificationCard from './SupplementVerificationCard';
+import ShareModal from './ShareModal';
 
 /* ────────────────────────────────────────
    Lightweight Markdown → JSX renderer
@@ -192,6 +194,7 @@ interface ChatMessageProps {
   onAddToProject?: (searchId: string, projectId: string) => Promise<void>;
   /** Create a new project inline. When provided, picker shows "+ New project". */
   onCreateProject?: (name: string) => Promise<ProjectOption>;
+  authToken?: string | null;
 }
 
 const SOURCE_COLORS: Record<string, { border: string; bg: string; text: string; label: string }> = {
@@ -498,6 +501,7 @@ export default function ChatMessage({
   projects,
   onAddToProject,
   onCreateProject,
+  authToken,
 }: ChatMessageProps) {
   const [projectPickerOpen, setProjectPickerOpen] = useState(false);
   const [projectSaved, setProjectSaved] = useState<string | null>(null);
@@ -511,6 +515,7 @@ export default function ChatMessage({
   const [shareOpen, setShareOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
   const [sharePos, setSharePos] = useState<{ top: number; right: number } | null>(null);
+  const [shareModalOpen, setShareModalOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
   const shareRef = useRef<HTMLDivElement>(null);
 
@@ -763,13 +768,35 @@ export default function ChatMessage({
                       )
                     ));
                   })()}
-                  <div className="px-3 py-2 text-[10px] text-slate-400 border-t border-slate-100 leading-snug">
-                    Email share with recipient tracking — coming soon
-                  </div>
+                  <button
+                    type="button"
+                    onClick={() => { setShareOpen(false); setShareModalOpen(true); }}
+                    className="w-full text-left px-3 py-2 text-[13px] text-lena-700 hover:bg-lena-50 border-t border-slate-100"
+                  >
+                    Share with recipient tracking
+                  </button>
                 </div>
               )}
             </div>
           )}
+          <ShareModal
+            isOpen={shareModalOpen}
+            onClose={() => setShareModalOpen(false)}
+            resultTitle={response?.query}
+            onShare={async (data) => {
+              if (authToken) {
+                try {
+                  await logShareEvent(authToken, {
+                    search_id: response?.search_id,
+                    recipient_type: data.recipient,
+                    recipient_email: data.email || undefined,
+                    note: data.note || undefined,
+                    result_title: response?.query,
+                  });
+                } catch { /* logged locally even if API fails */ }
+              }
+            }}
+          />
         </div>
       </div>
 
