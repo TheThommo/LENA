@@ -879,6 +879,93 @@ _SESSION_CONTEXT_FIELDS = (
 _SEARCH_LOG_FIELDS = (
     "id, query, created_at, pulse_status, total_results, user_id, session_id"
 )
+_SEARCHES_FIELDS = (
+    "id, query_text, created_at, result_count, status, user_id"
+)
+
+
+def _normalize_user_id(value: Any) -> Optional[str]:
+    if value is None:
+        return None
+    return str(value)
+
+
+def _normalize_search_row(row: dict, source: str) -> dict:
+    """Unify search_logs and searches rows for lead enrichment."""
+    if source == "searches":
+        return {
+            "id": row.get("id"),
+            "query": row.get("query_text") or "",
+            "created_at": row.get("created_at"),
+            "pulse_status": row.get("status"),
+            "total_results": row.get("result_count"),
+            "user_id": row.get("user_id"),
+            "session_id": None,
+        }
+    return {
+        "id": row.get("id"),
+        "query": row.get("query") or "",
+        "created_at": row.get("created_at"),
+        "pulse_status": row.get("pulse_status"),
+        "total_results": row.get("total_results"),
+        "user_id": row.get("user_id"),
+        "session_id": row.get("session_id"),
+    }
+
+
+def _dedupe_search_rows(rows: List[dict]) -> List[dict]:
+    """Newest-first dedupe by search id."""
+    seen: set[str] = set()
+    deduped: List[dict] = []
+    for row in sorted(rows, key=lambda r: r.get("created_at") or "", reverse=True):
+        row_id = row.get("id")
+        if row_id:
+            row_id = str(row_id)
+            if row_id in seen:
+                continue
+            seen.add(row_id)
+        deduped.append(row)
+    return deduped
+
+
+def _rows_for_lead(
+    lead: dict,
+    logs: List[dict],
+    sessions_by_email: Dict[str, List[dict]],
+    sessions_by_user: Dict[str, dict],
+) -> List[dict]:
+    uid = _normalize_user_id(lead.get("user_id"))
+    sid = _normalize_user_id(lead.get("session_id"))
+    email_key = (lead.get("email") or "").lower()
+
+    lead_session_ids = {sid} if sid else set()
+    if email_key in sessions_by_email:
+        lead_session_ids.update(_normalize_user_id(s["id"]) for s in sessions_by_email[email_key])
+    lead_session_ids.discard(None)
+
+    matched: List[dict] = []
+    for row in logs:
+        row_uid = _normalize_user_id(row.get("user_id"))
+        row_sid = _normalize_user_id(row.get("session_id"))
+        if uid and row_uid == uid:
+            matched.append(row)
+        elif row_sid and row_sid in lead_session_ids:
+            matched.append(row)
+    return _dedupe_search_rows(matched)
+
+
+def _session_search_total(
+    uid: Optional[str],
+    email_key: str,
+    sessions_by_user: Dict[str, dict],
+    sessions_by_email: Dict[str, List[dict]],
+) -> int:
+    total = 0
+    if uid and uid in sessions_by_user:
+        total = max(total, int(sessions_by_user[uid].get("search_count") or 0))
+    for session in sessions_by_email.get(email_key, []):
+        total += int(session.get("search_count") or 0)
+    return total
 
 
 def _merge_session_context(lead: dict, session: dict) -> None:
@@ -904,7 +991,11 @@ def _enrich_leads_with_search_activity(
     tenant_id: Optional[str] = None,
 ) -> None:
     """
-    Attach real search counts and recent queries from search_logs.
+    Attach real search counts and recent queries from search_logs and searches.
+
+    Historic rows may exist in only one table (pre-migration-008 search_logs
+    writes could fail while searches inserts succeeded). Session search_count
+    is used as a last-resort fallback when neither table has rows.
 
     Data consent only governs third-party sharing — it never suppresses
     internal admin visibility of queries.
@@ -912,8 +1003,10 @@ def _enrich_leads_with_search_activity(
     if not leads:
         return
 
-    user_ids = list({str(l["user_id"]) for l in leads if l.get("user_id")})
-    session_ids = list({str(l["session_id"]) for l in leads if l.get("session_id")})
+    user_ids = list({_normalize_user_id(l["user_id"]) for l in leads if l.get("user_id")})
+    user_ids = [uid for uid in user_ids if uid]
+    session_ids = list({_normalize_user_id(l["session_id"]) for l in leads if l.get("session_id")})
+    session_ids = [sid for sid in session_ids if sid]
     emails = list({l["email"] for l in leads if l.get("email")})
 
     sessions_by_user: Dict[str, dict] = {}
@@ -928,10 +1021,12 @@ def _enrich_leads_with_search_activity(
             .execute()
         )
         for row in u_sess.data or []:
-            uid = row.get("user_id")
+            uid = _normalize_user_id(row.get("user_id"))
             if uid and uid not in sessions_by_user:
                 sessions_by_user[uid] = row
-            session_ids.append(row["id"])
+            sid = _normalize_user_id(row.get("id"))
+            if sid:
+                session_ids.append(sid)
 
     if emails:
         e_sess = (
@@ -945,7 +1040,9 @@ def _enrich_leads_with_search_activity(
             email_key = (row.get("email") or "").lower()
             if email_key:
                 sessions_by_email.setdefault(email_key, []).append(row)
-            session_ids.append(row["id"])
+            sid = _normalize_user_id(row.get("id"))
+            if sid:
+                session_ids.append(sid)
 
     session_ids = list({sid for sid in session_ids if sid})
     logs_by_id: Dict[str, dict] = {}
@@ -960,8 +1057,24 @@ def _enrich_leads_with_search_activity(
         if tenant_id:
             q = q.eq("tenant_id", tenant_id)
         for row in q.execute().data or []:
-            if row.get("id"):
-                logs_by_id[row["id"]] = row
+            normalized = _normalize_search_row(row, "search_logs")
+            row_id = normalized.get("id")
+            if row_id:
+                logs_by_id[str(row_id)] = normalized
+
+        q = (
+            client.table("searches")
+            .select(_SEARCHES_FIELDS)
+            .in_("user_id", user_ids)
+            .order("created_at", desc=True)
+        )
+        if tenant_id:
+            q = q.eq("tenant_id", tenant_id)
+        for row in q.execute().data or []:
+            normalized = _normalize_search_row(row, "searches")
+            row_id = normalized.get("id")
+            if row_id:
+                logs_by_id[str(row_id)] = normalized
 
     if session_ids:
         q = (
@@ -973,18 +1086,17 @@ def _enrich_leads_with_search_activity(
         if tenant_id:
             q = q.eq("tenant_id", tenant_id)
         for row in q.execute().data or []:
-            if row.get("id"):
-                logs_by_id[row["id"]] = row
+            normalized = _normalize_search_row(row, "search_logs")
+            row_id = normalized.get("id")
+            if row_id:
+                logs_by_id[str(row_id)] = normalized
 
-    logs = sorted(
-        logs_by_id.values(),
-        key=lambda r: r.get("created_at") or "",
-        reverse=True,
-    )
+    logs = list(logs_by_id.values())
 
     for lead in leads:
+        lead["user_id"] = _normalize_user_id(lead.get("user_id"))
+        lead["session_id"] = _normalize_user_id(lead.get("session_id"))
         uid = lead.get("user_id")
-        sid = lead.get("session_id")
         email_key = (lead.get("email") or "").lower()
 
         linked_session = None
@@ -996,31 +1108,10 @@ def _enrich_leads_with_search_activity(
         if linked_session:
             _merge_session_context(lead, linked_session)
 
-        lead_session_ids = {sid} if sid else set()
-        if email_key in sessions_by_email:
-            lead_session_ids.update(s["id"] for s in sessions_by_email[email_key])
+        deduped = _rows_for_lead(lead, logs, sessions_by_email, sessions_by_user)
+        session_total = _session_search_total(uid, email_key, sessions_by_user, sessions_by_email)
 
-        if uid:
-            lead_logs = [
-                r for r in logs
-                if r.get("user_id") == uid
-                or (r.get("session_id") in lead_session_ids and not r.get("user_id"))
-            ]
-        else:
-            lead_logs = [r for r in logs if r.get("session_id") in lead_session_ids]
-
-        # Deduplicate while preserving newest-first order.
-        seen: set[str] = set()
-        deduped: List[dict] = []
-        for row in lead_logs:
-            log_id = row.get("id")
-            if log_id and log_id in seen:
-                continue
-            if log_id:
-                seen.add(log_id)
-            deduped.append(row)
-
-        lead["search_count"] = len(deduped)
+        lead["search_count"] = len(deduped) if deduped else session_total
         lead["recent_queries"] = [
             {
                 "query": row.get("query") or "",

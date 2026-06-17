@@ -1,6 +1,11 @@
 """Tests for lead search enrichment helpers."""
 
-from app.services.dashboard_queries import _merge_session_context
+from app.services.dashboard_queries import (
+    _merge_session_context,
+    _normalize_search_row,
+    _rows_for_lead,
+    _session_search_total,
+)
 
 
 def test_merge_session_context_fills_missing_fields():
@@ -70,3 +75,59 @@ def test_merge_session_context_does_not_overwrite_existing_values():
     assert lead["data_consent"] is True
     assert lead["disclaimer_accepted"] is True
     assert lead["source"] == "Direct"
+
+
+def test_normalize_search_row_from_searches_table():
+    row = _normalize_search_row(
+        {
+            "id": "abc-123",
+            "query_text": "magnesium floaters",
+            "created_at": "2026-05-21T08:30:00Z",
+            "result_count": 4,
+            "status": "validated",
+            "user_id": "user-1",
+        },
+        "searches",
+    )
+    assert row["query"] == "magnesium floaters"
+    assert row["total_results"] == 4
+    assert row["pulse_status"] == "validated"
+
+
+def test_rows_for_lead_matches_user_and_session_searches():
+    lead = {"user_id": "user-1", "session_id": "sess-1", "email": "j@test.com"}
+    logs = [
+        {
+            "id": "1",
+            "query": "by user",
+            "created_at": "2026-05-21T09:00:00Z",
+            "user_id": "user-1",
+            "session_id": None,
+        },
+        {
+            "id": "2",
+            "query": "by session",
+            "created_at": "2026-05-21T08:00:00Z",
+            "user_id": None,
+            "session_id": "sess-1",
+        },
+        {
+            "id": "3",
+            "query": "other user",
+            "created_at": "2026-05-21T07:00:00Z",
+            "user_id": "user-2",
+            "session_id": None,
+        },
+    ]
+    rows = _rows_for_lead(lead, logs, {}, {})
+    assert [r["query"] for r in rows] == ["by user", "by session"]
+
+
+def test_session_search_total_fallback():
+    total = _session_search_total(
+        "user-1",
+        "j@test.com",
+        {"user-1": {"search_count": 3}},
+        {"j@test.com": [{"search_count": 2}]},
+    )
+    assert total == 5
