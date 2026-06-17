@@ -36,6 +36,22 @@
   --radius-lg: 18px;
 }
 
+:root[data-theme="light"] {
+  --bg-base: #F3F6FB;
+  --bg-surface: #FFFFFF;
+  --bg-elevated: #F8FAFD;
+  --bg-raised: #EEF3FA;
+  --bg-hover: #E6EDF7;
+  --border: rgba(15, 23, 42, 0.08);
+  --border-strong: rgba(15, 23, 42, 0.16);
+  --text-primary: #0F172A;
+  --text-secondary: rgba(15, 23, 42, 0.76);
+  --text-muted: rgba(15, 23, 42, 0.58);
+  --text-faint: rgba(15, 23, 42, 0.36);
+  --shadow-low: 0 10px 30px rgba(15, 23, 42, 0.08);
+  --shadow-high: 0 18px 48px rgba(15, 23, 42, 0.12);
+}
+
 *, *::before, *::after {
   box-sizing: border-box;
   margin: 0;
@@ -54,6 +70,12 @@ body {
   color: var(--text-primary);
   font-size: 14px;
   line-height: 1.5;
+}
+
+[data-theme="light"] body {
+  background:
+    radial-gradient(circle at top left, rgba(229, 49, 22, 0.08), transparent 24%),
+    linear-gradient(180deg, #F8FAFD 0%, #F3F6FB 100%);
 }
 
 a {
@@ -76,6 +98,10 @@ button, input, select {
 ::-webkit-scrollbar-thumb {
   background: rgba(255, 255, 255, 0.12);
   border-radius: 999px;
+}
+
+[data-theme="light"] ::-webkit-scrollbar-thumb {
+  background: rgba(15, 23, 42, 0.14);
 }
 
 #loginOverlay {
@@ -175,6 +201,12 @@ button, input, select {
 .date-input,
 .date-preset {
   color-scheme: dark;
+}
+
+[data-theme="light"] .toolbar-select,
+[data-theme="light"] .date-input,
+[data-theme="light"] .date-preset {
+  color-scheme: light;
 }
 
 .btn-primary,
@@ -450,6 +482,33 @@ button, input, select {
   display: flex;
   flex-direction: column;
   gap: 8px;
+}
+
+.theme-toggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  margin-bottom: 12px;
+}
+
+.theme-toggle-btn {
+  border: none;
+  background: transparent;
+  color: var(--text-muted);
+  padding: 8px 12px;
+  border-radius: 999px;
+  cursor: pointer;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.theme-toggle-btn.active {
+  background: rgba(229, 49, 22, 0.14);
+  color: var(--text-primary);
 }
 
 .topbar {
@@ -816,6 +875,38 @@ button, input, select {
   color: var(--text-primary);
 }
 
+.table-scroll {
+  overflow: auto;
+}
+
+.sort-btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  border: none;
+  background: transparent;
+  color: inherit;
+  cursor: pointer;
+  font: inherit;
+  font-weight: inherit;
+  letter-spacing: inherit;
+  text-transform: inherit;
+}
+
+.sort-btn::after {
+  content: '↕';
+  color: var(--text-faint);
+}
+
+.sort-btn.active::after {
+  content: '↑';
+  color: var(--hq-400);
+}
+
+.sort-btn.active.desc::after {
+  content: '↓';
+}
+
 .table-primary {
   color: var(--text-primary);
   font-weight: 600;
@@ -864,6 +955,11 @@ button, input, select {
   font-size: 15px;
   color: var(--text-primary);
   margin-bottom: 6px;
+}
+
+.empty-state-inline {
+  color: var(--text-muted);
+  font-size: 13px;
 }
 
 .coming-grid {
@@ -1157,6 +1253,160 @@ button, input, select {
   font-size: 13px;
 }
 
+.db-explorer-layout {
+  display: grid;
+  grid-template-columns: minmax(230px, 280px) minmax(0, 1fr);
+  gap: 20px;
+  align-items: start;
+}
+
+.db-table-groups {
+  position: sticky;
+  top: 94px;
+}
+
+.db-table-group + .db-table-group {
+  margin-top: 18px;
+}
+
+.db-table-group-title {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  margin-bottom: 8px;
+}
+
+.db-table-list {
+  display: grid;
+  gap: 6px;
+}
+
+.db-table-button {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  cursor: pointer;
+  padding: 10px 12px;
+  text-align: left;
+  transition: background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.db-table-button:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.db-table-button.active {
+  background: rgba(229, 49, 22, 0.12);
+  border-color: var(--border);
+  color: var(--text-primary);
+}
+
+.db-table-button small {
+  display: block;
+  color: var(--text-faint);
+  margin-top: 3px;
+}
+
+.db-toolbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.db-toolbar-meta {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.db-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+}
+
+.db-pagination-label {
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.detail-snippet {
+  display: inline-block;
+  max-width: 360px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  vertical-align: bottom;
+}
+
+.code-chip {
+  display: inline-flex;
+  align-items: center;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border);
+  font-size: 11px;
+  color: var(--text-secondary);
+}
+
+.nav-item[hidden],
+.nav-group[hidden],
+.section[hidden] {
+  display: none !important;
+}
+
+[data-theme="light"] #loginOverlay {
+  background: rgba(243, 246, 251, 0.94);
+}
+
+[data-theme="light"] .sidebar,
+[data-theme="light"] .topbar,
+[data-theme="light"] .card,
+[data-theme="light"] .panel,
+[data-theme="light"] #drawer,
+[data-theme="light"] .login-card {
+  background: rgba(255, 255, 255, 0.94);
+}
+
+[data-theme="light"] .date-range-wrap,
+[data-theme="light"] .kpi-card,
+[data-theme="light"] .rail-kpi,
+[data-theme="light"] .coming-card,
+[data-theme="light"] .health-card {
+  background: linear-gradient(180deg, rgba(248, 250, 253, 0.96), rgba(255, 255, 255, 0.98));
+}
+
+[data-theme="light"] .data-table th {
+  background: #F2F5FA;
+}
+
+[data-theme="light"] .summary-row,
+[data-theme="light"] .detail-row,
+[data-theme="light"] .tenant-mini-row,
+[data-theme="light"] .goal-row,
+[data-theme="light"] .data-table td {
+  border-bottom-color: rgba(15, 23, 42, 0.06);
+}
+
+[data-theme="light"] .btn-linkish {
+  background: rgba(229, 49, 22, 0.06);
+  color: var(--hq-600);
+}
+
+[data-theme="light"] .mobile-nav-btn {
+  background: var(--bg-surface);
+}
+
 @media (max-width: 1440px) {
   :root {
     --rail-w: 300px;
@@ -1183,8 +1433,13 @@ button, input, select {
   .split-grid,
   .two-col-grid,
   .health-grid,
-  .coming-grid {
+  .coming-grid,
+  .db-explorer-layout {
     grid-template-columns: 1fr;
+  }
+
+  .db-table-groups {
+    position: static;
   }
 }
 
@@ -1339,30 +1594,33 @@ button, input, select {
     <div class="sidebar-scroll">
       <div class="nav-group">
         <div class="nav-group-label">Overview</div>
-        <button class="nav-item active" data-tab="command-center" onclick="switchTab('command-center', this)">
+        <button class="nav-item active" data-tab="command-center" data-nav-key="command_center" onclick="switchTab('command-center', this)">
           <span class="nav-item-main"><span class="nav-dot"></span><span>Command Center</span></span>
         </button>
-        <button class="nav-item" data-tab="revenue" onclick="switchTab('revenue', this)">
+        <button class="nav-item" data-tab="analytics" data-nav-key="analytics" onclick="switchTab('analytics', this)">
+          <span class="nav-item-main"><span class="nav-dot"></span><span>Analytics</span></span>
+        </button>
+        <button class="nav-item" data-tab="revenue" data-nav-key="revenue" onclick="switchTab('revenue', this)">
           <span class="nav-item-main"><span class="nav-dot"></span><span>Revenue</span></span>
         </button>
       </div>
 
       <div class="nav-group">
         <div class="nav-group-label">People</div>
-        <button class="nav-item" data-tab="tenants" onclick="switchTab('tenants', this)">
+        <button class="nav-item" data-tab="tenants" data-nav-key="tenants" onclick="switchTab('tenants', this)">
           <span class="nav-item-main"><span class="nav-dot"></span><span>Tenants</span></span>
         </button>
-        <button class="nav-item" data-tab="users" onclick="switchTab('users', this)">
+        <button class="nav-item" data-tab="users" data-nav-key="users" onclick="switchTab('users', this)">
           <span class="nav-item-main"><span class="nav-dot"></span><span>Users</span></span>
         </button>
       </div>
 
       <div class="nav-group">
         <div class="nav-group-label">Billing</div>
-        <button class="nav-item" data-tab="subscriptions" onclick="switchTab('subscriptions', this)">
+        <button class="nav-item" data-tab="subscriptions" data-nav-key="subscriptions" onclick="switchTab('subscriptions', this)">
           <span class="nav-item-main"><span class="nav-dot"></span><span>Subscriptions</span></span>
         </button>
-        <button class="nav-item" data-tab="invoices" onclick="switchTab('invoices', this)">
+        <button class="nav-item" data-tab="invoices" data-nav-key="invoices" onclick="switchTab('invoices', this)">
           <span class="nav-item-main"><span class="nav-dot"></span><span>Invoices</span></span>
           <span class="nav-item-badge">Soon</span>
         </button>
@@ -1370,13 +1628,19 @@ button, input, select {
 
       <div class="nav-group">
         <div class="nav-group-label">Operations</div>
-        <button class="nav-item" data-tab="llm-costs" onclick="switchTab('llm-costs', this)">
+        <button class="nav-item" data-tab="llm-costs" data-nav-key="llm_costs" onclick="switchTab('llm-costs', this)">
           <span class="nav-item-main"><span class="nav-dot"></span><span>LLM Costs</span></span>
         </button>
-        <button class="nav-item" data-tab="system-health" onclick="switchTab('system-health', this)">
+        <button class="nav-item" data-tab="system-health" data-nav-key="system_health" onclick="switchTab('system-health', this)">
           <span class="nav-item-main"><span class="nav-dot"></span><span>System Health</span></span>
         </button>
-        <a class="nav-item" href="/admin.html" target="_blank" rel="noopener">
+        <button class="nav-item" data-tab="db-explorer" data-nav-key="db_explorer" onclick="switchTab('db-explorer', this)">
+          <span class="nav-item-main"><span class="nav-dot"></span><span>DB Explorer</span></span>
+        </button>
+        <button class="nav-item" data-tab="settings" data-nav-key="settings" onclick="switchTab('settings', this)">
+          <span class="nav-item-main"><span class="nav-dot"></span><span>Settings</span></span>
+        </button>
+        <a class="nav-item" data-nav-key="product_admin" href="/admin.html" target="_blank" rel="noopener">
           <span class="nav-item-main"><span class="nav-dot"></span><span>Product Admin</span></span>
           <span class="nav-item-badge">Link</span>
         </a>
@@ -1384,15 +1648,14 @@ button, input, select {
 
       <div class="nav-group">
         <div class="nav-group-label">Strategy</div>
-        <button class="nav-item" data-tab="growth" onclick="switchTab('growth', this)">
+        <button class="nav-item" data-tab="growth" data-nav-key="growth" onclick="switchTab('growth', this)">
           <span class="nav-item-main"><span class="nav-dot"></span><span>Growth</span></span>
           <span class="nav-item-badge">Soon</span>
         </button>
-        <button class="nav-item" data-tab="audit-log" onclick="switchTab('audit-log', this)">
+        <button class="nav-item" data-tab="audit-log" data-nav-key="audit_log" onclick="switchTab('audit-log', this)">
           <span class="nav-item-main"><span class="nav-dot"></span><span>Audit Log</span></span>
-          <span class="nav-item-badge">Soon</span>
         </button>
-        <button class="nav-item" data-tab="business-goals" onclick="switchTab('business-goals', this)">
+        <button class="nav-item" data-tab="business-goals" data-nav-key="business_goals" onclick="switchTab('business-goals', this)">
           <span class="nav-item-main"><span class="nav-dot"></span><span>Business Goals</span></span>
           <span class="nav-item-badge">Soon</span>
         </button>
@@ -1401,6 +1664,10 @@ button, input, select {
 
     <div class="sidebar-footer">
       <div class="sidebar-user" id="hqEmail">—</div>
+      <div class="theme-toggle" role="group" aria-label="Theme toggle">
+        <button class="theme-toggle-btn active" type="button" data-theme-value="dark" onclick="setTheme('dark')">Dark</button>
+        <button class="theme-toggle-btn" type="button" data-theme-value="light" onclick="setTheme('light')">Light</button>
+      </div>
       <div class="sidebar-footer-actions">
         <a class="btn-linkish" href="/admin.html" target="_blank" rel="noopener">Open Product Admin</a>
         <button class="btn-ghost" onclick="logout()">Logout</button>
@@ -1448,9 +1715,11 @@ button, input, select {
             <p>State-of-business view across LENA HQ with revenue pulse, tenant performance, and executive KPIs.</p>
           </div>
           <div class="header-actions">
-            <button class="btn-sm primary" type="button" onclick="loadPlatformSnapshot(true)">Refresh snapshot</button>
+            <button class="btn-sm primary" type="button" onclick="refreshCommandCenter()">Refresh snapshot</button>
           </div>
         </div>
+
+        <div class="kpi-grid" id="kpiRegistryGrid"></div>
 
         <div class="kpi-grid">
           <div class="kpi-card">
@@ -1530,6 +1799,74 @@ button, input, select {
               </thead>
               <tbody></tbody>
             </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="analytics">
+        <div class="page-header">
+          <div>
+            <h1>Analytics</h1>
+            <p>Conversion and user growth signals for the selected date window, aligned to the universal HQ analytics surface.</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn-sm primary" type="button" onclick="loadAnalytics(true)">Refresh analytics</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid kpi-grid-4" id="analyticsKpiGrid"></div>
+
+        <div class="split-grid" style="margin-bottom:20px">
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">User Growth</div>
+                <div class="panel-subtitle">Registrations and cumulative users across the selected date range</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="chart-wrap compact">
+                <canvas id="analyticsGrowthChart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">Analytics Summary</div>
+                <div class="panel-subtitle">Quick read on funnel efficiency and recent user adds</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="summary-list" id="analyticsSummaryList">
+                <div class="summary-row"><span class="summary-label">Loading</span><span class="summary-value">—</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Funnel Stages</div>
+              <div class="panel-subtitle">Stage-by-stage session counts and conversion rates</div>
+            </div>
+          </div>
+          <div class="panel-body no-pad">
+            <div class="table-scroll">
+              <table class="data-table" id="analyticsFunnelTable">
+                <thead>
+                  <tr>
+                    <th>Stage</th>
+                    <th>Sessions</th>
+                    <th>Conversion</th>
+                    <th>Drop-off</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
           </div>
         </div>
       </section>
@@ -1934,40 +2271,156 @@ button, input, select {
         <div class="page-header">
           <div>
             <h1>Audit Log</h1>
-            <p>Governance and compliance history will land here once the event stream is exposed to HQ.</p>
+            <p>Live governance trail for recent administrative activity across access, billing, and platform operations.</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn-sm primary" type="button" onclick="loadAuditLog(true)">Refresh audit log</button>
           </div>
         </div>
 
-        <div class="coming-grid">
-          <div class="coming-card">
-            <span class="coming-tag">Coming Soon</span>
-            <h3>Actor timeline</h3>
-            <p>Filter platform actions by actor, tenant, event type, and time range.</p>
-            <ul>
-              <li>User management changes</li>
-              <li>Billing modifications</li>
-              <li>Administrative access events</li>
-            </ul>
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Recent Events</div>
+              <div class="panel-subtitle">Latest 100 audit entries from the console audit stream</div>
+            </div>
           </div>
-          <div class="coming-card">
-            <span class="coming-tag">Coming Soon</span>
-            <h3>Operational traceability</h3>
-            <p>Unified record of the changes that matter for support, finance, and security.</p>
-            <ul>
-              <li>Structured event metadata</li>
-              <li>Tenant-level filters</li>
-              <li>Exportable audit slices</li>
-            </ul>
+          <div class="panel-body no-pad">
+            <div class="table-scroll">
+              <table class="data-table" id="auditLogTable">
+                <thead>
+                  <tr>
+                    <th>When</th>
+                    <th>Actor</th>
+                    <th>Action</th>
+                    <th>Resource</th>
+                    <th>Details</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
           </div>
-          <div class="coming-card">
-            <span class="coming-tag">Coming Soon</span>
-            <h3>Exception review</h3>
-            <p>Fast review path for suspicious access, role edits, and unusual billing operations.</p>
-            <ul>
-              <li>Severity tags</li>
-              <li>Saved views</li>
-              <li>Reviewer assignments</li>
-            </ul>
+        </div>
+      </section>
+
+      <section class="section" id="db-explorer">
+        <div class="page-header">
+          <div>
+            <h1>DB Explorer</h1>
+            <p>Browse approved platform tables with grouped navigation, masked sensitive fields, sorting, filtering, and CSV export.</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn-sm primary" type="button" onclick="loadDbExplorer(true)">Refresh explorer</button>
+          </div>
+        </div>
+
+        <div class="db-explorer-layout">
+          <div class="card rail-card db-table-groups" id="dbTableGroups">
+            <h3>Tables</h3>
+            <div class="empty-state-inline">Loading table groups...</div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title" id="dbExplorerTitle">Select a table</div>
+                <div class="panel-subtitle" id="dbExplorerSubtitle">Choose a table group from the left to inspect rows.</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="db-toolbar" style="margin-bottom:16px">
+                <div class="toolbar-actions">
+                  <select class="toolbar-select" id="dbFilterColumn"></select>
+                  <input class="toolbar-input" id="dbFilterInput" placeholder="Filter current table...">
+                  <button class="btn-sm primary" type="button" onclick="applyDbFilter()">Apply filter</button>
+                  <button class="btn-sm subtle" type="button" onclick="clearDbFilter()">Clear</button>
+                </div>
+                <div class="toolbar-actions">
+                  <button class="btn-sm" type="button" onclick="exportDbTable()">Export CSV</button>
+                </div>
+              </div>
+
+              <div class="db-toolbar-meta" id="dbExplorerMeta">Awaiting table selection.</div>
+
+              <div class="table-scroll" style="margin-top:16px">
+                <table class="data-table" id="dbExplorerTable">
+                  <thead></thead>
+                  <tbody></tbody>
+                </table>
+              </div>
+
+              <div class="db-pagination">
+                <div class="db-pagination-label" id="dbPaginationLabel">Page 1</div>
+                <div class="toolbar-actions">
+                  <button class="btn-sm subtle" type="button" onclick="changeDbPage(-1)">Previous</button>
+                  <button class="btn-sm subtle" type="button" onclick="changeDbPage(1)">Next</button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="settings">
+        <div class="page-header">
+          <div>
+            <h1>Settings</h1>
+            <p>Console role context, quick links, and system-level information for the static HQ SPA environment.</p>
+          </div>
+        </div>
+
+        <div class="two-col-grid">
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">Console Access</div>
+                <div class="panel-subtitle">Role mapping returned by the live permissions endpoint</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="summary-list">
+                <div class="summary-row"><span class="summary-label">Console role</span><span class="summary-value"><span class="code-chip" id="settingsConsoleRole">—</span></span></div>
+                <div class="summary-row"><span class="summary-label">LENA role</span><span class="summary-value" id="settingsLenaRole">—</span></div>
+                <div class="summary-row"><span class="summary-label">System health</span><span class="summary-value"><button class="btn-sm subtle" type="button" onclick="switchTab('system-health', document.querySelector('.nav-item[data-tab=&quot;system-health&quot;]'))">Open tab</button></span></div>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">Feature Flags</div>
+                <div class="panel-subtitle">Placeholder card for future console-level toggles</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="coming-card" style="padding:0;border:none;background:transparent">
+                <h3>Flags coming next</h3>
+                <p>Use this surface for controlled HQ rollouts, ops-only toggles, and environment-specific experiments.</p>
+                <ul>
+                  <li>Console feature rollout states</li>
+                  <li>Environment-specific toggles</li>
+                  <li>Read-only operational switches</li>
+                </ul>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">System Info</div>
+                <div class="panel-subtitle">Static SPA environment details and API target</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="summary-list">
+                <div class="summary-row"><span class="summary-label">API base</span><span class="summary-value mono" id="settingsApiBase">—</span></div>
+                <div class="summary-row"><span class="summary-label">API version</span><span class="summary-value mono" id="settingsApiVersion">—</span></div>
+                <div class="summary-row"><span class="summary-label">Theme</span><span class="summary-value" id="settingsThemeValue">—</span></div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
@@ -2074,6 +2527,18 @@ button, input, select {
 
 <script>
 const API_BASE = window.LENA_API_BASE || 'https://lena-production-health.up.railway.app';
+const THEME_STORAGE_KEY = 'lena.hq.theme';
+const DEFAULT_API_VERSION = '0.1.0';
+const FUNNEL_STAGE_LABELS = {
+  landed: 'Landed',
+  name_captured: 'Name Captured',
+  disclaimer_accepted: 'Disclaimer Accepted',
+  first_search: 'First Search',
+  email_captured: 'Email Captured',
+  second_search: 'Second Search',
+  signup_cta_shown: 'Signup CTA Shown',
+  registered: 'Registered',
+};
 let authToken = null;
 let subsCache = [];
 let usersCache = [];
@@ -2090,9 +2555,29 @@ let drawerMode = null;
 let drawerIdx = null;
 let lastSyncTime = null;
 let chartInstances = {};
+let consolePermissionsCache = null;
+let kpiRegistryCache = [];
+let kpiRegistryRangeKey = '';
+let analyticsCache = { funnel: null, users: null, rangeKey: '' };
+let auditLogCache = [];
+let dbExplorerGroupsCache = null;
+let apiVersionCache = DEFAULT_API_VERSION;
+let dbExplorerState = {
+  table: '',
+  page: 1,
+  limit: 50,
+  sort: 'created_at',
+  order: 'desc',
+  filterCol: '',
+  filterVal: '',
+  columns: [],
+  rows: [],
+  total: 0,
+};
 
 const SECTION_META = {
   'command-center': { title: 'Command Center' },
+  'analytics': { title: 'Analytics' },
   'revenue': { title: 'Revenue' },
   'tenants': { title: 'Tenants' },
   'subscriptions': { title: 'Subscriptions' },
@@ -2102,11 +2587,17 @@ const SECTION_META = {
   'system-health': { title: 'System Health' },
   'growth': { title: 'Growth' },
   'audit-log': { title: 'Audit Log' },
+  'db-explorer': { title: 'DB Explorer' },
+  'settings': { title: 'Settings' },
   'business-goals': { title: 'Business Goals' },
 };
 
 function getStoredAuth() {
   try { return JSON.parse(sessionStorage.getItem('lena_hq') || 'null'); } catch { return null; }
+}
+
+function getStoredTheme() {
+  try { return localStorage.getItem(THEME_STORAGE_KEY) || 'dark'; } catch { return 'dark'; }
 }
 
 function storeAuth(token, email) {
@@ -2132,6 +2623,11 @@ function getSelectedDateRange() {
   };
 }
 
+function buildApiUrlRaw(path) {
+  const [pathname, queryString = ''] = path.split('?');
+  return `${API_BASE}/api${pathname}${queryString ? `?${queryString}` : ''}`;
+}
+
 function buildApiUrl(path, overrideRange) {
   const [pathname, queryString = ''] = path.split('?');
   const params = new URLSearchParams(queryString);
@@ -2142,10 +2638,10 @@ function buildApiUrl(path, overrideRange) {
   return `${API_BASE}/api${pathname}${qs ? `?${qs}` : ''}`;
 }
 
-async function apiFetch(path) {
-  const res = await fetch(buildApiUrl(path), {
-    headers: { Authorization: `Bearer ${authToken}` },
-  });
+async function requestApi(url, init = {}) {
+  const headers = new Headers(init.headers || {});
+  if (authToken) headers.set('Authorization', `Bearer ${authToken}`);
+  const res = await fetch(url, { ...init, headers });
   if (res.status === 401 || res.status === 403) {
     clearAuth();
     document.getElementById('loginOverlay').classList.remove('hidden');
@@ -2155,53 +2651,44 @@ async function apiFetch(path) {
     const err = await res.json().catch(() => ({}));
     throw new Error(typeof err.detail === 'string' ? err.detail : `API ${res.status}`);
   }
+  return res;
+}
+
+async function apiFetch(path) {
+  const res = await requestApi(buildApiUrl(path));
   return res.json();
 }
 
 async function apiFetchWithRange(path, range) {
-  const res = await fetch(buildApiUrl(path, range), {
-    headers: { Authorization: `Bearer ${authToken}` },
-  });
-  if (res.status === 401 || res.status === 403) {
-    clearAuth();
-    document.getElementById('loginOverlay').classList.remove('hidden');
-    throw new Error('Session expired');
-  }
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(typeof err.detail === 'string' ? err.detail : `API ${res.status}`);
-  }
+  const res = await requestApi(buildApiUrl(path, range));
   return res.json();
 }
 
+async function apiFetchPlain(path) {
+  const res = await requestApi(buildApiUrlRaw(path));
+  return res.json();
+}
+
+async function apiFetchBlob(path) {
+  const res = await requestApi(buildApiUrlRaw(path));
+  return res.blob();
+}
+
 async function apiPost(path, body) {
-  const res = await fetch(`${API_BASE}/api${path}`, {
+  const res = await requestApi(`${API_BASE}/api${path}`, {
     method: 'POST',
-    headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body || {}),
   });
-  if (res.status === 401 || res.status === 403) {
-    clearAuth();
-    document.getElementById('loginOverlay').classList.remove('hidden');
-    throw new Error('Session expired');
-  }
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `API ${res.status}`);
-  }
   return res.json();
 }
 
 async function apiPatch(path, body) {
-  const res = await fetch(`${API_BASE}/api${path}`, {
+  const res = await requestApi(`${API_BASE}/api${path}`, {
     method: 'PATCH',
-    headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
+    headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body || {}),
   });
-  if (!res.ok) {
-    const err = await res.json().catch(() => ({}));
-    throw new Error(err.detail || `API ${res.status}`);
-  }
   return res.json();
 }
 
@@ -2277,6 +2764,53 @@ function fmtDateTime(iso) {
   });
 }
 
+function fmtPercent(value, digits = 1) {
+  if (value == null || Number.isNaN(Number(value))) return '—';
+  return `${Number(value).toFixed(digits)}%`;
+}
+
+function humanizeKey(value) {
+  return String(value || '')
+    .replace(/[_-]+/g, ' ')
+    .replace(/\b\w/g, match => match.toUpperCase());
+}
+
+function truncateText(value, max = 120) {
+  const text = String(value ?? '');
+  return text.length > max ? `${text.slice(0, max - 1)}…` : text;
+}
+
+function serializeValue(value, max = 120) {
+  if (value == null || value === '') return '—';
+  if (typeof value === 'object') return truncateText(JSON.stringify(value), max);
+  return truncateText(String(value), max);
+}
+
+function themePalette() {
+  const styles = getComputedStyle(document.documentElement);
+  const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+  return {
+    theme,
+    textPrimary: styles.getPropertyValue('--text-primary').trim() || '#FFFFFF',
+    textSecondary: styles.getPropertyValue('--text-secondary').trim() || 'rgba(255,255,255,0.72)',
+    border: styles.getPropertyValue('--border').trim() || 'rgba(229,49,22,0.22)',
+    bgSurface: styles.getPropertyValue('--bg-surface').trim() || '#0E1728',
+    bgElevated: styles.getPropertyValue('--bg-elevated').trim() || '#141F34',
+    chartGrid: theme === 'light' ? 'rgba(15,23,42,0.08)' : 'rgba(255,255,255,0.08)',
+  };
+}
+
+function formatRegistryValue(format, value) {
+  if (format === 'money_cents') {
+    const dollars = Number(value || 0) / 100;
+    return Math.abs(dollars) >= 1000 ? fmtCompactCurrency(dollars) : fmtMoney(value);
+  }
+  if (format === 'currency') return fmtCompactCurrency(value);
+  if (format === 'integer') return fmtNumber(value);
+  if (format === 'percent') return fmtPercent(value);
+  return serializeValue(value, 64);
+}
+
 function statusBadge(status) {
   const map = {
     active: 'badge-active',
@@ -2299,6 +2833,7 @@ function chartColors() {
 }
 
 function doughnutOptions() {
+  const palette = themePalette();
   return {
     responsive: true,
     maintainAspectRatio: false,
@@ -2307,18 +2842,52 @@ function doughnutOptions() {
       legend: {
         position: 'right',
         labels: {
-          color: 'rgba(255,255,255,0.72)',
+          color: palette.textSecondary,
           padding: 12,
           boxWidth: 12,
           font: { family: 'DM Sans', size: 11 },
         },
       },
       tooltip: {
-        backgroundColor: '#141F34',
-        titleColor: '#FFFFFF',
-        bodyColor: 'rgba(255,255,255,0.8)',
-        borderColor: 'rgba(229,49,22,0.22)',
+        backgroundColor: palette.bgElevated,
+        titleColor: palette.textPrimary,
+        bodyColor: palette.textSecondary,
+        borderColor: palette.border,
         borderWidth: 1,
+      },
+    },
+  };
+}
+
+function lineChartOptions() {
+  const palette = themePalette();
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    plugins: {
+      legend: {
+        labels: {
+          color: palette.textSecondary,
+          font: { family: 'DM Sans', size: 11 },
+        },
+      },
+      tooltip: {
+        backgroundColor: palette.bgElevated,
+        titleColor: palette.textPrimary,
+        bodyColor: palette.textSecondary,
+        borderColor: palette.border,
+        borderWidth: 1,
+      },
+    },
+    scales: {
+      x: {
+        grid: { color: palette.chartGrid },
+        ticks: { color: palette.textSecondary, font: { family: 'DM Mono', size: 10 } },
+      },
+      y: {
+        beginAtZero: true,
+        grid: { color: palette.chartGrid },
+        ticks: { color: palette.textSecondary, font: { family: 'DM Mono', size: 10 } },
       },
     },
   };
@@ -2326,6 +2895,56 @@ function doughnutOptions() {
 
 function applyTopbarMeta(tabId) {
   document.getElementById('topbarTitle').textContent = SECTION_META[tabId]?.title || tabId;
+}
+
+function syncThemeToggle() {
+  const theme = document.documentElement.getAttribute('data-theme') || 'dark';
+  document.querySelectorAll('.theme-toggle-btn').forEach(btn => {
+    btn.classList.toggle('active', btn.dataset.themeValue === theme);
+  });
+  const settingsTheme = document.getElementById('settingsThemeValue');
+  if (settingsTheme) settingsTheme.textContent = humanizeKey(theme);
+}
+
+function rerenderThemeSensitiveViews() {
+  if (overviewCache || revenueCache || tenantsCache.length) renderCommandCenter();
+  if (revenueCache) renderRevenue();
+  if (monthOverviewCache || monthRevenueCache || monthTenantsCache.length) renderActivityRail();
+  if (analyticsCache.funnel || analyticsCache.users) renderAnalytics();
+}
+
+function setTheme(theme) {
+  const nextTheme = theme === 'light' ? 'light' : 'dark';
+  document.documentElement.setAttribute('data-theme', nextTheme);
+  try { localStorage.setItem(THEME_STORAGE_KEY, nextTheme); } catch {}
+  syncThemeToggle();
+  rerenderThemeSensitiveViews();
+}
+
+function applyNavVisibility(nav) {
+  document.querySelectorAll('.nav-item[data-nav-key]').forEach(item => {
+    const key = item.dataset.navKey;
+    item.hidden = nav?.[key] === false;
+  });
+  document.querySelectorAll('.nav-group').forEach(group => {
+    const visibleCount = [...group.querySelectorAll('.nav-item[data-nav-key]')].filter(item => !item.hidden).length;
+    group.hidden = visibleCount === 0;
+  });
+  const activeNav = document.querySelector('.nav-item[data-tab].active');
+  if (activeNav?.hidden) {
+    const fallback = document.querySelector('.nav-item[data-tab]:not([hidden])');
+    if (fallback) switchTab(fallback.dataset.tab, fallback);
+  }
+}
+
+async function loadConsolePermissions() {
+  const permissions = await apiFetchPlain('/dashboard/platform/console/permissions');
+  consolePermissionsCache = permissions;
+  window.consoleRole = permissions.console_role || null;
+  window.lenaRole = permissions.lena_role || null;
+  applyNavVisibility(permissions.nav || {});
+  renderSettings();
+  return permissions;
 }
 
 function toggleSidebar(force) {
@@ -2345,10 +2964,14 @@ function switchTab(id, el) {
   if (window.innerWidth <= 860) toggleSidebar(false);
 
   if (id === 'command-center' || id === 'revenue' || id === 'tenants') loadPlatformSnapshot(false);
+  if (id === 'analytics') loadAnalytics(false);
   if (id === 'subscriptions') loadSubscriptions();
   if (id === 'users') loadUsers();
   if (id === 'llm-costs') loadCosts();
   if (id === 'system-health') loadSystemHealth();
+  if (id === 'db-explorer') loadDbExplorer(false);
+  if (id === 'settings') loadSettings();
+  if (id === 'audit-log') loadAuditLog(false);
 }
 
 function logout() {
@@ -2357,14 +2980,18 @@ function logout() {
   document.getElementById('loginOverlay').classList.remove('hidden');
 }
 
+async function refreshCommandCenter() {
+  await Promise.allSettled([
+    loadPlatformSnapshot(true),
+    loadKpiRegistry(true),
+  ]);
+}
+
 async function verifyAccess(loginUser) {
-  if (loginUser) {
-    if (loginUser.role !== 'platform_admin') throw new Error('Platform admin access required');
-    return loginUser;
-  }
-  const me = await apiFetch('/auth/me');
-  if (me.role !== 'platform_admin') throw new Error('Platform admin access required');
-  return me;
+  const user = loginUser || await apiFetch('/auth/me');
+  if (user.role !== 'platform_admin') throw new Error('Platform admin access required');
+  await loadConsolePermissions();
+  return user;
 }
 
 function updateClock() {
@@ -2435,6 +3062,8 @@ async function loadAllData(showToastOnSuccess) {
   syncLabel.classList.add('syncing');
   await Promise.allSettled([
     loadPlatformSnapshot(true),
+    loadKpiRegistry(true),
+    loadAnalytics(true),
     loadMonthSoFar(),
     loadSubscriptions(),
     loadUsers(),
@@ -2470,6 +3099,164 @@ async function loadPlatformSnapshot(force) {
   } catch (error) {
     console.error(error);
     showToast('Could not load platform snapshot');
+  }
+}
+
+async function loadKpiRegistry(force) {
+  const range = getSelectedDateRange();
+  const rangeKey = `${range.start}:${range.end}`;
+  if (!force && kpiRegistryCache.length && kpiRegistryRangeKey === rangeKey) {
+    renderKpiRegistry();
+    return;
+  }
+  try {
+    const data = await apiFetch('/dashboard/platform/console/kpis');
+    kpiRegistryCache = data.kpis || [];
+    kpiRegistryRangeKey = rangeKey;
+    renderKpiRegistry();
+  } catch (error) {
+    console.error(error);
+    document.getElementById('kpiRegistryGrid').innerHTML = '<div class="kpi-card"><div class="kpi-label">Registry KPIs</div><div class="kpi-value mono">—</div><div class="kpi-meta">Could not load KPI registry</div></div>';
+  }
+}
+
+function renderKpiRegistry() {
+  const grid = document.getElementById('kpiRegistryGrid');
+  if (!kpiRegistryCache.length) {
+    grid.innerHTML = '<div class="kpi-card"><div class="kpi-label">Registry KPIs</div><div class="kpi-value mono">—</div><div class="kpi-meta">Awaiting KPI registry data</div></div>';
+    return;
+  }
+  grid.innerHTML = kpiRegistryCache.map(kpi => `
+    <div class="kpi-card">
+      <div class="kpi-label">${escHtml(kpi.label || humanizeKey(kpi.id))}</div>
+      <div class="kpi-value mono">${escHtml(formatRegistryValue(kpi.format, kpi.value))}</div>
+      <div class="kpi-meta">${escHtml(humanizeKey(kpi.group || 'registry'))}</div>
+    </div>
+  `).join('');
+}
+
+async function loadAnalytics(force) {
+  const range = getSelectedDateRange();
+  const rangeKey = `${range.start}:${range.end}`;
+  if (!force && analyticsCache.funnel && analyticsCache.users && analyticsCache.rangeKey === rangeKey) {
+    renderAnalytics();
+    return;
+  }
+  try {
+    const [funnel, users] = await Promise.all([
+      apiFetch('/dashboard/platform/funnel'),
+      apiFetch('/dashboard/platform/users'),
+    ]);
+    analyticsCache = { funnel, users, rangeKey };
+    renderAnalytics();
+  } catch (error) {
+    console.error(error);
+    showToast('Could not load analytics');
+  }
+}
+
+function renderAnalytics() {
+  const funnel = analyticsCache.funnel || {};
+  const users = analyticsCache.users || {};
+  const stages = funnel.stages || [];
+  const growth = users.growth_data || [];
+  const registered = stages.find(stage => stage.stage_name === 'registered');
+  const latestGrowth = growth[growth.length - 1];
+  const totalNewUsers = growth.reduce((sum, entry) => sum + Number(entry.new_users || 0), 0);
+
+  document.getElementById('analyticsKpiGrid').innerHTML = `
+    <div class="kpi-card">
+      <div class="kpi-label">Overall Conversion</div>
+      <div class="kpi-value mono">${fmtPercent(funnel.overall_conversion_rate)}</div>
+      <div class="kpi-meta">Registered / landed in selected window</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Registered Users</div>
+      <div class="kpi-value mono">${fmtNumber(registered?.session_count)}</div>
+      <div class="kpi-meta">Final funnel stage completions</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">New Users</div>
+      <div class="kpi-value mono">${fmtNumber(totalNewUsers)}</div>
+      <div class="kpi-meta">Summed across user growth series</div>
+    </div>
+    <div class="kpi-card">
+      <div class="kpi-label">Total Users</div>
+      <div class="kpi-value mono">${fmtNumber(users.total_users)}</div>
+      <div class="kpi-meta">Platform users at period end</div>
+    </div>
+  `;
+
+  document.getElementById('analyticsSummaryList').innerHTML = `
+    <div class="summary-row"><span class="summary-label">Funnel stages tracked</span><span class="summary-value mono">${fmtNumber(stages.length)}</span></div>
+    <div class="summary-row"><span class="summary-label">Latest growth day</span><span class="summary-value">${latestGrowth ? `${escHtml(latestGrowth.date)} · ${fmtNumber(latestGrowth.new_users)} new` : '—'}</span></div>
+    <div class="summary-row"><span class="summary-label">Cumulative users</span><span class="summary-value mono">${fmtNumber(latestGrowth?.cumulative_users ?? users.total_users)}</span></div>
+    <div class="summary-row"><span class="summary-label">Date window</span><span class="summary-value">${escHtml(getSelectedDateRange().start || '—')} to ${escHtml(getSelectedDateRange().end || '—')}</span></div>
+  `;
+
+  const tbody = document.querySelector('#analyticsFunnelTable tbody');
+  if (!stages.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><strong>No funnel data yet</strong>Funnel stages will populate once traffic flows through the platform.</td></tr>';
+  } else {
+    tbody.innerHTML = stages.map((stage, idx) => {
+      const prev = stages[idx - 1];
+      const dropOff = prev && Number(prev.session_count || 0) > 0
+        ? ((Number(prev.session_count || 0) - Number(stage.session_count || 0)) / Number(prev.session_count || 0)) * 100
+        : null;
+      return `
+        <tr>
+          <td class="table-primary">${escHtml(FUNNEL_STAGE_LABELS[stage.stage_name] || humanizeKey(stage.stage_name))}</td>
+          <td class="mono">${fmtNumber(stage.session_count)}</td>
+          <td class="mono">${fmtPercent(stage.conversion_rate)}</td>
+          <td class="mono">${dropOff == null ? '—' : fmtPercent(Math.max(dropOff, 0))}</td>
+        </tr>
+      `;
+    }).join('');
+  }
+
+  destroyChart('analyticsGrowthChart');
+  if (growth.length) {
+    const chartOptions = lineChartOptions();
+    const palette = themePalette();
+    chartInstances.analyticsGrowthChart = new Chart(document.getElementById('analyticsGrowthChart'), {
+      type: 'line',
+      data: {
+        labels: growth.map(point => point.date),
+        datasets: [
+          {
+            label: 'Cumulative users',
+            data: growth.map(point => point.cumulative_users || 0),
+            borderColor: '#E53116',
+            backgroundColor: 'rgba(229,49,22,0.08)',
+            fill: true,
+            tension: 0.3,
+            pointRadius: 2,
+          },
+          {
+            label: 'New users',
+            data: growth.map(point => point.new_users || 0),
+            borderColor: '#34D399',
+            backgroundColor: 'rgba(52,211,153,0.1)',
+            fill: false,
+            tension: 0.25,
+            pointRadius: 2,
+            yAxisID: 'y1',
+          },
+        ],
+      },
+      options: {
+        ...chartOptions,
+        scales: {
+          ...chartOptions.scales,
+          y1: {
+            beginAtZero: true,
+            position: 'right',
+            grid: { drawOnChartArea: false },
+            ticks: { color: palette.textSecondary, font: { family: 'DM Mono', size: 10 } },
+          },
+        },
+      },
+    });
   }
 }
 
@@ -2542,6 +3329,7 @@ function renderRevenue() {
 function renderPlanDistributionChart(canvasId) {
   const revenue = revenueCache || {};
   const plans = revenue.plan_distribution || [];
+  const palette = themePalette();
   destroyChart(canvasId);
   if (!plans.length) return;
   chartInstances[canvasId] = new Chart(document.getElementById(canvasId), {
@@ -2551,7 +3339,7 @@ function renderPlanDistributionChart(canvasId) {
       datasets: [{
         data: plans.map(plan => plan.count || 0),
         backgroundColor: chartColors().slice(0, Math.max(plans.length, 1)),
-        borderColor: 'rgba(9,16,28,0.94)',
+        borderColor: palette.bgSurface,
         borderWidth: 2,
       }],
     },
@@ -3050,6 +3838,306 @@ function renderActivityRail() {
   `).join('');
 }
 
+function buildAuditDetailSnippet(entry) {
+  const parts = [];
+  if (entry.resource_id) parts.push(`id:${entry.resource_id}`);
+  if (entry.new_values && Object.keys(entry.new_values).length) parts.push(`new ${serializeValue(entry.new_values, 72)}`);
+  else if (entry.old_values && Object.keys(entry.old_values).length) parts.push(`old ${serializeValue(entry.old_values, 72)}`);
+  else if (entry.ip_address) parts.push(`ip ${entry.ip_address}`);
+  return parts.join(' · ') || '—';
+}
+
+async function loadAuditLog(force) {
+  if (!force && auditLogCache.length) {
+    renderAuditLog();
+    return;
+  }
+  try {
+    const data = await apiFetchPlain('/dashboard/platform/console/audit-log?limit=100');
+    auditLogCache = data.entries || [];
+    renderAuditLog();
+  } catch (error) {
+    console.error(error);
+    showToast('Could not load audit log');
+  }
+}
+
+function renderAuditLog() {
+  const tbody = document.querySelector('#auditLogTable tbody');
+  if (!auditLogCache.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><strong>No audit entries found</strong>Recent administrative activity will appear here.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = auditLogCache.map(entry => `
+    <tr>
+      <td class="mono">${fmtDateTime(entry.created_at)}</td>
+      <td class="table-primary">${escHtml(entry.actor_name || entry.actor_email || 'System')}</td>
+      <td>${escHtml(humanizeKey(entry.action || 'unknown'))}</td>
+      <td>${escHtml([entry.resource_type, entry.resource_id].filter(Boolean).join(' · ') || '—')}</td>
+      <td><span class="detail-snippet">${escHtml(buildAuditDetailSnippet(entry))}</span></td>
+    </tr>
+  `).join('');
+}
+
+function tableLabel(tableName) {
+  return humanizeKey(tableName);
+}
+
+function renderDbFilterColumns() {
+  const select = document.getElementById('dbFilterColumn');
+  const columns = dbExplorerState.columns || [];
+  const preferred = dbExplorerState.filterCol && columns.includes(dbExplorerState.filterCol)
+    ? dbExplorerState.filterCol
+    : (columns.includes('email') ? 'email' : columns[0] || '');
+  dbExplorerState.filterCol = preferred;
+  select.innerHTML = columns.length
+    ? columns.map(column => `<option value="${escHtml(column)}" ${column === preferred ? 'selected' : ''}>${escHtml(column)}</option>`).join('')
+    : '<option value="">No columns</option>';
+}
+
+function renderDbTableGroups() {
+  const host = document.getElementById('dbTableGroups');
+  const groups = dbExplorerGroupsCache || {};
+  const groupNames = Object.keys(groups);
+  if (!groupNames.length) {
+    host.innerHTML = '<h3>Tables</h3><div class="empty-state-inline">No DB Explorer tables are available.</div>';
+    return;
+  }
+  host.innerHTML = `
+    <h3>Tables</h3>
+    ${groupNames.map(groupName => `
+      <div class="db-table-group">
+        <div class="db-table-group-title">${escHtml(groupName)}</div>
+        <div class="db-table-list">
+          ${(groups[groupName] || []).map(tableName => `
+            <button class="db-table-button ${tableName === dbExplorerState.table ? 'active' : ''}" type="button" onclick="selectDbTable('${escHtml(tableName)}')">
+              ${escHtml(tableLabel(tableName))}
+              <small>${escHtml(tableName)}</small>
+            </button>
+          `).join('')}
+        </div>
+      </div>
+    `).join('')}
+  `;
+}
+
+function renderDbExplorerTable() {
+  const title = document.getElementById('dbExplorerTitle');
+  const subtitle = document.getElementById('dbExplorerSubtitle');
+  const meta = document.getElementById('dbExplorerMeta');
+  const thead = document.querySelector('#dbExplorerTable thead');
+  const tbody = document.querySelector('#dbExplorerTable tbody');
+  const totalPages = Math.max(1, Math.ceil((dbExplorerState.total || 0) / dbExplorerState.limit));
+
+  title.textContent = dbExplorerState.table ? tableLabel(dbExplorerState.table) : 'Select a table';
+  subtitle.textContent = dbExplorerState.table
+    ? `${dbExplorerState.table} · masked columns remain redacted from the API`
+    : 'Choose a table group from the left to inspect rows.';
+  meta.textContent = dbExplorerState.table
+    ? `${fmtNumber(dbExplorerState.total)} rows · sorted by ${dbExplorerState.sort} ${dbExplorerState.order}`
+    : 'Awaiting table selection.';
+  document.getElementById('dbPaginationLabel').textContent = `Page ${dbExplorerState.page} of ${totalPages}`;
+  document.getElementById('dbFilterInput').value = dbExplorerState.filterVal || '';
+
+  if (!dbExplorerState.table) {
+    thead.innerHTML = '';
+    tbody.innerHTML = '<tr><td class="empty-state"><strong>No table selected</strong>Pick a grouped table from the left-hand explorer.</td></tr>';
+    return;
+  }
+
+  if (!dbExplorerState.columns.length) {
+    thead.innerHTML = '';
+    tbody.innerHTML = '<tr><td class="empty-state"><strong>No rows found</strong>Try a different filter or table.</td></tr>';
+    return;
+  }
+
+  thead.innerHTML = `
+    <tr>
+      ${dbExplorerState.columns.map(column => `
+        <th>
+          <button
+            class="sort-btn ${dbExplorerState.sort === column ? `active ${dbExplorerState.order}` : ''}"
+            type="button"
+            onclick="toggleDbSort('${escHtml(column)}')"
+          >${escHtml(column)}</button>
+        </th>
+      `).join('')}
+    </tr>
+  `;
+
+  if (!dbExplorerState.rows.length) {
+    tbody.innerHTML = `<tr><td colspan="${dbExplorerState.columns.length}" class="empty-state"><strong>No rows found</strong>Try a different filter or move to another table.</td></tr>`;
+    return;
+  }
+
+  tbody.innerHTML = dbExplorerState.rows.map(row => `
+    <tr>
+      ${dbExplorerState.columns.map(column => `
+        <td class="${typeof row[column] === 'number' ? 'mono' : ''}">${escHtml(serializeValue(row[column], 120))}</td>
+      `).join('')}
+    </tr>
+  `).join('');
+}
+
+async function loadDbExplorer(force) {
+  try {
+    if (force || !dbExplorerGroupsCache) {
+      const data = await apiFetchPlain('/dashboard/platform/console/db/tables');
+      dbExplorerGroupsCache = data.groups || {};
+    }
+    const allTables = Object.values(dbExplorerGroupsCache || {}).flat();
+    if (!dbExplorerState.table && allTables.length) dbExplorerState.table = allTables[0];
+    renderDbTableGroups();
+    renderDbExplorerTable();
+    if (dbExplorerState.table) await loadDbTableData(force);
+  } catch (error) {
+    console.error(error);
+    showToast('Could not load DB Explorer');
+  }
+}
+
+async function loadDbTableData(force) {
+  if (!dbExplorerState.table) return;
+  try {
+    const params = new URLSearchParams({
+      page: String(dbExplorerState.page),
+      limit: String(dbExplorerState.limit),
+      sort: dbExplorerState.sort,
+      order: dbExplorerState.order,
+    });
+    if (dbExplorerState.filterCol && dbExplorerState.filterVal) {
+      params.set('filter_col', dbExplorerState.filterCol);
+      params.set('filter', dbExplorerState.filterCol);
+      params.set('filter_val', dbExplorerState.filterVal);
+    }
+    const data = await apiFetchPlain(`/dashboard/platform/console/db/${dbExplorerState.table}?${params.toString()}`);
+    dbExplorerState.columns = data.columns || [];
+    dbExplorerState.rows = data.rows || [];
+    dbExplorerState.total = Number(data.total || 0);
+    dbExplorerState.page = Number(data.page || dbExplorerState.page);
+    dbExplorerState.limit = Number(data.limit || dbExplorerState.limit || 50);
+    dbExplorerState.sort = data.sort || dbExplorerState.sort;
+    dbExplorerState.order = data.order || dbExplorerState.order;
+    renderDbFilterColumns();
+    renderDbTableGroups();
+    renderDbExplorerTable();
+  } catch (error) {
+    console.error(error);
+    if (force) showToast(error.message || 'Could not load selected table');
+  }
+}
+
+async function selectDbTable(tableName) {
+  dbExplorerState.table = tableName;
+  dbExplorerState.page = 1;
+  dbExplorerState.sort = 'created_at';
+  dbExplorerState.order = 'desc';
+  dbExplorerState.filterVal = '';
+  dbExplorerState.filterCol = '';
+  dbExplorerState.columns = [];
+  dbExplorerState.rows = [];
+  renderDbTableGroups();
+  renderDbExplorerTable();
+  await loadDbTableData(true);
+}
+
+async function applyDbFilter() {
+  dbExplorerState.filterCol = document.getElementById('dbFilterColumn').value;
+  dbExplorerState.filterVal = document.getElementById('dbFilterInput').value.trim();
+  dbExplorerState.page = 1;
+  await loadDbTableData(true);
+}
+
+async function clearDbFilter() {
+  dbExplorerState.filterVal = '';
+  dbExplorerState.page = 1;
+  document.getElementById('dbFilterInput').value = '';
+  await loadDbTableData(true);
+}
+
+async function changeDbPage(delta) {
+  const nextPage = dbExplorerState.page + delta;
+  const totalPages = Math.max(1, Math.ceil((dbExplorerState.total || 0) / dbExplorerState.limit));
+  if (nextPage < 1 || nextPage > totalPages) return;
+  dbExplorerState.page = nextPage;
+  await loadDbTableData(false);
+}
+
+async function toggleDbSort(column) {
+  if (dbExplorerState.sort === column) {
+    dbExplorerState.order = dbExplorerState.order === 'asc' ? 'desc' : 'asc';
+  } else {
+    dbExplorerState.sort = column;
+    dbExplorerState.order = 'asc';
+  }
+  dbExplorerState.page = 1;
+  await loadDbTableData(true);
+}
+
+async function exportDbTable() {
+  if (!dbExplorerState.table) {
+    showToast('Select a table first');
+    return;
+  }
+  try {
+    const params = new URLSearchParams({
+      limit: '5000',
+      sort: dbExplorerState.sort,
+      order: dbExplorerState.order,
+    });
+    if (dbExplorerState.filterCol && dbExplorerState.filterVal) {
+      params.set('filter_col', dbExplorerState.filterCol);
+      params.set('filter', dbExplorerState.filterCol);
+      params.set('filter_val', dbExplorerState.filterVal);
+    }
+    const blob = await apiFetchBlob(`/dashboard/platform/console/db/${dbExplorerState.table}/export?${params.toString()}`);
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = `${dbExplorerState.table}.csv`;
+    document.body.appendChild(link);
+    link.click();
+    link.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+  } catch (error) {
+    console.error(error);
+    showToast('Could not export CSV');
+  }
+}
+
+async function loadSettings() {
+  if (!consolePermissionsCache) {
+    try { await loadConsolePermissions(); } catch {}
+  }
+  if (apiVersionCache === DEFAULT_API_VERSION) {
+    try {
+      const res = await fetch(`${API_BASE}/`);
+      if (res.ok) {
+        const data = await res.json();
+        if (data?.version) apiVersionCache = data.version;
+      }
+    } catch {}
+  }
+  renderSettings();
+}
+
+function renderSettings() {
+  const permissions = consolePermissionsCache || {};
+  const consoleRole = permissions.console_role || window.consoleRole || 'unknown';
+  const lenaRole = permissions.lena_role || window.lenaRole || 'unknown';
+  const consoleRoleEl = document.getElementById('settingsConsoleRole');
+  const lenaRoleEl = document.getElementById('settingsLenaRole');
+  const apiBaseEl = document.getElementById('settingsApiBase');
+  const versionEl = document.getElementById('settingsApiVersion');
+  const themeEl = document.getElementById('settingsThemeValue');
+
+  if (consoleRoleEl) consoleRoleEl.textContent = humanizeKey(consoleRole);
+  if (lenaRoleEl) lenaRoleEl.textContent = humanizeKey(lenaRole);
+  if (apiBaseEl) apiBaseEl.textContent = API_BASE;
+  if (versionEl) versionEl.textContent = apiVersionCache || DEFAULT_API_VERSION;
+  if (themeEl) themeEl.textContent = humanizeKey(document.documentElement.getAttribute('data-theme') || 'dark');
+}
+
 function openTenantDrawer(idx) {
   const tenant = tenantsCache[idx];
   if (!tenant) return;
@@ -3113,6 +4201,9 @@ function closeDrawer() {
 }
 
 document.addEventListener('DOMContentLoaded', () => {
+  document.documentElement.setAttribute('data-theme', getStoredTheme());
+  syncThemeToggle();
+  renderSettings();
   updateClock();
   setInterval(updateClock, 1000);
   setInterval(updateSyncLabel, 30000);
@@ -3122,6 +4213,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
   document.getElementById('startDate').addEventListener('change', syncPresetWithDates);
   document.getElementById('endDate').addEventListener('change', syncPresetWithDates);
+  document.getElementById('dbFilterInput').addEventListener('keydown', event => {
+    if (event.key === 'Enter') {
+      event.preventDefault();
+      applyDbFilter();
+    }
+  });
 
   document.getElementById('tenantsTable').addEventListener('click', event => {
     const row = event.target.closest('tr[data-tenant-idx]');
