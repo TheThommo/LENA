@@ -23,6 +23,11 @@ import { useProjects } from '@/contexts/ProjectsContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
 import { searchLiterature, SearchResponse, ResultMode, listProjectSearches, type ProjectSearch, getBillingStatus, createCheckoutSession, type BillingPlan } from '@/lib/api';
+import {
+  type RecentSessionRecord,
+  normalizeRecentSession,
+  sessionNeedsTimestampMigration,
+} from '@/lib/sessionTime';
 
 interface Message {
   id: string;
@@ -30,14 +35,6 @@ interface Message {
   content: string;
   response?: SearchResponse;
   timestamp: Date;
-}
-
-interface RecentSession {
-  id: string;
-  firstQuery: string;
-  queries: string[];
-  time: string;
-  projectId?: string | null;
 }
 
 export default function Home() {
@@ -107,7 +104,7 @@ export default function Home() {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, [modesOpen]);
-  const [recentSessions, setRecentSessions] = useState<RecentSession[]>([]);
+  const [recentSessions, setRecentSessions] = useState<RecentSessionRecord[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(true);
 
   // Refs
@@ -157,7 +154,13 @@ export default function Home() {
       prevUserIdRef.current = uid;
       try {
         const stored = localStorage.getItem(sessionsKey);
-        setRecentSessions(stored ? JSON.parse(stored) : []);
+        const parsed: RecentSessionRecord[] = stored ? JSON.parse(stored) : [];
+        const migrated = parsed.map(normalizeRecentSession);
+        const needsSave = parsed.some(sessionNeedsTimestampMigration);
+        if (needsSave) {
+          localStorage.setItem(sessionsKey, JSON.stringify(migrated));
+        }
+        setRecentSessions(migrated);
       } catch {
         setRecentSessions([]);
       }
@@ -211,20 +214,32 @@ export default function Home() {
     if (!isAuthenticated) return;
     const sid = currentSessionIdRef.current;
     const pid = activeProjectId || null;
+    const now = new Date().toISOString();
     setRecentSessions(prev => {
       const existing = prev.find(s => s.id === sid);
-      let updated: RecentSession[];
+      let updated: RecentSessionRecord[];
       if (existing) {
         // Append query to existing session. Keep session's original
         // projectId - don't silently rehome it across projects mid-thread.
         updated = [
-          { ...existing, queries: [...existing.queries, query], time: 'Just now' },
+          {
+            ...existing,
+            queries: [...existing.queries, query],
+            lastActivityAt: now,
+          },
           ...prev.filter(s => s.id !== sid),
         ];
       } else {
         // New session - stamp with the project context it was born into
         updated = [
-          { id: sid, firstQuery: query, queries: [query], time: 'Just now', projectId: pid },
+          {
+            id: sid,
+            firstQuery: query,
+            queries: [query],
+            createdAt: now,
+            lastActivityAt: now,
+            projectId: pid,
+          },
           ...prev,
         ];
       }
@@ -238,6 +253,30 @@ export default function Home() {
       return updated;
     });
   }, [isAuthenticated, sessionsKey, activeProjectId]);
+
+  const deleteRecentSession = useCallback((sessionId: string) => {
+    if (!isAuthenticated || !sessionsKey || !threadsKey) return;
+    setRecentSessions(prev => {
+      const next = prev.filter(s => s.id !== sessionId);
+      try {
+        localStorage.setItem(sessionsKey, JSON.stringify(next));
+      } catch {}
+      return next;
+    });
+    try {
+      const raw = localStorage.getItem(threadsKey);
+      if (raw) {
+        const all: Record<string, Message[]> = JSON.parse(raw);
+        delete all[sessionId];
+        localStorage.setItem(threadsKey, JSON.stringify(all));
+      }
+    } catch {}
+    if (currentSessionIdRef.current === sessionId) {
+      setMessages([]);
+      setError(null);
+      currentSessionIdRef.current = Date.now().toString();
+    }
+  }, [isAuthenticated, sessionsKey, threadsKey]);
 
   // Update a recent session's projectId in-place (after user clicks
   // "Add to Project" on a result). Lets the sidebar move it from top-
@@ -860,6 +899,7 @@ export default function Home() {
           onNewSearch={() => { handleNewSearch(); if (window.innerWidth < 1024) setSidebarOpen(false); }}
           recentSessions={recentSessions}
           onSearchClick={(sid, q) => { handleRecentSessionClick(sid, q); if (window.innerWidth < 1024) setSidebarOpen(false); }}
+          onDeleteSession={deleteRecentSession}
           userName={session.name || user?.name}
           userEmail={user?.email}
           isAuthenticated={isAuthenticated}

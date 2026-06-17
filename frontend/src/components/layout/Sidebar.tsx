@@ -4,23 +4,17 @@ import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { branding } from '@/config/branding';
 import { useProjects } from '@/contexts/ProjectsContext';
-
-interface RecentSession {
-  id: string;
-  firstQuery: string;
-  queries: string[];
-  time: string;
-  projectId?: string | null;
-}
+import { type RecentSessionRecord, formatSessionSubtitle } from '@/lib/sessionTime';
 
 interface SidebarProps {
   activeView: string;
   onViewChange: (view: string) => void;
   onNewSearch: () => void;
-  recentSessions: RecentSession[];
+  recentSessions: RecentSessionRecord[];
   /** Called when a recent session is clicked. Passes the session id and a
    *  fallback query (used only if the cached thread can't be restored). */
   onSearchClick: (sessionId: string, fallbackQuery: string) => void;
+  onDeleteSession?: (sessionId: string) => void;
   userName?: string;
   userEmail?: string;
   isAuthenticated?: boolean;
@@ -44,6 +38,7 @@ export function Sidebar({
   onNewSearch,
   recentSessions,
   onSearchClick,
+  onDeleteSession,
   userName,
   userEmail,
   isAuthenticated,
@@ -129,6 +124,7 @@ export function Sidebar({
           onSignIn={onSignIn}
           recentSessions={recentSessions}
           onSearchClick={onSearchClick}
+          onDeleteSession={onDeleteSession}
         />
 
         {/* Recent Sessions — only UNFILED sessions show here; project-filed
@@ -144,19 +140,33 @@ export function Sidebar({
             <ul className="space-y-1">
               {recentSessions.filter(s => !s.projectId).map((sess) => (
                 <li key={sess.id}>
-                  <button
-                    onClick={() => onSearchClick(sess.id, sess.firstQuery)}
-                    className="w-full text-left px-2 py-2 rounded-md hover:bg-gray-50 transition-colors group"
-                  >
-                    <p className="text-sm text-gray-700 truncate group-hover:text-lena-500 transition-colors">
-                      {sess.firstQuery}
-                    </p>
-                    <p className="text-[11px] text-gray-400 mt-0.5">
-                      {sess.queries.length > 1
-                        ? `${sess.queries.length} queries \u00B7 ${sess.time}`
-                        : sess.time}
-                    </p>
-                  </button>
+                  <div className="flex items-stretch gap-0.5 group">
+                    <button
+                      onClick={() => onSearchClick(sess.id, sess.firstQuery)}
+                      className="flex-1 min-w-0 text-left px-2 py-2 rounded-md hover:bg-gray-50 transition-colors"
+                    >
+                      <p className="text-sm text-gray-700 truncate group-hover:text-lena-500 transition-colors">
+                        {sess.firstQuery}
+                      </p>
+                      <p className="text-[11px] text-gray-400 mt-0.5">
+                        {formatSessionSubtitle(sess)}
+                      </p>
+                    </button>
+                    {onDeleteSession && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          onDeleteSession(sess.id);
+                        }}
+                        className="flex-shrink-0 self-center p-1.5 mr-1 rounded-md text-gray-300 opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-50 transition-all"
+                        title="Delete session"
+                        aria-label="Delete session"
+                      >
+                        <TrashIcon className="w-3.5 h-3.5" />
+                      </button>
+                    )}
+                  </div>
                 </li>
               ))}
             </ul>
@@ -507,6 +517,15 @@ function PlusIcon({ className }: { className?: string }) {
   );
 }
 
+function TrashIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <polyline points="3 6 5 6 21 6" />
+      <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2" />
+    </svg>
+  );
+}
+
 /**
  * ProjectsSection — lists the user's active projects and supports inline
  * create. Clicking a project makes it active (affects subsequent searches)
@@ -521,12 +540,14 @@ function ProjectsSection({
   onSignIn,
   recentSessions,
   onSearchClick,
+  onDeleteSession,
 }: {
   isAuthenticated: boolean;
   onOpenProject: (projectId: string) => void;
   onSignIn?: () => void;
-  recentSessions?: RecentSession[];
+  recentSessions?: RecentSessionRecord[];
   onSearchClick?: (sessionId: string, fallbackQuery: string) => void;
+  onDeleteSession?: (sessionId: string) => void;
 }) {
   const { projects, activeProjectId, setActiveProjectId, createNew, error } = useProjects();
   const [creating, setCreating] = useState(false);
@@ -645,16 +666,32 @@ function ProjectsSection({
                 <ul className="ml-6 mt-0.5 mb-1 space-y-0.5 border-l border-gray-100 pl-2">
                   {filed.slice(0, 12).map(sess => (
                     <li key={sess.id}>
-                      <button
-                        onClick={() => onSearchClick(sess.id, sess.firstQuery)}
-                        className="w-full text-left px-1.5 py-1 rounded text-[12px] text-gray-600 hover:text-lena-600 hover:bg-lena-50/60 transition-colors truncate"
-                        title={sess.firstQuery}
-                      >
-                        {sess.firstQuery}
-                        {sess.queries.length > 1 && (
-                          <span className="ml-1 text-[10px] text-gray-400">({sess.queries.length})</span>
+                      <div className="flex items-center gap-0.5 group/sess">
+                        <button
+                          onClick={() => onSearchClick(sess.id, sess.firstQuery)}
+                          className="flex-1 min-w-0 text-left px-1.5 py-1 rounded text-[12px] text-gray-600 hover:text-lena-600 hover:bg-lena-50/60 transition-colors truncate"
+                          title={sess.firstQuery}
+                        >
+                          {sess.firstQuery}
+                          {sess.queries.length > 1 && (
+                            <span className="ml-1 text-[10px] text-gray-400">({sess.queries.length})</span>
+                          )}
+                        </button>
+                        {onDeleteSession && (
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              onDeleteSession(sess.id);
+                            }}
+                            className="flex-shrink-0 p-1 rounded text-gray-300 opacity-0 group-hover/sess:opacity-100 hover:text-red-500 transition-all"
+                            title="Delete session"
+                            aria-label="Delete session"
+                          >
+                            <TrashIcon className="w-3 h-3" />
+                          </button>
                         )}
-                      </button>
+                      </div>
                     </li>
                   ))}
                 </ul>
