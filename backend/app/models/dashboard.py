@@ -187,9 +187,18 @@ class PulseAccuracyResponse(BaseModel):
     period_end: date
 
 
+class LeadRecentQuery(BaseModel):
+    """Recent search attached to a lead for admin product learning."""
+    query: str
+    created_at: Optional[str] = None
+    pulse_status: Optional[str] = None
+    total_results: Optional[int] = None
+
+
 class LeadRecord(BaseModel):
     """Individual lead from email capture."""
     session_id: Optional[str] = None
+    user_id: Optional[str] = None
     name: Optional[str] = None
     email: str
     domain: str
@@ -204,6 +213,7 @@ class LeadRecord(BaseModel):
     disclaimer_accepted: bool = False
     data_consent: bool = False
     registered: bool = False
+    recent_queries: List["LeadRecentQuery"] = Field(default_factory=list)
 
 
 class LeadsResponse(BaseModel):

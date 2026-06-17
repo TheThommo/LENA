@@ -872,6 +872,165 @@ GENERIC_EMAIL_DOMAINS = {
     "yahoo.co.uk", "yahoo.com.au", "outlook.com.au", "bigpond.com",
 }
 
+_SESSION_CONTEXT_FIELDS = (
+    "id, user_id, name, email, institution, phone, geo_country, geo_city, "
+    "utm_source, referrer, data_consent_accepted_at, disclaimer_accepted_at, search_count"
+)
+_SEARCH_LOG_FIELDS = (
+    "id, query, created_at, pulse_status, total_results, user_id, session_id"
+)
+
+
+def _merge_session_context(lead: dict, session: dict) -> None:
+    """Fill missing lead CRM fields from a linked session row."""
+    if not session:
+        return
+    lead["session_id"] = lead.get("session_id") or session.get("id")
+    lead["institution"] = lead.get("institution") or session.get("institution")
+    lead["phone"] = lead.get("phone") or session.get("phone")
+    lead["country"] = lead.get("country") or session.get("geo_country")
+    lead["city"] = lead.get("city") or session.get("geo_city")
+    if session.get("data_consent_accepted_at") is not None:
+        lead["data_consent"] = True
+    if session.get("disclaimer_accepted_at") is not None:
+        lead["disclaimer_accepted"] = True
+    if not lead.get("source") or lead.get("source") == "Registration":
+        lead["source"] = session.get("utm_source") or session.get("referrer") or lead.get("source")
+
+
+def _enrich_leads_with_search_activity(
+    client,
+    leads: List[dict],
+    tenant_id: Optional[str] = None,
+) -> None:
+    """
+    Attach real search counts and recent queries from search_logs.
+
+    Data consent only governs third-party sharing — it never suppresses
+    internal admin visibility of queries.
+    """
+    if not leads:
+        return
+
+    user_ids = list({str(l["user_id"]) for l in leads if l.get("user_id")})
+    session_ids = list({str(l["session_id"]) for l in leads if l.get("session_id")})
+    emails = list({l["email"] for l in leads if l.get("email")})
+
+    sessions_by_user: Dict[str, dict] = {}
+    sessions_by_email: Dict[str, List[dict]] = {}
+
+    if user_ids:
+        u_sess = (
+            client.table("sessions")
+            .select(_SESSION_CONTEXT_FIELDS)
+            .in_("user_id", user_ids)
+            .order("started_at", desc=True)
+            .execute()
+        )
+        for row in u_sess.data or []:
+            uid = row.get("user_id")
+            if uid and uid not in sessions_by_user:
+                sessions_by_user[uid] = row
+            session_ids.append(row["id"])
+
+    if emails:
+        e_sess = (
+            client.table("sessions")
+            .select(_SESSION_CONTEXT_FIELDS)
+            .in_("email", emails)
+            .order("started_at", desc=True)
+            .execute()
+        )
+        for row in e_sess.data or []:
+            email_key = (row.get("email") or "").lower()
+            if email_key:
+                sessions_by_email.setdefault(email_key, []).append(row)
+            session_ids.append(row["id"])
+
+    session_ids = list({sid for sid in session_ids if sid})
+    logs_by_id: Dict[str, dict] = {}
+
+    if user_ids:
+        q = (
+            client.table("search_logs")
+            .select(_SEARCH_LOG_FIELDS)
+            .in_("user_id", user_ids)
+            .order("created_at", desc=True)
+        )
+        if tenant_id:
+            q = q.eq("tenant_id", tenant_id)
+        for row in q.execute().data or []:
+            if row.get("id"):
+                logs_by_id[row["id"]] = row
+
+    if session_ids:
+        q = (
+            client.table("search_logs")
+            .select(_SEARCH_LOG_FIELDS)
+            .in_("session_id", session_ids)
+            .order("created_at", desc=True)
+        )
+        if tenant_id:
+            q = q.eq("tenant_id", tenant_id)
+        for row in q.execute().data or []:
+            if row.get("id"):
+                logs_by_id[row["id"]] = row
+
+    logs = sorted(
+        logs_by_id.values(),
+        key=lambda r: r.get("created_at") or "",
+        reverse=True,
+    )
+
+    for lead in leads:
+        uid = lead.get("user_id")
+        sid = lead.get("session_id")
+        email_key = (lead.get("email") or "").lower()
+
+        linked_session = None
+        if uid and uid in sessions_by_user:
+            linked_session = sessions_by_user[uid]
+        elif email_key and email_key in sessions_by_email:
+            linked_session = sessions_by_email[email_key][0]
+
+        if linked_session:
+            _merge_session_context(lead, linked_session)
+
+        lead_session_ids = {sid} if sid else set()
+        if email_key in sessions_by_email:
+            lead_session_ids.update(s["id"] for s in sessions_by_email[email_key])
+
+        if uid:
+            lead_logs = [
+                r for r in logs
+                if r.get("user_id") == uid
+                or (r.get("session_id") in lead_session_ids and not r.get("user_id"))
+            ]
+        else:
+            lead_logs = [r for r in logs if r.get("session_id") in lead_session_ids]
+
+        # Deduplicate while preserving newest-first order.
+        seen: set[str] = set()
+        deduped: List[dict] = []
+        for row in lead_logs:
+            log_id = row.get("id")
+            if log_id and log_id in seen:
+                continue
+            if log_id:
+                seen.add(log_id)
+            deduped.append(row)
+
+        lead["search_count"] = len(deduped)
+        lead["recent_queries"] = [
+            {
+                "query": row.get("query") or "",
+                "created_at": row.get("created_at"),
+                "pulse_status": row.get("pulse_status"),
+                "total_results": row.get("total_results"),
+            }
+            for row in deduped[:8]
+        ]
+
 
 async def get_leads(
     tenant_id: Optional[str] = None,
@@ -932,6 +1091,7 @@ async def get_leads(
                 corporate_count += 1
             leads.append({
                 "session_id": s.get("id"),
+                "user_id": s.get("user_id"),
                 "name": s.get("name"),
                 "email": email,
                 "domain": domain,
@@ -946,6 +1106,7 @@ async def get_leads(
                 "started_at": s.get("started_at"),
                 "disclaimer_accepted": s.get("disclaimer_accepted_at") is not None,
                 "data_consent": s.get("data_consent_accepted_at") is not None,
+                "recent_queries": [],
             })
 
         # Merge registered users not already covered by a session
@@ -962,6 +1123,7 @@ async def get_leads(
                 corporate_count += 1
             leads.append({
                 "session_id": None,
+                "user_id": u.get("id"),
                 "name": u.get("name"),
                 "email": email,
                 "domain": domain,
@@ -976,7 +1138,10 @@ async def get_leads(
                 "started_at": u.get("created_at"),
                 "disclaimer_accepted": True,
                 "data_consent": False,
+                "recent_queries": [],
             })
+
+        _enrich_leads_with_search_activity(client, leads, tenant_id=tenant_id)
 
         total = len(leads)
         return {
