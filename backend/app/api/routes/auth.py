@@ -387,10 +387,6 @@ async def forgot_password(request: Request, body: ForgotPasswordRequest) -> Forg
     if not user:
         return ForgotPasswordResponse(message=generic_msg)
 
-    # Only allow platform admins to reset
-    if user.role.value != "platform_admin":
-        return ForgotPasswordResponse(message=generic_msg)
-
     # Generate secure token
     raw_token = secrets.token_urlsafe(48)
     token_hash = _hash_token(raw_token)
