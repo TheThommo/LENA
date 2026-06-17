@@ -222,7 +222,10 @@ function clearAuth() { sessionStorage.removeItem('lena_hq'); authToken = null; }
 async function apiFetch(path) {
   const res = await fetch(`${API_BASE}/api${path}`, { headers: { Authorization: `Bearer ${authToken}` } });
   if (res.status === 401 || res.status === 403) { clearAuth(); document.getElementById('loginOverlay').classList.remove('hidden'); throw new Error('Session expired'); }
-  if (!res.ok) throw new Error(`API ${res.status}`);
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(typeof err.detail === 'string' ? err.detail : `API ${res.status}`);
+  }
   return res.json();
 }
 
@@ -293,7 +296,11 @@ function logout() {
   document.getElementById('loginOverlay').classList.remove('hidden');
 }
 
-async function verifyAccess() {
+async function verifyAccess(loginUser) {
+  if (loginUser) {
+    if (loginUser.role !== 'platform_admin') throw new Error('Platform admin access required');
+    return loginUser;
+  }
   const me = await apiFetch('/auth/me');
   if (me.role !== 'platform_admin') throw new Error('Platform admin access required');
   return me;
@@ -561,7 +568,7 @@ document.addEventListener('DOMContentLoaded', () => {
       const data = await res.json();
       authToken = data.access_token;
       storeAuth(authToken, email);
-      await verifyAccess();
+      await verifyAccess(data.user);
       document.getElementById('loginOverlay').classList.add('hidden');
       document.getElementById('hqEmail').textContent = email;
       loadOverview();
