@@ -204,6 +204,8 @@ body {
   color: var(--text-secondary);
 }
 .data-table tr:hover td { background: var(--bg-elevated); }
+.data-table tr.clickable-row { cursor: pointer; }
+.data-table tr.clickable-row:hover td { background: rgba(27,107,147,0.08); }
 .data-table tr:last-child td { border-bottom: none; }
 
 /* ── Badges ───────────────────────────────────────────────────── */
@@ -243,6 +245,44 @@ body {
   box-shadow: 0 8px 24px rgba(0,0,0,0.3);
 }
 @keyframes slideUp { from { opacity: 0; transform: translateY(12px); } to { opacity: 1; transform: translateY(0); } }
+
+/* ── Lead detail drawer ─────────────────────────────────────────── */
+#leadDrawerBackdrop {
+  position: fixed; inset: 0; z-index: 9998;
+  background: rgba(0,0,0,0.45); backdrop-filter: blur(2px);
+  opacity: 0; pointer-events: none; transition: opacity 0.2s ease;
+}
+#leadDrawerBackdrop.open { opacity: 1; pointer-events: auto; }
+#leadDrawer {
+  position: fixed; top: 0; right: 0; bottom: 0; z-index: 9999;
+  width: min(420px, 92vw); background: var(--bg-surface);
+  border-left: 1px solid var(--border-strong);
+  transform: translateX(100%); transition: transform 0.25s ease;
+  display: flex; flex-direction: column; overflow: hidden;
+}
+#leadDrawer.open { transform: translateX(0); }
+.lead-drawer-header {
+  padding: 20px 20px 16px; border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-start; justify-content: space-between; gap: 12px;
+}
+.lead-drawer-title { font-size: 18px; font-weight: 700; color: var(--text-primary); }
+.lead-drawer-sub { font-size: 13px; color: var(--text-secondary); margin-top: 4px; }
+.lead-drawer-body { flex: 1; overflow-y: auto; padding: 16px 20px 24px; }
+.lead-detail-grid { display: grid; gap: 12px; margin-bottom: 20px; }
+.lead-detail-row {
+  display: flex; justify-content: space-between; gap: 12px;
+  padding: 10px 12px; background: var(--bg-elevated); border-radius: 8px;
+  border: 1px solid var(--border);
+}
+.lead-detail-label { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; color: var(--text-muted); }
+.lead-detail-value { font-size: 13px; color: var(--text-primary); text-align: right; word-break: break-word; }
+.lead-questions-title { font-size: 12px; font-weight: 600; color: var(--text-secondary); margin-bottom: 8px; text-transform: uppercase; letter-spacing: 0.05em; }
+.lead-question-item {
+  padding: 10px 12px; margin-bottom: 8px; background: var(--bg-elevated);
+  border-radius: 8px; border: 1px solid var(--border); font-size: 12px; color: var(--text-secondary);
+}
+.lead-question-item strong { color: var(--text-primary); display: block; margin-bottom: 4px; font-weight: 500; }
+.lead-question-meta { font-size: 10px; color: var(--text-muted); font-family: 'DM Mono', monospace; }
 
 /* ── Section Headers ──────────────────────────────────────────── */
 .section-header { margin-bottom: 20px; }
@@ -726,6 +766,18 @@ body {
 
 <div id="toastContainer"></div>
 
+<div id="leadDrawerBackdrop" onclick="closeLeadDrawer()"></div>
+<div id="leadDrawer" role="dialog" aria-labelledby="leadDrawerName">
+  <div class="lead-drawer-header">
+    <div>
+      <div class="lead-drawer-title" id="leadDrawerName">Lead</div>
+      <div class="lead-drawer-sub" id="leadDrawerEmail"></div>
+    </div>
+    <button class="btn-sm" onclick="closeLeadDrawer()" style="background:var(--bg-elevated);color:var(--text-secondary)">Close</button>
+  </div>
+  <div class="lead-drawer-body" id="leadDrawerBody"></div>
+</div>
+
 <script>
 /* ═══════════════════════════════════════════════════════════════════
    LENA ADMIN CONSOLE — JavaScript
@@ -738,6 +790,7 @@ let authToken = null;
 let lastSyncTime = null;
 let chartInstances = {};
 let leadsCache = [];
+let leadsDisplayCache = [];
 let currentFilter = 'all';
 let loginAttempts = 0;
 let lockoutUntil = 0;
@@ -867,6 +920,15 @@ document.addEventListener('DOMContentLoaded', () => {
     authToken = stored.token;
     showDashboard(stored.email);
   }
+
+  document.getElementById('leadsTable').addEventListener('click', (e) => {
+    const row = e.target.closest('tr[data-lead-idx]');
+    if (!row) return;
+    openLeadDrawer(parseInt(row.dataset.leadIdx, 10));
+  });
+  document.addEventListener('keydown', (e) => {
+    if (e.key === 'Escape') closeLeadDrawer();
+  });
 
   // Login form with brute-force protection
   document.getElementById('loginForm').addEventListener('submit', async (e) => {
@@ -1384,7 +1446,10 @@ async function loadVisitors() {
     document.getElementById('visitors-count').textContent =
       `${_visitorsCache.length} visitors · ${fmt(data.total_searches_inferred || 0)} searches`;
     renderVisitors();
-  } catch (err) { console.error('Visitors error:', err); }
+  } catch (err) {
+    console.error('Visitors error:', err);
+    showToast('Could not load visitor activity');
+  }
 }
 
 function renderVisitors() {
@@ -1449,7 +1514,10 @@ async function loadQuestionsFeed() {
     document.getElementById('questions-count').textContent =
       `${_questionsCache.length} of ${fmt(data.total || _questionsCache.length)}`;
     renderQuestions();
-  } catch (err) { console.error('Questions feed error:', err); }
+  } catch (err) {
+    console.error('Questions feed error:', err);
+    showToast('Could not load questions feed');
+  }
 }
 
 function renderQuestions() {
@@ -1515,7 +1583,10 @@ async function loadLeads() {
     document.getElementById('leads-hot').textContent = fmt(hot);
 
     renderLeadsTable(leadsCache);
-  } catch(e) { console.error('Leads error:', e); }
+  } catch(e) {
+    console.error('Leads error:', e);
+    showToast('Could not load leads — check API connection');
+  }
 }
 
 function filterLeads(type) {
@@ -1537,9 +1608,10 @@ function filterLeads(type) {
 }
 
 function renderLeadsTable(leads) {
+  leadsDisplayCache = leads;
   const tbody = document.querySelector('#leadsTable tbody');
   if (!leads.length) { tbody.innerHTML = '<tr><td colspan="11" class="empty-state"><p>No leads captured yet</p></td></tr>'; return; }
-  tbody.innerHTML = leads.map(l => {
+  tbody.innerHTML = leads.map((l, idx) => {
     const isHot = l.is_corporate && l.search_count >= 2;
     const typeBadge = isHot
       ? '<span class="badge badge-hot">HOT</span>'
@@ -1550,7 +1622,7 @@ function renderLeadsTable(leads) {
       ? '<span class="badge badge-corporate">Yes</span>'
       : '<span class="badge badge-generic">No</span>';
     const dateStr = l.started_at ? new Date(l.started_at).toLocaleDateString('en-AU', { day: 'numeric', month: 'short' }) : '--';
-    return `<tr>
+    return `<tr class="clickable-row" data-lead-idx="${idx}" title="View lead details">
       <td style="color:var(--text-primary)">${escHtml(l.name || 'Anonymous')}</td>
       <td>${escHtml(l.email)}</td>
       <td>${escHtml(l.institution || '--')}</td>
@@ -1564,6 +1636,66 @@ function renderLeadsTable(leads) {
       <td style="font-family:'DM Mono',monospace;color:var(--text-muted);font-size:12px">${dateStr}</td>
     </tr>`;
   }).join('');
+}
+
+function openLeadDrawer(idx) {
+  const l = leadsDisplayCache[idx];
+  if (!l) return;
+
+  const isHot = l.is_corporate && l.search_count >= 2;
+  document.getElementById('leadDrawerName').textContent = l.name || 'Anonymous';
+  document.getElementById('leadDrawerEmail').innerHTML = l.email
+    ? `<a href="mailto:${encodeURIComponent(l.email)}" style="color:var(--lena-400)">${escHtml(l.email)}</a>`
+    : '—';
+
+  const loc = [l.city, l.country].filter(Boolean).join(', ') || '—';
+  const when = l.started_at
+    ? new Date(l.started_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', year: 'numeric', hour: '2-digit', minute: '2-digit' })
+    : '—';
+
+  const rows = [
+    ['Institution', l.institution || '—'],
+    ['Domain', l.domain || '—'],
+    ['Type', isHot ? 'Hot lead' : l.is_corporate ? 'Corporate' : 'Generic'],
+    ['Searches', String(l.search_count ?? 0)],
+    ['Phone', l.phone || '—'],
+    ['Location', loc],
+    ['Source', l.source || 'Direct'],
+    ['Registered user', l.registered ? 'Yes' : 'No'],
+    ['Disclaimer accepted', l.disclaimer_accepted ? 'Yes' : 'No'],
+    ['Data consent', l.data_consent ? 'Yes' : 'No'],
+    ['First seen', when],
+  ];
+
+  let html = '<div class="lead-detail-grid">';
+  rows.forEach(([label, value]) => {
+    html += `<div class="lead-detail-row"><span class="lead-detail-label">${escHtml(label)}</span><span class="lead-detail-value">${escHtml(value)}</span></div>`;
+  });
+  html += '</div>';
+
+  const emailKey = (l.email || '').toLowerCase();
+  const related = (_questionsCache || []).filter(q =>
+    (q.user_email || '').toLowerCase() === emailKey
+  ).slice(0, 8);
+
+  html += '<div class="lead-questions-title">Questions asked</div>';
+  if (!related.length) {
+    html += '<p style="font-size:12px;color:var(--text-muted)">No questions linked to this email in the current date range. Widen the date filter and refresh.</p>';
+  } else {
+    related.forEach(q => {
+      const qWhen = q.created_at ? new Date(q.created_at).toLocaleString('en-AU', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' }) : '';
+      html += `<div class="lead-question-item"><strong>${escHtml(q.query || '')}</strong><span class="lead-question-meta">${escHtml(qWhen)} · ${escHtml(q.pulse_status || '—')} · ${q.result_count ?? 0} results</span></div>`;
+    });
+  }
+
+  document.getElementById('leadDrawerBody').innerHTML = html;
+  document.getElementById('leadDrawerBackdrop').classList.add('open');
+  document.getElementById('leadDrawer').classList.add('open');
+}
+
+function closeLeadDrawer() {
+  document.getElementById('leadDrawerBackdrop').classList.remove('open');
+  document.getElementById('leadDrawer').classList.remove('open');
 }
 
 // ── Health ────────────────────────────────────────────────────────

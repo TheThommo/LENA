@@ -189,17 +189,21 @@ class PulseAccuracyResponse(BaseModel):
 
 class LeadRecord(BaseModel):
     """Individual lead from email capture."""
-    session_id: str
+    session_id: Optional[str] = None
     name: Optional[str] = None
     email: str
     domain: str
     is_corporate: bool = False
+    institution: Optional[str] = None
+    phone: Optional[str] = None
     country: Optional[str] = None
     city: Optional[str] = None
     source: str = "Direct"
     search_count: int = 0
     started_at: Optional[str] = None
     disclaimer_accepted: bool = False
+    data_consent: bool = False
+    registered: bool = False
 
 
 class LeadsResponse(BaseModel):
