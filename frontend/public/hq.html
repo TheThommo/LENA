@@ -5,101 +5,1298 @@
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>LENA HQ Console</title>
 <link href="https://fonts.googleapis.com/css2?family=DM+Sans:wght@400;500;600;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <style>
 :root {
-  --bg-base: #0A1628;
-  --bg-surface: #0F1D33;
-  --bg-elevated: #152640;
-  --bg-hover: #1A3050;
-  --border: rgba(229,49,22,0.12);
-  --border-strong: rgba(229,49,22,0.28);
+  --bg-base: #09101C;
+  --bg-surface: #0E1728;
+  --bg-elevated: #141F34;
+  --bg-raised: #1A2942;
+  --bg-hover: #213352;
+  --border: rgba(229, 49, 22, 0.14);
+  --border-strong: rgba(229, 49, 22, 0.3);
   --text-primary: #FFFFFF;
-  --text-secondary: rgba(255,255,255,0.6);
-  --text-muted: rgba(255,255,255,0.3);
+  --text-secondary: rgba(255, 255, 255, 0.7);
+  --text-muted: rgba(255, 255, 255, 0.42);
+  --text-faint: rgba(255, 255, 255, 0.24);
   --hq-500: #E53116;
-  --hq-400: #FF4D2E;
-  --hq-600: #C42812;
+  --hq-400: #F2573E;
+  --hq-600: #B92610;
   --accent-green: #34D399;
-  --accent-amber: #FFB400;
-  --accent-red: #FF4D4F;
-  --sidebar-w: 220px;
-  --topbar-h: 56px;
+  --accent-amber: #FBBF24;
+  --accent-red: #FF6363;
+  --accent-blue: #60A5FA;
+  --shadow-low: 0 10px 32px rgba(0, 0, 0, 0.22);
+  --shadow-high: 0 18px 48px rgba(0, 0, 0, 0.34);
+  --sidebar-w: 210px;
+  --rail-w: 320px;
+  --topbar-h: 74px;
+  --radius-sm: 8px;
+  --radius-md: 12px;
+  --radius-lg: 18px;
 }
-*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-body { font-family: 'DM Sans', sans-serif; background: var(--bg-base); color: var(--text-primary); font-size: 14px; line-height: 1.5; }
-#loginOverlay { position: fixed; inset: 0; z-index: 9999; background: var(--bg-base); display: flex; align-items: center; justify-content: center; transition: opacity 0.3s; }
-#loginOverlay.hidden { opacity: 0; pointer-events: none; }
-.login-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 16px; padding: 48px 40px; width: 400px; max-width: 90vw; }
-.login-logo { width: 56px; height: 56px; border-radius: 50%; background: linear-gradient(135deg, var(--hq-500), var(--hq-600)); display: flex; align-items: center; justify-content: center; margin: 0 auto 24px; font-weight: 700; font-size: 18px; }
-.login-title { text-align: center; font-size: 24px; font-weight: 700; margin-bottom: 8px; }
-.login-subtitle { text-align: center; color: var(--text-secondary); margin-bottom: 32px; }
-.form-group { margin-bottom: 16px; }
-.form-label { display: block; font-size: 12px; font-weight: 600; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 6px; }
-.form-input { width: 100%; padding: 10px 14px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); font-family: inherit; font-size: 14px; outline: none; }
-.form-input:focus { border-color: var(--hq-500); }
-.btn-primary { width: 100%; padding: 12px; background: var(--hq-500); color: white; border: none; border-radius: 8px; font-family: inherit; font-size: 14px; font-weight: 600; cursor: pointer; margin-top: 8px; }
-.btn-primary:hover { background: var(--hq-400); }
-.btn-primary:disabled { opacity: 0.5; cursor: not-allowed; }
-.login-error { color: var(--accent-red); font-size: 13px; text-align: center; margin-top: 12px; min-height: 20px; }
-.sidebar { position: fixed; top: 0; left: 0; bottom: 0; width: var(--sidebar-w); background: var(--bg-surface); border-right: 1px solid var(--border); z-index: 100; display: flex; flex-direction: column; }
-.sidebar-header { padding: 20px 16px; border-bottom: 1px solid var(--border); }
-.sidebar-brand { font-weight: 700; font-size: 16px; }
-.sidebar-label { font-size: 11px; color: var(--text-muted); text-transform: uppercase; letter-spacing: 1px; }
-.sidebar-menu { flex: 1; padding: 12px 0; overflow-y: auto; }
-.sidebar-item { padding: 10px 16px; cursor: pointer; color: var(--text-secondary); font-size: 13px; font-weight: 500; border-left: 3px solid transparent; transition: all 0.15s; }
-.sidebar-item:hover { background: var(--bg-elevated); color: var(--text-primary); }
-.sidebar-item.active { color: var(--hq-400); border-left-color: var(--hq-500); background: rgba(229,49,22,0.08); }
-.sidebar-footer { padding: 16px; border-top: 1px solid var(--border); font-size: 12px; color: var(--text-muted); }
-.sidebar-footer a { color: var(--hq-400); text-decoration: none; }
-.topbar { position: fixed; top: 0; left: var(--sidebar-w); right: 0; height: var(--topbar-h); background: var(--bg-surface); border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; padding: 0 24px; z-index: 90; }
-.topbar-title { font-size: 18px; font-weight: 600; }
-.topbar-meta { font-size: 12px; color: var(--text-muted); }
-.main { margin-left: var(--sidebar-w); margin-top: var(--topbar-h); padding: 24px; min-height: calc(100vh - var(--topbar-h)); }
-.section { display: none; }
-.section.active { display: block; }
-.stat-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 16px; margin-bottom: 24px; }
-.stat-card { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; padding: 20px; }
-.stat-label { font-size: 12px; color: var(--text-secondary); text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 8px; }
-.stat-value { font-size: 28px; font-weight: 700; font-family: 'DM Mono', monospace; }
-.panel { background: var(--bg-surface); border: 1px solid var(--border); border-radius: 12px; margin-bottom: 24px; overflow: hidden; }
-.panel-header { padding: 16px 20px; border-bottom: 1px solid var(--border); display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
-.panel-title { font-weight: 600; }
-.panel-body { padding: 20px; }
-.panel-body.no-pad { padding: 0; }
-.data-table { width: 100%; border-collapse: collapse; font-size: 13px; }
-.data-table th { text-align: left; padding: 10px 16px; font-size: 11px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-muted); border-bottom: 1px solid var(--border); background: var(--bg-elevated); }
-.data-table td { padding: 12px 16px; border-bottom: 1px solid var(--border); color: var(--text-secondary); }
-.data-table tr.clickable-row { cursor: pointer; }
-.data-table tr.clickable-row:hover td { background: var(--bg-hover); color: var(--text-primary); }
-.badge { display: inline-block; padding: 2px 8px; border-radius: 10px; font-size: 11px; font-weight: 600; text-transform: uppercase; }
-.badge-active { background: rgba(52,211,153,0.15); color: var(--accent-green); }
-.badge-trial { background: rgba(255,180,0,0.15); color: var(--accent-amber); }
-.badge-cancelled { background: rgba(255,77,79,0.15); color: var(--accent-red); }
-.badge-inactive { background: rgba(255,255,255,0.08); color: var(--text-muted); }
-.btn-sm { padding: 6px 12px; border-radius: 6px; border: none; font-family: inherit; font-size: 12px; font-weight: 600; cursor: pointer; }
-.toolbar-input { padding: 8px 12px; background: var(--bg-elevated); border: 1px solid var(--border); border-radius: 8px; color: var(--text-primary); font-family: inherit; font-size: 13px; min-width: 200px; }
-.empty-state { text-align: center; padding: 40px; color: var(--text-muted); }
-#drawerBackdrop { position: fixed; inset: 0; background: rgba(0,0,0,0.5); z-index: 200; opacity: 0; pointer-events: none; transition: opacity 0.2s; }
-#drawerBackdrop.open { opacity: 1; pointer-events: auto; }
-#drawer { position: fixed; top: 0; right: 0; bottom: 0; width: 480px; max-width: 100vw; background: var(--bg-surface); border-left: 1px solid var(--border); z-index: 201; transform: translateX(100%); transition: transform 0.25s ease; display: flex; flex-direction: column; }
-#drawer.open { transform: translateX(0); }
-.drawer-header { padding: 20px; border-bottom: 1px solid var(--border); display: flex; justify-content: space-between; align-items: flex-start; gap: 12px; }
-.drawer-title { font-size: 18px; font-weight: 700; }
-.drawer-sub { font-size: 13px; color: var(--text-muted); margin-top: 4px; }
-.drawer-body { padding: 20px; overflow-y: auto; flex: 1; }
-.detail-row { display: flex; justify-content: space-between; gap: 16px; padding: 10px 0; border-bottom: 1px solid var(--border); font-size: 13px; }
-.detail-label { color: var(--text-muted); }
-.detail-value { color: var(--text-primary); text-align: right; }
-.action-block { margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
-.action-block h4 { font-size: 12px; text-transform: uppercase; letter-spacing: 0.05em; color: var(--text-secondary); margin-bottom: 12px; }
-.action-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 12px; align-items: center; }
-#toastContainer { position: fixed; bottom: 24px; right: 24px; z-index: 9998; display: flex; flex-direction: column; gap: 8px; }
-.toast { background: var(--bg-elevated); border: 1px solid var(--border-strong); padding: 12px 16px; border-radius: 8px; font-size: 13px; animation: fadeIn 0.2s; }
-@keyframes fadeIn { from { opacity: 0; transform: translateY(8px); } to { opacity: 1; transform: translateY(0); } }
-@media (max-width: 768px) {
-  .sidebar { transform: translateX(-100%); }
-  .sidebar.open { transform: translateX(0); }
-  .main, .topbar { margin-left: 0; left: 0; }
+
+*, *::before, *::after {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+}
+
+html, body {
+  min-height: 100%;
+}
+
+body {
+  font-family: 'DM Sans', sans-serif;
+  background:
+    radial-gradient(circle at top left, rgba(229, 49, 22, 0.1), transparent 22%),
+    linear-gradient(180deg, #08111D 0%, #09101C 100%);
+  color: var(--text-primary);
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+a {
+  color: inherit;
+}
+
+button, input, select {
+  font: inherit;
+}
+
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.12);
+  border-radius: 999px;
+}
+
+#loginOverlay {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  background: rgba(9, 16, 28, 0.96);
+  backdrop-filter: blur(10px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: opacity 0.24s ease;
+}
+
+#loginOverlay.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+
+.login-card {
+  width: 420px;
+  max-width: calc(100vw - 32px);
+  background: var(--bg-surface);
+  border: 1px solid var(--border);
+  border-radius: 20px;
+  padding: 40px 36px;
+  box-shadow: var(--shadow-high);
+}
+
+.login-mark {
+  width: 60px;
+  height: 60px;
+  border-radius: 18px;
+  margin: 0 auto 20px;
+  background: linear-gradient(135deg, var(--hq-500), var(--hq-600));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 22px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+}
+
+.login-title {
+  text-align: center;
+  font-size: 26px;
+  font-weight: 700;
+  margin-bottom: 8px;
+}
+
+.login-subtitle {
+  text-align: center;
+  font-size: 14px;
+  color: var(--text-secondary);
+  margin-bottom: 28px;
+}
+
+.form-group {
+  margin-bottom: 16px;
+}
+
+.form-label {
+  display: block;
+  margin-bottom: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.form-input,
+.toolbar-input,
+.toolbar-select,
+.date-input,
+.date-preset {
+  width: 100%;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  outline: none;
+}
+
+.form-input:focus,
+.toolbar-input:focus,
+.toolbar-select:focus,
+.date-input:focus,
+.date-preset:focus {
+  border-color: var(--hq-500);
+  box-shadow: 0 0 0 3px rgba(229, 49, 22, 0.12);
+}
+
+.toolbar-select,
+.date-input,
+.date-preset {
+  color-scheme: dark;
+}
+
+.btn-primary,
+.btn-sm,
+.btn-ghost,
+.btn-linkish {
+  border: none;
+  cursor: pointer;
+  border-radius: 10px;
+  transition: transform 0.15s ease, background 0.15s ease, border-color 0.15s ease, color 0.15s ease;
+}
+
+.btn-primary:hover,
+.btn-sm:hover,
+.btn-ghost:hover,
+.btn-linkish:hover {
+  transform: translateY(-1px);
+}
+
+.btn-primary {
+  width: 100%;
+  padding: 12px 16px;
+  background: var(--hq-500);
+  color: white;
+  font-weight: 700;
+  margin-top: 6px;
+}
+
+.btn-primary:hover,
+.btn-sm.primary:hover {
+  background: var(--hq-400);
+}
+
+.btn-primary:disabled,
+.btn-sm:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.btn-sm {
+  padding: 9px 14px;
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.btn-sm.primary {
+  background: var(--hq-500);
+  border-color: transparent;
+  color: white;
+}
+
+.btn-sm.subtle {
+  background: transparent;
+}
+
+.btn-ghost {
+  padding: 9px 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  border: 1px solid var(--border);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.btn-linkish {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 12px;
+  background: rgba(229, 49, 22, 0.08);
+  border: 1px solid var(--border);
+  color: var(--hq-400);
+  text-decoration: none;
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.login-error {
+  min-height: 20px;
+  margin-top: 12px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--accent-red);
+}
+
+.mobile-nav-btn {
+  display: none;
+  width: 40px;
+  height: 40px;
+  border-radius: 10px;
+  border: 1px solid var(--border);
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.mobile-nav-btn span,
+.mobile-nav-btn span::before,
+.mobile-nav-btn span::after {
+  display: block;
+  width: 16px;
+  height: 2px;
+  background: currentColor;
+  border-radius: 999px;
+  position: relative;
+  content: '';
+}
+
+.mobile-nav-btn span::before {
+  position: absolute;
+  top: -5px;
+}
+
+.mobile-nav-btn span::after {
+  position: absolute;
+  top: 5px;
+}
+
+.mobile-backdrop {
+  display: none;
+}
+
+.hq-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: var(--sidebar-w) minmax(0, 1fr) var(--rail-w);
+  grid-template-rows: var(--topbar-h) minmax(calc(100vh - var(--topbar-h)), auto);
+}
+
+.sidebar {
+  grid-column: 1;
+  grid-row: 1 / span 2;
+  background: rgba(14, 23, 40, 0.96);
+  border-right: 1px solid var(--border);
+  padding: 18px 14px 16px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.sidebar-header {
+  padding: 8px 8px 0;
+}
+
+.sidebar-brand-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 12px;
+}
+
+.sidebar-logo {
+  width: 40px;
+  height: 40px;
+  border-radius: 14px;
+  background: linear-gradient(135deg, var(--hq-500), var(--hq-600));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  box-shadow: 0 10px 24px rgba(229, 49, 22, 0.22);
+}
+
+.sidebar-brand {
+  font-size: 16px;
+  font-weight: 700;
+}
+
+.sidebar-subtitle {
+  font-size: 11px;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.sidebar-scroll {
+  flex: 1;
+  overflow-y: auto;
+  padding-right: 2px;
+}
+
+.nav-group {
+  margin-bottom: 18px;
+}
+
+.nav-group-label {
+  padding: 0 8px 8px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+}
+
+.nav-item {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  padding: 10px 12px;
+  margin-bottom: 4px;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text-secondary);
+  text-align: left;
+  cursor: pointer;
+  text-decoration: none;
+}
+
+.nav-item:hover {
+  background: var(--bg-elevated);
+  color: var(--text-primary);
+}
+
+.nav-item.active {
+  background: rgba(229, 49, 22, 0.12);
+  color: var(--text-primary);
+  border-color: var(--border);
+  box-shadow: inset 3px 0 0 var(--hq-500);
+}
+
+.nav-item-main {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  min-width: 0;
+}
+
+.nav-dot {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+  flex-shrink: 0;
+}
+
+.nav-item.active .nav-dot {
+  background: var(--hq-500);
+  box-shadow: 0 0 0 4px rgba(229, 49, 22, 0.16);
+}
+
+.nav-item-badge {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--text-faint);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.sidebar-footer {
+  border-top: 1px solid var(--border);
+  padding: 14px 8px 0;
+}
+
+.sidebar-user {
+  font-size: 12px;
+  color: var(--text-secondary);
+  margin-bottom: 12px;
+  word-break: break-word;
+}
+
+.sidebar-footer-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.topbar {
+  grid-column: 2 / 4;
+  grid-row: 1;
+  position: sticky;
+  top: 0;
+  z-index: 80;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 24px;
+  background: rgba(9, 16, 28, 0.88);
+  border-bottom: 1px solid var(--border);
+  backdrop-filter: blur(12px);
+}
+
+.topbar-title-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+  min-width: 0;
+}
+
+.topbar-eyebrow {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.12em;
+  color: var(--text-faint);
+  text-transform: uppercase;
+}
+
+.topbar-title {
+  font-size: 18px;
+  font-weight: 700;
+}
+
+.topbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.date-range-wrap {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px;
+  border: 1px solid var(--border);
+  background: rgba(20, 31, 52, 0.86);
+  border-radius: 14px;
+}
+
+.date-preset {
+  width: auto;
+  min-width: 76px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.date-input {
+  width: auto;
+  min-width: 132px;
+  padding: 8px 10px;
+  font-size: 12px;
+  font-family: 'DM Mono', monospace;
+}
+
+.date-divider {
+  color: var(--text-faint);
+  font-size: 12px;
+}
+
+.topbar-meta {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.meta-dot {
+  width: 4px;
+  height: 4px;
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.18);
+}
+
+.syncing {
+  color: var(--accent-amber);
+}
+
+.clock {
+  font-family: 'DM Mono', monospace;
+}
+
+.main {
+  grid-column: 2;
+  grid-row: 2;
+  padding: 26px 24px 40px;
+  min-width: 0;
+}
+
+.activity-rail {
+  grid-column: 3;
+  grid-row: 2;
+  padding: 26px 20px 24px 0;
+}
+
+.rail-stack,
+.main-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.section {
+  display: none;
+  animation: fadeIn 0.22s ease;
+}
+
+.section.active {
+  display: block;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.page-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 22px;
+}
+
+.page-header h1 {
+  font-size: 30px;
+  line-height: 1.05;
+  letter-spacing: -0.03em;
+  margin-bottom: 6px;
+}
+
+.page-header p {
+  color: var(--text-secondary);
+  max-width: 760px;
+}
+
+.header-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.card,
+.panel {
+  background: rgba(14, 23, 40, 0.92);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  box-shadow: var(--shadow-low);
+}
+
+.panel {
+  overflow: hidden;
+}
+
+.panel-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 18px 20px;
+  border-bottom: 1px solid var(--border);
+}
+
+.panel-title {
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.panel-subtitle {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.panel-body {
+  padding: 20px;
+}
+
+.panel-body.no-pad {
+  padding: 0;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 16px;
+  margin-bottom: 20px;
+}
+
+.kpi-grid.kpi-grid-4 {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.kpi-card,
+.rail-kpi {
+  padding: 18px;
+  background: linear-gradient(180deg, rgba(20, 31, 52, 0.92), rgba(14, 23, 40, 0.92));
+  border: 1px solid var(--border);
+  border-radius: 16px;
+}
+
+.kpi-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+  margin-bottom: 8px;
+}
+
+.kpi-value {
+  font-size: 28px;
+  font-weight: 700;
+  letter-spacing: -0.03em;
+}
+
+.kpi-meta {
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.mono {
+  font-family: 'DM Mono', monospace;
+}
+
+.split-grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.25fr) minmax(320px, 0.9fr);
+  gap: 20px;
+}
+
+.two-col-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 20px;
+}
+
+.chart-wrap {
+  position: relative;
+  min-height: 280px;
+}
+
+.chart-wrap.compact {
+  min-height: 240px;
+}
+
+.summary-list {
+  display: grid;
+  gap: 12px;
+}
+
+.summary-row,
+.detail-row,
+.tenant-mini-row,
+.goal-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.summary-row:last-child,
+.detail-row:last-child,
+.tenant-mini-row:last-child,
+.goal-row:last-child {
+  border-bottom: none;
+}
+
+.summary-label,
+.detail-label {
+  color: var(--text-muted);
+}
+
+.summary-value,
+.detail-value {
+  color: var(--text-primary);
+  text-align: right;
+}
+
+.toolbar-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.toolbar-actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.toolbar-input {
+  min-width: 220px;
+}
+
+.toolbar-select {
+  min-width: 160px;
+}
+
+.data-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.data-table th {
+  padding: 12px 16px;
+  text-align: left;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-faint);
+  border-bottom: 1px solid var(--border);
+  background: rgba(20, 31, 52, 0.88);
+}
+
+.data-table td {
+  padding: 14px 16px;
+  color: var(--text-secondary);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+  vertical-align: middle;
+}
+
+.data-table tr:last-child td {
+  border-bottom: none;
+}
+
+.data-table tr.clickable-row {
+  cursor: pointer;
+}
+
+.data-table tr.clickable-row:hover td {
+  background: rgba(229, 49, 22, 0.08);
+  color: var(--text-primary);
+}
+
+.table-primary {
+  color: var(--text-primary);
+  font-weight: 600;
+}
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 3px 9px;
+  border-radius: 999px;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.badge-active {
+  background: rgba(52, 211, 153, 0.14);
+  color: var(--accent-green);
+}
+
+.badge-trial {
+  background: rgba(251, 191, 36, 0.14);
+  color: var(--accent-amber);
+}
+
+.badge-cancelled {
+  background: rgba(255, 99, 99, 0.14);
+  color: var(--accent-red);
+}
+
+.badge-inactive {
+  background: rgba(255, 255, 255, 0.08);
+  color: var(--text-muted);
+}
+
+.empty-state {
+  padding: 48px 24px;
+  text-align: center;
+  color: var(--text-muted);
+}
+
+.empty-state strong {
+  display: block;
+  font-size: 15px;
+  color: var(--text-primary);
+  margin-bottom: 6px;
+}
+
+.coming-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.coming-card {
+  padding: 18px;
+  border: 1px dashed var(--border-strong);
+  background: linear-gradient(180deg, rgba(20, 31, 52, 0.7), rgba(14, 23, 40, 0.65));
+  border-radius: 16px;
+}
+
+.coming-tag {
+  display: inline-flex;
+  padding: 3px 8px;
+  border-radius: 999px;
+  background: rgba(229, 49, 22, 0.1);
+  color: var(--hq-400);
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  margin-bottom: 12px;
+}
+
+.coming-card h3 {
+  font-size: 16px;
+  margin-bottom: 8px;
+}
+
+.coming-card p {
+  color: var(--text-secondary);
+  font-size: 13px;
+  margin-bottom: 14px;
+}
+
+.coming-card ul {
+  padding-left: 18px;
+  color: var(--text-muted);
+  font-size: 12px;
+}
+
+.rail-card {
+  padding: 18px;
+}
+
+.rail-card h3 {
+  font-size: 13px;
+  font-weight: 700;
+  margin-bottom: 14px;
+}
+
+.rail-kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.rail-kpi .kpi-value {
+  font-size: 18px;
+}
+
+.tenant-mini-list {
+  display: flex;
+  flex-direction: column;
+}
+
+.tenant-mini-name {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.tenant-mini-meta {
+  font-size: 12px;
+  color: var(--text-muted);
+  margin-top: 2px;
+}
+
+.quick-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.quick-actions .btn-sm,
+.quick-actions .btn-linkish {
+  width: 100%;
+  justify-content: center;
+}
+
+#drawerBackdrop {
+  position: fixed;
+  inset: 0;
+  z-index: 200;
+  background: rgba(0, 0, 0, 0.56);
+  opacity: 0;
+  pointer-events: none;
+  transition: opacity 0.2s ease;
+}
+
+#drawerBackdrop.open {
+  opacity: 1;
+  pointer-events: auto;
+}
+
+#drawer {
+  position: fixed;
+  top: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 201;
+  width: 480px;
+  max-width: 100vw;
+  display: flex;
+  flex-direction: column;
+  background: var(--bg-surface);
+  border-left: 1px solid var(--border);
+  box-shadow: var(--shadow-high);
+  transform: translateX(100%);
+  transition: transform 0.22s ease;
+}
+
+#drawer.open {
+  transform: translateX(0);
+}
+
+.drawer-header {
+  padding: 20px;
+  border-bottom: 1px solid var(--border);
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.drawer-crumb {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  color: var(--hq-400);
+  margin-bottom: 6px;
+}
+
+.drawer-title {
+  font-size: 20px;
+  font-weight: 700;
+}
+
+.drawer-sub {
+  margin-top: 4px;
+  color: var(--text-muted);
+  font-size: 13px;
+}
+
+.drawer-body {
+  flex: 1;
+  overflow-y: auto;
+  padding: 20px;
+}
+
+.action-block {
+  margin-top: 22px;
+  padding-top: 18px;
+  border-top: 1px solid var(--border);
+}
+
+.action-block h4 {
+  margin-bottom: 12px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-secondary);
+}
+
+.action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 12px;
+}
+
+.action-row .toolbar-input,
+.action-row .toolbar-select {
+  flex: 1;
+  min-width: 140px;
+}
+
+.drawer-note {
+  margin-top: 16px;
+  padding: 14px;
+  border-radius: 12px;
+  background: rgba(229, 49, 22, 0.06);
+  border: 1px solid var(--border);
+  color: var(--text-secondary);
+  font-size: 12px;
+}
+
+#toastContainer {
+  position: fixed;
+  right: 22px;
+  bottom: 22px;
+  z-index: 9998;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.toast {
+  padding: 12px 14px;
+  border-radius: 12px;
+  background: var(--bg-elevated);
+  border: 1px solid var(--border-strong);
+  color: var(--text-primary);
+  box-shadow: var(--shadow-low);
+  font-size: 13px;
+}
+
+.health-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.health-card {
+  padding: 18px;
+  border-radius: 16px;
+  background: linear-gradient(180deg, rgba(20, 31, 52, 0.86), rgba(14, 23, 40, 0.9));
+  border: 1px solid var(--border);
+}
+
+.health-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-bottom: 12px;
+}
+
+.health-name {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+.health-indicator {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.health-indicator::before {
+  content: '';
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: currentColor;
+  box-shadow: 0 0 0 4px rgba(255, 255, 255, 0.04);
+}
+
+.health-good {
+  color: var(--accent-green);
+}
+
+.health-warn {
+  color: var(--accent-amber);
+}
+
+.health-bad {
+  color: var(--accent-red);
+}
+
+.health-card strong {
+  display: block;
+  font-size: 20px;
+  margin-bottom: 4px;
+}
+
+.health-card p {
+  color: var(--text-secondary);
+  font-size: 13px;
+}
+
+@media (max-width: 1440px) {
+  :root {
+    --rail-w: 300px;
+  }
+
+  .kpi-grid {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 1180px) {
+  .hq-shell {
+    grid-template-columns: var(--sidebar-w) minmax(0, 1fr);
+  }
+
+  .topbar {
+    grid-column: 2;
+  }
+
+  .activity-rail {
+    display: none;
+  }
+
+  .split-grid,
+  .two-col-grid,
+  .health-grid,
+  .coming-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 860px) {
+  .mobile-nav-btn {
+    display: inline-flex;
+  }
+
+  .mobile-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.56);
+    z-index: 119;
+    opacity: 0;
+    pointer-events: none;
+    transition: opacity 0.2s ease;
+  }
+
+  .mobile-backdrop.open {
+    opacity: 1;
+    pointer-events: auto;
+    display: block;
+  }
+
+  .hq-shell {
+    grid-template-columns: 1fr;
+  }
+
+  .sidebar {
+    position: fixed;
+    inset: 0 auto 0 0;
+    width: min(320px, calc(100vw - 60px));
+    z-index: 120;
+    transform: translateX(-100%);
+    transition: transform 0.22s ease;
+  }
+
+  .sidebar.open {
+    transform: translateX(0);
+  }
+
+  .topbar,
+  .main {
+    grid-column: 1;
+  }
+
+  .topbar {
+    padding: 14px 16px;
+  }
+
+  .main {
+    padding: 22px 16px 32px;
+  }
+
+  .page-header {
+    flex-direction: column;
+  }
+
+  .topbar-actions {
+    width: 100%;
+    justify-content: flex-start;
+  }
+
+  .date-range-wrap {
+    flex-wrap: wrap;
+  }
+
+  .date-input {
+    min-width: 0;
+    width: calc(50% - 4px);
+  }
+
+  .toolbar-input {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .kpi-grid,
+  .kpi-grid.kpi-grid-4 {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 560px) {
+  .topbar-title {
+    font-size: 16px;
+  }
+
+  .page-header h1 {
+    font-size: 24px;
+  }
+
+  .kpi-grid,
+  .kpi-grid.kpi-grid-4 {
+    grid-template-columns: 1fr;
+  }
+
+  .date-input,
+  .date-preset,
+  .date-range-wrap .btn-sm {
+    width: 100%;
+  }
+
+  #drawer {
+    width: 100vw;
+  }
+
+  .data-table th,
+  .data-table td {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
 }
 </style>
 </head>
@@ -107,100 +1304,772 @@ body { font-family: 'DM Sans', sans-serif; background: var(--bg-base); color: va
 
 <div id="loginOverlay">
   <div class="login-card">
-    <div class="login-logo">HQ</div>
+    <div class="login-mark">HQ</div>
     <div class="login-title">LENA HQ</div>
-    <div class="login-subtitle">Business operations console</div>
+    <div class="login-subtitle">Management console for platform revenue, people, operations, and strategy.</div>
     <form id="loginForm">
-      <div class="form-group"><label class="form-label">Email</label><input class="form-input" type="email" id="loginEmail" required autocomplete="username"></div>
-      <div class="form-group"><label class="form-label">Password</label><input class="form-input" type="password" id="loginPassword" required autocomplete="current-password"></div>
-      <button type="submit" class="btn-primary" id="loginBtn">Sign In</button>
+      <div class="form-group">
+        <label class="form-label" for="loginEmail">Email</label>
+        <input class="form-input" id="loginEmail" type="email" required autocomplete="username">
+      </div>
+      <div class="form-group">
+        <label class="form-label" for="loginPassword">Password</label>
+        <input class="form-input" id="loginPassword" type="password" required autocomplete="current-password">
+      </div>
+      <button class="btn-primary" id="loginBtn" type="submit">Sign In</button>
       <div class="login-error" id="loginError"></div>
     </form>
   </div>
 </div>
 
-<nav class="sidebar">
-  <div class="sidebar-header">
-    <div class="sidebar-brand">LENA HQ</div>
-    <div class="sidebar-label">Operations Console</div>
-  </div>
-  <div class="sidebar-menu">
-    <div class="sidebar-item active" data-tab="overview" onclick="switchTab('overview', this)">Overview</div>
-    <div class="sidebar-item" data-tab="subscriptions" onclick="switchTab('subscriptions', this)">Subscriptions</div>
-    <div class="sidebar-item" data-tab="users" onclick="switchTab('users', this)">Users</div>
-  </div>
-  <div class="sidebar-footer">
-    <div id="hqEmail">—</div>
-    <div style="margin-top:8px"><a href="/admin.html">← Product Admin</a></div>
-    <div style="margin-top:8px"><a href="#" onclick="logout(); return false;">Logout</a></div>
-  </div>
-</nav>
+<div class="mobile-backdrop" id="mobileBackdrop" onclick="toggleSidebar(false)"></div>
 
-<header class="topbar">
-  <div class="topbar-title" id="pageTitle">Overview</div>
-  <div class="topbar-meta"><span id="clock">--</span> · <span id="syncLabel">Not synced</span></div>
-</header>
-
-<div class="main">
-  <section id="overview" class="section active">
-    <div class="stat-grid">
-      <div class="stat-card"><div class="stat-label">MRR</div><div class="stat-value" id="kpi-mrr">--</div></div>
-      <div class="stat-card"><div class="stat-label">Active Subscriptions</div><div class="stat-value" id="kpi-subs">--</div></div>
-      <div class="stat-card"><div class="stat-label">Total Users</div><div class="stat-value" id="kpi-users">--</div></div>
-      <div class="stat-card"><div class="stat-label">Tenants</div><div class="stat-value" id="kpi-tenants">--</div></div>
-    </div>
-    <div class="panel">
-      <div class="panel-header"><span class="panel-title">Tenant Summary</span><button class="btn-sm" style="background:var(--hq-500);color:white" onclick="loadOverview()">Refresh</button></div>
-      <div class="panel-body no-pad">
-        <table class="data-table" id="tenantsTable"><thead><tr><th>Tenant</th><th>Users</th><th>Searches</th><th>MRR</th><th>Active Subs</th></tr></thead><tbody></tbody></table>
-      </div>
-    </div>
-  </section>
-
-  <section id="subscriptions" class="section">
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">All Subscriptions</span>
-        <button class="btn-sm" style="background:var(--hq-500);color:white" onclick="loadSubscriptions()">Refresh</button>
-      </div>
-      <div class="panel-body no-pad">
-        <table class="data-table" id="subsTable"><thead><tr><th>Tenant</th><th>Plan</th><th>Status</th><th>Period End</th><th>Usage</th><th>Override</th><th>Price</th></tr></thead><tbody></tbody></table>
-      </div>
-    </div>
-  </section>
-
-  <section id="users" class="section">
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title">User Directory</span>
-        <div style="display:flex;gap:8px;flex-wrap:wrap">
-          <input class="toolbar-input" id="userSearch" placeholder="Search email or name..." oninput="debounceUserSearch()">
-          <select class="toolbar-input" id="userRoleFilter" onchange="loadUsers()" style="min-width:140px">
-            <option value="">All roles</option>
-            <option value="platform_admin">Platform admin</option>
-            <option value="tenant_admin">Tenant admin</option>
-            <option value="public_user">Public user</option>
-            <option value="researcher">Researcher</option>
-            <option value="practitioner">Practitioner</option>
-          </select>
-          <button class="btn-sm" style="background:var(--hq-500);color:white" onclick="loadUsers()">Refresh</button>
+<div class="hq-shell">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-header">
+      <div class="sidebar-brand-row">
+        <div class="sidebar-logo">HQ</div>
+        <div>
+          <div class="sidebar-brand">LENA HQ</div>
+          <div class="sidebar-subtitle">Management Console</div>
         </div>
       </div>
-      <div class="panel-body no-pad">
-        <table class="data-table" id="usersTable"><thead><tr><th>Name</th><th>Email</th><th>Role</th><th>Persona</th><th>Tenant</th><th>Active</th><th>Last Login</th><th>Joined</th></tr></thead><tbody></tbody></table>
+    </div>
+
+    <div class="sidebar-scroll">
+      <div class="nav-group">
+        <div class="nav-group-label">Overview</div>
+        <button class="nav-item active" data-tab="command-center" onclick="switchTab('command-center', this)">
+          <span class="nav-item-main"><span class="nav-dot"></span><span>Command Center</span></span>
+        </button>
+        <button class="nav-item" data-tab="revenue" onclick="switchTab('revenue', this)">
+          <span class="nav-item-main"><span class="nav-dot"></span><span>Revenue</span></span>
+        </button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-label">People</div>
+        <button class="nav-item" data-tab="tenants" onclick="switchTab('tenants', this)">
+          <span class="nav-item-main"><span class="nav-dot"></span><span>Tenants</span></span>
+        </button>
+        <button class="nav-item" data-tab="users" onclick="switchTab('users', this)">
+          <span class="nav-item-main"><span class="nav-dot"></span><span>Users</span></span>
+        </button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-label">Billing</div>
+        <button class="nav-item" data-tab="subscriptions" onclick="switchTab('subscriptions', this)">
+          <span class="nav-item-main"><span class="nav-dot"></span><span>Subscriptions</span></span>
+        </button>
+        <button class="nav-item" data-tab="invoices" onclick="switchTab('invoices', this)">
+          <span class="nav-item-main"><span class="nav-dot"></span><span>Invoices</span></span>
+          <span class="nav-item-badge">Soon</span>
+        </button>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-label">Operations</div>
+        <button class="nav-item" data-tab="llm-costs" onclick="switchTab('llm-costs', this)">
+          <span class="nav-item-main"><span class="nav-dot"></span><span>LLM Costs</span></span>
+        </button>
+        <button class="nav-item" data-tab="system-health" onclick="switchTab('system-health', this)">
+          <span class="nav-item-main"><span class="nav-dot"></span><span>System Health</span></span>
+        </button>
+        <a class="nav-item" href="/admin.html" target="_blank" rel="noopener">
+          <span class="nav-item-main"><span class="nav-dot"></span><span>Product Admin</span></span>
+          <span class="nav-item-badge">Link</span>
+        </a>
+      </div>
+
+      <div class="nav-group">
+        <div class="nav-group-label">Strategy</div>
+        <button class="nav-item" data-tab="growth" onclick="switchTab('growth', this)">
+          <span class="nav-item-main"><span class="nav-dot"></span><span>Growth</span></span>
+          <span class="nav-item-badge">Soon</span>
+        </button>
+        <button class="nav-item" data-tab="audit-log" onclick="switchTab('audit-log', this)">
+          <span class="nav-item-main"><span class="nav-dot"></span><span>Audit Log</span></span>
+          <span class="nav-item-badge">Soon</span>
+        </button>
+        <button class="nav-item" data-tab="business-goals" onclick="switchTab('business-goals', this)">
+          <span class="nav-item-main"><span class="nav-dot"></span><span>Business Goals</span></span>
+          <span class="nav-item-badge">Soon</span>
+        </button>
       </div>
     </div>
-  </section>
+
+    <div class="sidebar-footer">
+      <div class="sidebar-user" id="hqEmail">—</div>
+      <div class="sidebar-footer-actions">
+        <a class="btn-linkish" href="/admin.html" target="_blank" rel="noopener">Open Product Admin</a>
+        <button class="btn-ghost" onclick="logout()">Logout</button>
+      </div>
+    </div>
+  </aside>
+
+  <header class="topbar">
+    <div class="topbar-title-wrap">
+      <div class="topbar-eyebrow">LENA HQ</div>
+      <div style="display:flex;align-items:center;gap:12px;flex-wrap:wrap">
+        <button class="mobile-nav-btn" type="button" onclick="toggleSidebar()"><span></span></button>
+        <div class="topbar-title" id="topbarTitle">Command Center</div>
+      </div>
+    </div>
+
+    <div class="topbar-actions">
+      <div class="date-range-wrap">
+        <select class="date-preset" id="rangePreset" onchange="handlePresetChange()">
+          <option value="7d">7d</option>
+          <option value="30d" selected>30d</option>
+          <option value="90d">90d</option>
+          <option value="custom">Custom</option>
+        </select>
+        <input class="date-input" id="startDate" type="date">
+        <span class="date-divider">to</span>
+        <input class="date-input" id="endDate" type="date">
+        <button class="btn-sm primary" type="button" onclick="applyDateRange()">Apply</button>
+      </div>
+
+      <div class="topbar-meta">
+        <span id="syncLabel">Not synced</span>
+        <span class="meta-dot"></span>
+        <span class="clock" id="clock">--</span>
+      </div>
+    </div>
+  </header>
+
+  <main class="main">
+    <div class="main-stack">
+      <section class="section active" id="command-center">
+        <div class="page-header">
+          <div>
+            <h1>Command Center</h1>
+            <p>State-of-business view across LENA HQ with revenue pulse, tenant performance, and executive KPIs.</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn-sm primary" type="button" onclick="loadPlatformSnapshot(true)">Refresh snapshot</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid">
+          <div class="kpi-card">
+            <div class="kpi-label">Active Sessions</div>
+            <div class="kpi-value mono" id="cc-active-sessions">--</div>
+            <div class="kpi-meta">Currently active across all tenants</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Total Users</div>
+            <div class="kpi-value mono" id="cc-total-users">--</div>
+            <div class="kpi-meta">Platform users in selected range</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Total Searches</div>
+            <div class="kpi-value mono" id="cc-total-searches">--</div>
+            <div class="kpi-meta">Searches logged in selected range</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">MRR Snapshot</div>
+            <div class="kpi-value mono" id="cc-mrr">--</div>
+            <div class="kpi-meta">Current recurring revenue</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Active Subscriptions</div>
+            <div class="kpi-value mono" id="cc-active-subs">--</div>
+            <div class="kpi-meta">Live paid tenant subscriptions</div>
+          </div>
+        </div>
+
+        <div class="split-grid" style="margin-bottom:20px">
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">Plan Distribution</div>
+                <div class="panel-subtitle">Subscription mix by active plans</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="chart-wrap compact">
+                <canvas id="commandPlanChart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">Executive Snapshot</div>
+                <div class="panel-subtitle">Fast read for the selected date window</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="summary-list" id="commandSummaryList">
+                <div class="summary-row"><span class="summary-label">Loading</span><span class="summary-value">—</span></div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Tenant Snapshot</div>
+              <div class="panel-subtitle">Top tenants by MRR and activity</div>
+            </div>
+          </div>
+          <div class="panel-body no-pad">
+            <table class="data-table" id="commandTenantTable">
+              <thead>
+                <tr>
+                  <th>Tenant</th>
+                  <th>Users</th>
+                  <th>Searches</th>
+                  <th>MRR</th>
+                  <th>Active Subs</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="revenue">
+        <div class="page-header">
+          <div>
+            <h1>Revenue</h1>
+            <p>Revenue operations view for MRR, active subscriptions, churn pressure, and plan mix.</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn-sm primary" type="button" onclick="loadPlatformSnapshot(true)">Refresh revenue</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid kpi-grid-4">
+          <div class="kpi-card">
+            <div class="kpi-label">MRR</div>
+            <div class="kpi-value mono" id="rev-mrr">--</div>
+            <div class="kpi-meta">Current recurring revenue snapshot</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Active Subs</div>
+            <div class="kpi-value mono" id="rev-active-subs">--</div>
+            <div class="kpi-meta">Tenants currently subscribed</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Cancelled Last Period</div>
+            <div class="kpi-value mono" id="rev-cancelled">--</div>
+            <div class="kpi-meta">Recent churn indicator</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Avg Rev / Sub</div>
+            <div class="kpi-value mono" id="rev-arps">--</div>
+            <div class="kpi-meta">Average monthly revenue per subscription</div>
+          </div>
+        </div>
+
+        <div class="two-col-grid">
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">Plan Distribution Chart</div>
+                <div class="panel-subtitle">Chart.js doughnut by active subscription count</div>
+              </div>
+            </div>
+            <div class="panel-body">
+              <div class="chart-wrap">
+                <canvas id="revenuePlanChart"></canvas>
+              </div>
+            </div>
+          </div>
+
+          <div class="panel">
+            <div class="panel-header">
+              <div>
+                <div class="panel-title">Plan Distribution Table</div>
+                <div class="panel-subtitle">Count, MRR contribution, and mix</div>
+              </div>
+            </div>
+            <div class="panel-body no-pad">
+              <table class="data-table" id="revenuePlanTable">
+                <thead>
+                  <tr>
+                    <th>Plan</th>
+                    <th>Count</th>
+                    <th>MRR</th>
+                    <th>Mix</th>
+                  </tr>
+                </thead>
+                <tbody></tbody>
+              </table>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="tenants">
+        <div class="page-header">
+          <div>
+            <h1>Tenants</h1>
+            <p>Cross-tenant comparison workspace with search, platform KPIs, and drill-down drawer summaries.</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn-sm primary" type="button" onclick="loadPlatformSnapshot(true)">Refresh tenants</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid kpi-grid-4">
+          <div class="kpi-card">
+            <div class="kpi-label">Total Tenants</div>
+            <div class="kpi-value mono" id="tenant-total">--</div>
+            <div class="kpi-meta">Tenants in the platform</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Total Tenant Users</div>
+            <div class="kpi-value mono" id="tenant-users-total">--</div>
+            <div class="kpi-meta">Users across listed tenants</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Total Tenant Searches</div>
+            <div class="kpi-value mono" id="tenant-searches-total">--</div>
+            <div class="kpi-meta">Usage across listed tenants</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Highest MRR Tenant</div>
+            <div class="kpi-value mono" id="tenant-top-mrr">--</div>
+            <div class="kpi-meta" id="tenant-top-mrr-name">—</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Tenant Directory</div>
+              <div class="panel-subtitle">Click any row to open the tenant stats drawer</div>
+            </div>
+            <div class="toolbar-actions">
+              <input class="toolbar-input" id="tenantSearch" placeholder="Search tenant name or slug..." oninput="renderTenantsTable()">
+            </div>
+          </div>
+          <div class="panel-body no-pad">
+            <table class="data-table" id="tenantsTable">
+              <thead>
+                <tr>
+                  <th>Tenant</th>
+                  <th>Slug</th>
+                  <th>Users</th>
+                  <th>Searches</th>
+                  <th>MRR</th>
+                  <th>Active Subs</th>
+                  <th>Avg Response</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="subscriptions">
+        <div class="page-header">
+          <div>
+            <h1>Subscriptions</h1>
+            <p>Cross-tenant billing controls with extend-period, usage overrides, and change-plan actions preserved from the current HQ workflow.</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn-sm primary" type="button" onclick="loadSubscriptions()">Refresh subscriptions</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">All Subscriptions</div>
+              <div class="panel-subtitle">Click a row to open the billing action drawer</div>
+            </div>
+            <div class="toolbar-actions">
+              <input class="toolbar-input" id="subSearch" placeholder="Search tenant, plan, or billing email..." oninput="renderSubscriptionsTable()">
+            </div>
+          </div>
+          <div class="panel-body no-pad">
+            <table class="data-table" id="subsTable">
+              <thead>
+                <tr>
+                  <th>Tenant</th>
+                  <th>Plan</th>
+                  <th>Status</th>
+                  <th>Period End</th>
+                  <th>Usage</th>
+                  <th>Override</th>
+                  <th>Price</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="invoices">
+        <div class="page-header">
+          <div>
+            <h1>Invoices</h1>
+            <p>Invoice-level billing operations are planned next. This section keeps the shell consistent without showing broken empty tables.</p>
+          </div>
+        </div>
+
+        <div class="coming-grid">
+          <div class="coming-card">
+            <span class="coming-tag">Coming Soon</span>
+            <h3>Invoice ledger</h3>
+            <p>Searchable invoice records by tenant, billing email, amount, and status.</p>
+            <ul>
+              <li>Current + historic invoice history</li>
+              <li>Payment state badges</li>
+              <li>Export-ready summaries</li>
+            </ul>
+          </div>
+          <div class="coming-card">
+            <span class="coming-tag">Coming Soon</span>
+            <h3>Dunning operations</h3>
+            <p>Manual support actions for failed payments, retries, and overdue follow-up.</p>
+            <ul>
+              <li>Retry payment actions</li>
+              <li>Customer comms history</li>
+              <li>Collections notes</li>
+            </ul>
+          </div>
+          <div class="coming-card">
+            <span class="coming-tag">Coming Soon</span>
+            <h3>Finance exports</h3>
+            <p>Month-close invoice exports and summarized reporting for accounting workflows.</p>
+            <ul>
+              <li>CSV exports</li>
+              <li>Invoice aging views</li>
+              <li>Tax-ready totals</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="users">
+        <div class="page-header">
+          <div>
+            <h1>Users</h1>
+            <p>Platform-wide user directory with search, role filters, profile edits, activation toggles, and password reset actions.</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn-sm primary" type="button" onclick="loadUsers()">Refresh users</button>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">User Directory</div>
+              <div class="panel-subtitle">Click a row to open the user management drawer</div>
+            </div>
+            <div class="toolbar-actions">
+              <input class="toolbar-input" id="userSearch" placeholder="Search email or name..." oninput="debounceUserSearch()">
+              <select class="toolbar-select" id="userRoleFilter" onchange="loadUsers()">
+                <option value="">All roles</option>
+                <option value="platform_admin">Platform admin</option>
+                <option value="tenant_admin">Tenant admin</option>
+                <option value="public_user">Public user</option>
+                <option value="researcher">Researcher</option>
+                <option value="practitioner">Practitioner</option>
+              </select>
+            </div>
+          </div>
+          <div class="panel-body no-pad">
+            <table class="data-table" id="usersTable">
+              <thead>
+                <tr>
+                  <th>Name</th>
+                  <th>Email</th>
+                  <th>Role</th>
+                  <th>Persona</th>
+                  <th>Tenant</th>
+                  <th>Active</th>
+                  <th>Last Login</th>
+                  <th>Joined</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="llm-costs">
+        <div class="page-header">
+          <div>
+            <h1>LLM Costs</h1>
+            <p>Spend intelligence for model usage, top spenders, token volumes, and cost-per-search calibration.</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn-sm primary" type="button" onclick="loadCosts()">Refresh costs</button>
+          </div>
+        </div>
+
+        <div class="kpi-grid kpi-grid-4">
+          <div class="kpi-card">
+            <div class="kpi-label">Total Spend</div>
+            <div class="kpi-value mono" id="cost-total">--</div>
+            <div class="kpi-meta" id="cost-total-meta">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Cost / User</div>
+            <div class="kpi-value mono" id="cost-per-user">--</div>
+            <div class="kpi-meta" id="cost-user-meta">—</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Cost / Search</div>
+            <div class="kpi-value mono" id="cost-per-search">--</div>
+            <div class="kpi-meta">Average LLM-backed call</div>
+          </div>
+          <div class="kpi-card">
+            <div class="kpi-label">Tokens Used</div>
+            <div class="kpi-value mono" id="cost-tokens">--</div>
+            <div class="kpi-meta" id="cost-token-meta">—</div>
+          </div>
+        </div>
+
+        <div class="panel">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Top Spenders</div>
+              <div class="panel-subtitle">Highest LLM spenders in the selected date range</div>
+            </div>
+            <div class="toolbar-actions">
+              <input class="toolbar-input" id="costsFilter" placeholder="Filter user or email..." oninput="renderCostsTable()">
+            </div>
+          </div>
+          <div class="panel-body no-pad">
+            <table class="data-table" id="costsTable">
+              <thead>
+                <tr>
+                  <th>User</th>
+                  <th>Email</th>
+                  <th>Searches</th>
+                  <th>Prompt Tokens</th>
+                  <th>Completion Tokens</th>
+                  <th>Total Spend</th>
+                  <th>Avg / Search</th>
+                  <th>Last Activity</th>
+                </tr>
+              </thead>
+              <tbody></tbody>
+            </table>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="system-health">
+        <div class="page-header">
+          <div>
+            <h1>System Health</h1>
+            <p>Operational status for the LENA API plus quick context from the live platform overview snapshot.</p>
+          </div>
+          <div class="header-actions">
+            <button class="btn-sm primary" type="button" onclick="loadSystemHealth()">Refresh health</button>
+          </div>
+        </div>
+
+        <div class="health-grid" id="healthCards">
+          <div class="health-card">
+            <div class="health-header">
+              <span class="health-name">Status</span>
+              <span class="health-indicator health-warn">Loading</span>
+            </div>
+            <strong>Checking API...</strong>
+            <p>Awaiting current platform health response.</p>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="growth">
+        <div class="page-header">
+          <div>
+            <h1>Growth</h1>
+            <p>Buddees-style strategy pages are planned here, with pipeline, acquisition channels, and conversion diagnostics.</p>
+          </div>
+        </div>
+
+        <div class="coming-grid">
+          <div class="coming-card">
+            <span class="coming-tag">Coming Soon</span>
+            <h3>Acquisition pipeline</h3>
+            <p>Track the path from campaign source through lead capture, trial, and paid conversion.</p>
+            <ul>
+              <li>Top acquisition channels</li>
+              <li>Trial-to-paid conversion</li>
+              <li>Segment filters by tenant profile</li>
+            </ul>
+          </div>
+          <div class="coming-card">
+            <span class="coming-tag">Coming Soon</span>
+            <h3>Country intelligence</h3>
+            <p>Geographic growth signals for where product demand is compounding fastest.</p>
+            <ul>
+              <li>Growth by region</li>
+              <li>Emerging market watchlist</li>
+              <li>Institution-level expansion clues</li>
+            </ul>
+          </div>
+          <div class="coming-card">
+            <span class="coming-tag">Coming Soon</span>
+            <h3>Campaign readout</h3>
+            <p>Layer marketing signals against platform activation and revenue outcomes.</p>
+            <ul>
+              <li>Source-to-revenue attribution</li>
+              <li>Experiment summaries</li>
+              <li>Weekly executive digest</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="audit-log">
+        <div class="page-header">
+          <div>
+            <h1>Audit Log</h1>
+            <p>Governance and compliance history will land here once the event stream is exposed to HQ.</p>
+          </div>
+        </div>
+
+        <div class="coming-grid">
+          <div class="coming-card">
+            <span class="coming-tag">Coming Soon</span>
+            <h3>Actor timeline</h3>
+            <p>Filter platform actions by actor, tenant, event type, and time range.</p>
+            <ul>
+              <li>User management changes</li>
+              <li>Billing modifications</li>
+              <li>Administrative access events</li>
+            </ul>
+          </div>
+          <div class="coming-card">
+            <span class="coming-tag">Coming Soon</span>
+            <h3>Operational traceability</h3>
+            <p>Unified record of the changes that matter for support, finance, and security.</p>
+            <ul>
+              <li>Structured event metadata</li>
+              <li>Tenant-level filters</li>
+              <li>Exportable audit slices</li>
+            </ul>
+          </div>
+          <div class="coming-card">
+            <span class="coming-tag">Coming Soon</span>
+            <h3>Exception review</h3>
+            <p>Fast review path for suspicious access, role edits, and unusual billing operations.</p>
+            <ul>
+              <li>Severity tags</li>
+              <li>Saved views</li>
+              <li>Reviewer assignments</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+
+      <section class="section" id="business-goals">
+        <div class="page-header">
+          <div>
+            <h1>Business Goals</h1>
+            <p>Placeholder cards for the OKR-style goals workspace that will align revenue, product, and operations targets.</p>
+          </div>
+        </div>
+
+        <div class="coming-grid">
+          <div class="coming-card">
+            <span class="coming-tag">Coming Soon</span>
+            <h3>Revenue goals</h3>
+            <p>Track MRR targets, expansion goals, and churn ceilings with owner accountability.</p>
+            <ul>
+              <li>Quarterly targets</li>
+              <li>Owner + milestone status</li>
+              <li>Roll-up from tenant metrics</li>
+            </ul>
+          </div>
+          <div class="coming-card">
+            <span class="coming-tag">Coming Soon</span>
+            <h3>Operational goals</h3>
+            <p>Keep support quality, system reliability, and response-time targets visible.</p>
+            <ul>
+              <li>SLA tracking</li>
+              <li>Incident reduction metrics</li>
+              <li>Automation rollout markers</li>
+            </ul>
+          </div>
+          <div class="coming-card">
+            <span class="coming-tag">Coming Soon</span>
+            <h3>Strategic bets</h3>
+            <p>Show product and market bets alongside the KPIs that validate them.</p>
+            <ul>
+              <li>Objective health score</li>
+              <li>Key result snapshots</li>
+              <li>Leadership notes</li>
+            </ul>
+          </div>
+        </div>
+      </section>
+    </div>
+  </main>
+
+  <aside class="activity-rail">
+    <div class="rail-stack">
+      <div class="card rail-card">
+        <h3>Month So Far KPIs</h3>
+        <div class="rail-kpi-grid" id="monthKpiGrid">
+          <div class="rail-kpi">
+            <div class="kpi-label">MRR</div>
+            <div class="kpi-value mono">--</div>
+          </div>
+          <div class="rail-kpi">
+            <div class="kpi-label">Searches</div>
+            <div class="kpi-value mono">--</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card rail-card">
+        <h3>Top Tenants by MRR</h3>
+        <div class="tenant-mini-list" id="railTopTenants">
+          <div class="tenant-mini-row">
+            <div>
+              <div class="tenant-mini-name">Loading...</div>
+              <div class="tenant-mini-meta">Preparing tenant leaderboard</div>
+            </div>
+            <div class="mono">—</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="card rail-card">
+        <h3>Quick Actions</h3>
+        <div class="quick-actions">
+          <button class="btn-sm primary" type="button" onclick="loadAllData(true)">Refresh all data</button>
+          <a class="btn-linkish" href="/admin.html" target="_blank" rel="noopener">Open Product Admin</a>
+          <button class="btn-sm subtle" type="button" onclick="switchTab('subscriptions', document.querySelector('.nav-item[data-tab=&quot;subscriptions&quot;]'))">Open subscriptions</button>
+        </div>
+      </div>
+    </div>
+  </aside>
 </div>
 
 <div id="drawerBackdrop" onclick="closeDrawer()"></div>
-<div id="drawer" role="dialog">
+<div id="drawer" role="dialog" aria-modal="true">
   <div class="drawer-header">
-    <div><div class="drawer-title" id="drawerTitle">—</div><div class="drawer-sub" id="drawerSub"></div></div>
-    <button class="btn-sm" style="background:var(--bg-elevated);color:var(--text-secondary)" onclick="closeDrawer()">Close</button>
+    <div>
+      <div class="drawer-crumb" id="drawerCrumb">Detail</div>
+      <div class="drawer-title" id="drawerTitle">—</div>
+      <div class="drawer-sub" id="drawerSub"></div>
+    </div>
+    <button class="btn-sm" type="button" onclick="closeDrawer()">Close</button>
   </div>
   <div class="drawer-body" id="drawerBody"></div>
 </div>
+
 <div id="toastContainer"></div>
 
 <script>
@@ -209,19 +2078,95 @@ let authToken = null;
 let subsCache = [];
 let usersCache = [];
 let plansCache = [];
+let tenantsCache = [];
+let overviewCache = null;
+let revenueCache = null;
+let costCache = null;
+let monthOverviewCache = null;
+let monthRevenueCache = null;
+let monthTenantsCache = [];
 let userSearchTimer = null;
 let drawerMode = null;
 let drawerIdx = null;
+let lastSyncTime = null;
+let chartInstances = {};
+
+const SECTION_META = {
+  'command-center': { title: 'Command Center' },
+  'revenue': { title: 'Revenue' },
+  'tenants': { title: 'Tenants' },
+  'subscriptions': { title: 'Subscriptions' },
+  'invoices': { title: 'Invoices' },
+  'users': { title: 'Users' },
+  'llm-costs': { title: 'LLM Costs' },
+  'system-health': { title: 'System Health' },
+  'growth': { title: 'Growth' },
+  'audit-log': { title: 'Audit Log' },
+  'business-goals': { title: 'Business Goals' },
+};
 
 function getStoredAuth() {
   try { return JSON.parse(sessionStorage.getItem('lena_hq') || 'null'); } catch { return null; }
 }
-function storeAuth(token, email) { sessionStorage.setItem('lena_hq', JSON.stringify({ token, email })); }
-function clearAuth() { sessionStorage.removeItem('lena_hq'); authToken = null; }
+
+function storeAuth(token, email) {
+  sessionStorage.setItem('lena_hq', JSON.stringify({ token, email }));
+}
+
+function clearAuth() {
+  sessionStorage.removeItem('lena_hq');
+  authToken = null;
+}
+
+function formatDateInput(date) {
+  const year = date.getFullYear();
+  const month = String(date.getMonth() + 1).padStart(2, '0');
+  const day = String(date.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+function getSelectedDateRange() {
+  return {
+    start: document.getElementById('startDate')?.value || '',
+    end: document.getElementById('endDate')?.value || '',
+  };
+}
+
+function buildApiUrl(path, overrideRange) {
+  const [pathname, queryString = ''] = path.split('?');
+  const params = new URLSearchParams(queryString);
+  const range = overrideRange || getSelectedDateRange();
+  if (range.start) params.set('start_date', range.start);
+  if (range.end) params.set('end_date', range.end);
+  const qs = params.toString();
+  return `${API_BASE}/api${pathname}${qs ? `?${qs}` : ''}`;
+}
 
 async function apiFetch(path) {
-  const res = await fetch(`${API_BASE}/api${path}`, { headers: { Authorization: `Bearer ${authToken}` } });
-  if (res.status === 401 || res.status === 403) { clearAuth(); document.getElementById('loginOverlay').classList.remove('hidden'); throw new Error('Session expired'); }
+  const res = await fetch(buildApiUrl(path), {
+    headers: { Authorization: `Bearer ${authToken}` },
+  });
+  if (res.status === 401 || res.status === 403) {
+    clearAuth();
+    document.getElementById('loginOverlay').classList.remove('hidden');
+    throw new Error('Session expired');
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(typeof err.detail === 'string' ? err.detail : `API ${res.status}`);
+  }
+  return res.json();
+}
+
+async function apiFetchWithRange(path, range) {
+  const res = await fetch(buildApiUrl(path, range), {
+    headers: { Authorization: `Bearer ${authToken}` },
+  });
+  if (res.status === 401 || res.status === 403) {
+    clearAuth();
+    document.getElementById('loginOverlay').classList.remove('hidden');
+    throw new Error('Session expired');
+  }
   if (!res.ok) {
     const err = await res.json().catch(() => ({}));
     throw new Error(typeof err.detail === 'string' ? err.detail : `API ${res.status}`);
@@ -235,8 +2180,15 @@ async function apiPost(path, body) {
     headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body || {}),
   });
-  if (res.status === 401 || res.status === 403) { clearAuth(); document.getElementById('loginOverlay').classList.remove('hidden'); throw new Error('Session expired'); }
-  if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || `API ${res.status}`); }
+  if (res.status === 401 || res.status === 403) {
+    clearAuth();
+    document.getElementById('loginOverlay').classList.remove('hidden');
+    throw new Error('Session expired');
+  }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `API ${res.status}`);
+  }
   return res.json();
 }
 
@@ -246,53 +2198,162 @@ async function apiPatch(path, body) {
     headers: { Authorization: `Bearer ${authToken}`, 'Content-Type': 'application/json' },
     body: JSON.stringify(body || {}),
   });
-  if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || `API ${res.status}`); }
+  if (!res.ok) {
+    const err = await res.json().catch(() => ({}));
+    throw new Error(err.detail || `API ${res.status}`);
+  }
   return res.json();
 }
 
 function showToast(msg) {
-  const t = document.createElement('div');
-  t.className = 'toast';
-  t.textContent = msg;
-  document.getElementById('toastContainer').appendChild(t);
-  setTimeout(() => t.remove(), 3500);
+  const toast = document.createElement('div');
+  toast.className = 'toast';
+  toast.textContent = msg;
+  document.getElementById('toastContainer').appendChild(toast);
+  setTimeout(() => toast.remove(), 3400);
 }
 
-function escHtml(s) {
-  const d = document.createElement('div');
-  d.textContent = s ?? '';
-  return d.innerHTML;
+function escHtml(value) {
+  const div = document.createElement('div');
+  div.textContent = value ?? '';
+  return div.innerHTML;
+}
+
+function fmtNumber(value) {
+  if (value == null || Number.isNaN(Number(value))) return '—';
+  return Number(value).toLocaleString();
+}
+
+function fmtCurrency(value) {
+  if (value == null || Number.isNaN(Number(value))) return '—';
+  return new Intl.NumberFormat('en-AU', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 2,
+  }).format(Number(value));
 }
 
 function fmtMoney(cents) {
-  if (cents == null) return '—';
-  return '$' + (cents / 100).toFixed(2);
+  if (cents == null || Number.isNaN(Number(cents))) return '—';
+  return '$' + (Number(cents) / 100).toFixed(2);
+}
+
+function fmtCompactCurrency(value) {
+  if (value == null || Number.isNaN(Number(value))) return '—';
+  const num = Number(value);
+  if (Math.abs(num) >= 1000000) return '$' + (num / 1000000).toFixed(1) + 'M';
+  if (Math.abs(num) >= 1000) return '$' + (num / 1000).toFixed(1) + 'K';
+  return fmtCurrency(num);
+}
+
+function fmtUsdFlexible(value) {
+  if (value == null || Number.isNaN(Number(value))) return '—';
+  const num = Number(value);
+  if (num >= 1) return '$' + num.toFixed(2);
+  if (num >= 0.01) return '$' + num.toFixed(3);
+  return '$' + num.toFixed(5);
 }
 
 function fmtDate(iso) {
   if (!iso) return '—';
-  return new Date(iso).toLocaleDateString('en-AU', { day: 'numeric', month: 'short', year: 'numeric' });
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleDateString('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    year: 'numeric',
+  });
+}
+
+function fmtDateTime(iso) {
+  if (!iso) return '—';
+  const date = new Date(iso);
+  if (Number.isNaN(date.getTime())) return '—';
+  return date.toLocaleString('en-AU', {
+    day: 'numeric',
+    month: 'short',
+    hour: '2-digit',
+    minute: '2-digit',
+  });
 }
 
 function statusBadge(status) {
-  const map = { active: 'badge-active', trialing: 'badge-trial', past_due: 'badge-trial', cancelled: 'badge-cancelled' };
-  return `<span class="badge ${map[status] || 'badge-inactive'}">${escHtml(status || '—')}</span>`;
+  const map = {
+    active: 'badge-active',
+    trialing: 'badge-trial',
+    past_due: 'badge-trial',
+    cancelled: 'badge-cancelled',
+  };
+  return `<span class="badge ${map[status] || 'badge-inactive'}">${escHtml(status || 'unknown')}</span>`;
+}
+
+function destroyChart(id) {
+  if (chartInstances[id]) {
+    chartInstances[id].destroy();
+    delete chartInstances[id];
+  }
+}
+
+function chartColors() {
+  return ['#E53116', '#F97316', '#FBBF24', '#34D399', '#60A5FA', '#A78BFA', '#F472B6'];
+}
+
+function doughnutOptions() {
+  return {
+    responsive: true,
+    maintainAspectRatio: false,
+    cutout: '68%',
+    plugins: {
+      legend: {
+        position: 'right',
+        labels: {
+          color: 'rgba(255,255,255,0.72)',
+          padding: 12,
+          boxWidth: 12,
+          font: { family: 'DM Sans', size: 11 },
+        },
+      },
+      tooltip: {
+        backgroundColor: '#141F34',
+        titleColor: '#FFFFFF',
+        bodyColor: 'rgba(255,255,255,0.8)',
+        borderColor: 'rgba(229,49,22,0.22)',
+        borderWidth: 1,
+      },
+    },
+  };
+}
+
+function applyTopbarMeta(tabId) {
+  document.getElementById('topbarTitle').textContent = SECTION_META[tabId]?.title || tabId;
+}
+
+function toggleSidebar(force) {
+  const sidebar = document.getElementById('sidebar');
+  const backdrop = document.getElementById('mobileBackdrop');
+  const shouldOpen = typeof force === 'boolean' ? force : !sidebar.classList.contains('open');
+  sidebar.classList.toggle('open', shouldOpen);
+  backdrop.classList.toggle('open', shouldOpen);
 }
 
 function switchTab(id, el) {
-  document.querySelectorAll('.section').forEach(s => s.classList.remove('active'));
-  document.querySelectorAll('.sidebar-item').forEach(s => s.classList.remove('active'));
+  document.querySelectorAll('.section').forEach(section => section.classList.remove('active'));
+  document.querySelectorAll('.nav-item[data-tab]').forEach(item => item.classList.remove('active'));
   document.getElementById(id).classList.add('active');
   if (el) el.classList.add('active');
-  const titles = { overview: 'Overview', subscriptions: 'Subscriptions', users: 'Users' };
-  document.getElementById('pageTitle').textContent = titles[id] || id;
-  if (id === 'overview') loadOverview();
+  applyTopbarMeta(id);
+  if (window.innerWidth <= 860) toggleSidebar(false);
+
+  if (id === 'command-center' || id === 'revenue' || id === 'tenants') loadPlatformSnapshot(false);
   if (id === 'subscriptions') loadSubscriptions();
   if (id === 'users') loadUsers();
+  if (id === 'llm-costs') loadCosts();
+  if (id === 'system-health') loadSystemHealth();
 }
 
 function logout() {
   clearAuth();
+  closeDrawer();
   document.getElementById('loginOverlay').classList.remove('hidden');
 }
 
@@ -306,31 +2367,240 @@ async function verifyAccess(loginUser) {
   return me;
 }
 
-async function loadOverview() {
+function updateClock() {
+  document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-AU', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
+function updateSyncLabel() {
+  const label = document.getElementById('syncLabel');
+  if (!lastSyncTime) return;
+  const mins = Math.floor((Date.now() - lastSyncTime) / 60000);
+  label.textContent = mins <= 0 ? 'Just synced' : `Synced ${mins}m ago`;
+  label.classList.remove('syncing');
+}
+
+function setPresetRange(days) {
+  const end = new Date();
+  const start = new Date(end);
+  start.setDate(start.getDate() - days);
+  document.getElementById('startDate').value = formatDateInput(start);
+  document.getElementById('endDate').value = formatDateInput(end);
+}
+
+function handlePresetChange() {
+  const preset = document.getElementById('rangePreset').value;
+  if (preset === '7d') setPresetRange(7);
+  if (preset === '30d') setPresetRange(30);
+  if (preset === '90d') setPresetRange(90);
+}
+
+function syncPresetWithDates() {
+  const preset = document.getElementById('rangePreset');
+  const start = document.getElementById('startDate').value;
+  const end = document.getElementById('endDate').value;
+  const today = formatDateInput(new Date());
+  const compare = days => {
+    const d = new Date();
+    d.setDate(d.getDate() - days);
+    return formatDateInput(d);
+  };
+  if (end === today && start === compare(7)) preset.value = '7d';
+  else if (end === today && start === compare(30)) preset.value = '30d';
+  else if (end === today && start === compare(90)) preset.value = '90d';
+  else preset.value = 'custom';
+}
+
+async function applyDateRange() {
+  const start = document.getElementById('startDate').value;
+  const end = document.getElementById('endDate').value;
+  if (!start || !end) {
+    showToast('Choose both start and end dates');
+    return;
+  }
+  if (start > end) {
+    showToast('Start date must be before end date');
+    return;
+  }
+  syncPresetWithDates();
+  await loadAllData(true);
+}
+
+async function loadAllData(showToastOnSuccess) {
+  const syncLabel = document.getElementById('syncLabel');
+  syncLabel.textContent = 'Syncing...';
+  syncLabel.classList.add('syncing');
+  await Promise.allSettled([
+    loadPlatformSnapshot(true),
+    loadMonthSoFar(),
+    loadSubscriptions(),
+    loadUsers(),
+    loadCosts(),
+    loadSystemHealth(),
+  ]);
+  lastSyncTime = Date.now();
+  updateSyncLabel();
+  if (showToastOnSuccess) showToast('Console refreshed');
+}
+
+async function loadPlatformSnapshot(force) {
+  if (!force && overviewCache && revenueCache && tenantsCache.length) {
+    renderCommandCenter();
+    renderRevenue();
+    renderTenantsTable();
+    renderTenantSummaryCards();
+    return;
+  }
   try {
-    const [revenue, tenants] = await Promise.all([
+    const [overview, revenue, tenants] = await Promise.all([
+      apiFetch('/dashboard/platform/overview'),
       apiFetch('/dashboard/platform/revenue'),
       apiFetch('/dashboard/platform/tenants'),
     ]);
-    document.getElementById('kpi-mrr').textContent = fmtMoney(revenue.mrr || 0);
-    document.getElementById('kpi-subs').textContent = revenue.active_subscriptions ?? '—';
-    document.getElementById('kpi-users').textContent = (tenants.tenants || []).reduce((s, t) => s + (t.user_count || 0), 0);
-    document.getElementById('kpi-tenants').textContent = (tenants.tenants || []).length;
-    const tbody = document.querySelector('#tenantsTable tbody');
-    const rows = tenants.tenants || [];
-    if (!rows.length) { tbody.innerHTML = '<tr><td colspan="5" class="empty-state">No tenants yet</td></tr>'; return; }
-    tbody.innerHTML = rows.map(t => `<tr>
-      <td style="color:var(--text-primary)">${escHtml(t.tenant_name)}</td>
-      <td>${t.user_count ?? 0}</td>
-      <td>${t.search_count ?? 0}</td>
-      <td>${fmtMoney(t.mrr || 0)}</td>
-      <td>${t.active_subscriptions ?? 0}</td>
-    </tr>`).join('');
-    document.getElementById('syncLabel').textContent = 'Just synced';
-  } catch (e) {
-    console.error(e);
-    showToast('Could not load overview');
+    overviewCache = overview;
+    revenueCache = revenue;
+    tenantsCache = tenants.tenants || [];
+    renderCommandCenter();
+    renderRevenue();
+    renderTenantsTable();
+    renderTenantSummaryCards();
+  } catch (error) {
+    console.error(error);
+    showToast('Could not load platform snapshot');
   }
+}
+
+function renderCommandCenter() {
+  const overview = overviewCache || {};
+  const revenue = revenueCache || {};
+  const tenants = [...(tenantsCache || [])].sort((a, b) => (b.mrr || 0) - (a.mrr || 0));
+
+  document.getElementById('cc-active-sessions').textContent = fmtNumber(overview.active_sessions);
+  document.getElementById('cc-total-users').textContent = fmtNumber(overview.total_users);
+  document.getElementById('cc-total-searches').textContent = fmtNumber(overview.total_searches);
+  document.getElementById('cc-mrr').textContent = fmtCompactCurrency(revenue.mrr);
+  document.getElementById('cc-active-subs').textContent = fmtNumber(revenue.active_subscriptions);
+
+  const summary = document.getElementById('commandSummaryList');
+  summary.innerHTML = `
+    <div class="summary-row"><span class="summary-label">New users in range</span><span class="summary-value mono">${fmtNumber(overview.new_users_this_period)}</span></div>
+    <div class="summary-row"><span class="summary-label">Avg response time</span><span class="summary-value mono">${overview.avg_response_time_ms != null ? Number(overview.avg_response_time_ms).toFixed(0) + ' ms' : '—'}</span></div>
+    <div class="summary-row"><span class="summary-label">Cancelled last period</span><span class="summary-value mono">${fmtNumber(revenue.cancelled_last_period)}</span></div>
+    <div class="summary-row"><span class="summary-label">Tenants in comparison set</span><span class="summary-value mono">${fmtNumber(tenants.length)}</span></div>
+    <div class="summary-row"><span class="summary-label">Date window</span><span class="summary-value">${escHtml(getSelectedDateRange().start || '—')} to ${escHtml(getSelectedDateRange().end || '—')}</span></div>
+  `;
+
+  renderPlanDistributionChart('commandPlanChart');
+
+  const tbody = document.querySelector('#commandTenantTable tbody');
+  if (!tenants.length) {
+    tbody.innerHTML = '<tr><td colspan="5" class="empty-state"><strong>No tenants yet</strong>Tenant performance will appear here once live data is available.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = tenants.slice(0, 8).map(tenant => `
+    <tr>
+      <td class="table-primary">${escHtml(tenant.tenant_name || '—')}</td>
+      <td class="mono">${fmtNumber(tenant.user_count)}</td>
+      <td class="mono">${fmtNumber(tenant.search_count)}</td>
+      <td class="mono">${fmtCurrency(tenant.mrr)}</td>
+      <td class="mono">${fmtNumber(tenant.active_subscriptions)}</td>
+    </tr>
+  `).join('');
+}
+
+function renderRevenue() {
+  const revenue = revenueCache || {};
+  const planDistribution = revenue.plan_distribution || [];
+  const activeSubs = Number(revenue.active_subscriptions || 0);
+  const arps = activeSubs ? Number(revenue.mrr || 0) / activeSubs : null;
+
+  document.getElementById('rev-mrr').textContent = fmtCurrency(revenue.mrr);
+  document.getElementById('rev-active-subs').textContent = fmtNumber(revenue.active_subscriptions);
+  document.getElementById('rev-cancelled').textContent = fmtNumber(revenue.cancelled_last_period);
+  document.getElementById('rev-arps').textContent = arps == null ? '—' : fmtCurrency(arps);
+
+  renderPlanDistributionChart('revenuePlanChart');
+
+  const tbody = document.querySelector('#revenuePlanTable tbody');
+  if (!planDistribution.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><strong>No revenue plans yet</strong>Plan distribution will populate as subscriptions are created.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = planDistribution.map(plan => `
+    <tr>
+      <td class="table-primary">${escHtml(plan.plan_name || '—')}</td>
+      <td class="mono">${fmtNumber(plan.count)}</td>
+      <td class="mono">${fmtCurrency(plan.mrr)}</td>
+      <td class="mono">${plan.percentage != null ? Number(plan.percentage).toFixed(1) + '%' : '—'}</td>
+    </tr>
+  `).join('');
+}
+
+function renderPlanDistributionChart(canvasId) {
+  const revenue = revenueCache || {};
+  const plans = revenue.plan_distribution || [];
+  destroyChart(canvasId);
+  if (!plans.length) return;
+  chartInstances[canvasId] = new Chart(document.getElementById(canvasId), {
+    type: 'doughnut',
+    data: {
+      labels: plans.map(plan => plan.plan_name || 'Unknown'),
+      datasets: [{
+        data: plans.map(plan => plan.count || 0),
+        backgroundColor: chartColors().slice(0, Math.max(plans.length, 1)),
+        borderColor: 'rgba(9,16,28,0.94)',
+        borderWidth: 2,
+      }],
+    },
+    options: doughnutOptions(),
+  });
+}
+
+function renderTenantSummaryCards() {
+  const tenants = tenantsCache || [];
+  const totalUsers = tenants.reduce((sum, tenant) => sum + Number(tenant.user_count || 0), 0);
+  const totalSearches = tenants.reduce((sum, tenant) => sum + Number(tenant.search_count || 0), 0);
+  const top = [...tenants].sort((a, b) => (b.mrr || 0) - (a.mrr || 0))[0];
+
+  document.getElementById('tenant-total').textContent = fmtNumber(tenants.length);
+  document.getElementById('tenant-users-total').textContent = fmtNumber(totalUsers);
+  document.getElementById('tenant-searches-total').textContent = fmtNumber(totalSearches);
+  document.getElementById('tenant-top-mrr').textContent = top ? fmtCurrency(top.mrr) : '—';
+  document.getElementById('tenant-top-mrr-name').textContent = top ? top.tenant_name || top.tenant_slug || '—' : 'No tenants yet';
+}
+
+function renderTenantsTable() {
+  const search = (document.getElementById('tenantSearch')?.value || '').trim().toLowerCase();
+  const tbody = document.querySelector('#tenantsTable tbody');
+  let rows = tenantsCache || [];
+  if (search) {
+    rows = rows.filter(tenant =>
+      (tenant.tenant_name || '').toLowerCase().includes(search) ||
+      (tenant.tenant_slug || '').toLowerCase().includes(search)
+    );
+  }
+  rows = [...rows].sort((a, b) => (b.mrr || 0) - (a.mrr || 0));
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><strong>No tenants found</strong>Try a different search term or refresh the tenant snapshot.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(tenant => {
+    const idx = tenantsCache.findIndex(entry => entry.tenant_slug === tenant.tenant_slug && entry.tenant_name === tenant.tenant_name);
+    return `
+      <tr class="clickable-row" data-tenant-idx="${idx}">
+        <td class="table-primary">${escHtml(tenant.tenant_name || '—')}</td>
+        <td class="mono">${escHtml(tenant.tenant_slug || '—')}</td>
+        <td class="mono">${fmtNumber(tenant.user_count)}</td>
+        <td class="mono">${fmtNumber(tenant.search_count)}</td>
+        <td class="mono">${fmtCurrency(tenant.mrr)}</td>
+        <td class="mono">${fmtNumber(tenant.active_subscriptions)}</td>
+        <td class="mono">${tenant.avg_response_time_ms != null ? Number(tenant.avg_response_time_ms).toFixed(0) + ' ms' : '—'}</td>
+      </tr>
+    `;
+  }).join('');
 }
 
 async function loadSubscriptions() {
@@ -341,106 +2611,156 @@ async function loadSubscriptions() {
     ]);
     subsCache = data.subscriptions || [];
     plansCache = plans.plans || [];
-    const tbody = document.querySelector('#subsTable tbody');
-    if (!subsCache.length) { tbody.innerHTML = '<tr><td colspan="7" class="empty-state">No subscriptions yet</td></tr>'; return; }
-    tbody.innerHTML = subsCache.map((s, i) => `<tr class="clickable-row" data-sub-idx="${i}">
-      <td style="color:var(--text-primary)">${escHtml(s.tenant_name || s.tenant_slug || '—')}</td>
-      <td>${escHtml(s.plan_name || s.plan_slug || '—')}</td>
-      <td>${statusBadge(s.status)}</td>
-      <td style="font-family:'DM Mono',monospace;font-size:12px">${fmtDate(s.current_period_end)}</td>
-      <td>${s.searches_used_this_month ?? 0}</td>
-      <td>${s.override_max_searches_per_day ?? '—'}</td>
-      <td>${fmtMoney(s.plan_monthly_price_cents)}</td>
-    </tr>`).join('');
-    document.getElementById('syncLabel').textContent = 'Just synced';
-  } catch (e) {
-    console.error(e);
+    renderSubscriptionsTable();
+  } catch (error) {
+    console.error(error);
     showToast('Could not load subscriptions');
   }
 }
 
+function renderSubscriptionsTable() {
+  const tbody = document.querySelector('#subsTable tbody');
+  const search = (document.getElementById('subSearch')?.value || '').trim().toLowerCase();
+  let rows = subsCache || [];
+  if (search) {
+    rows = rows.filter(sub =>
+      (sub.tenant_name || '').toLowerCase().includes(search) ||
+      (sub.plan_name || '').toLowerCase().includes(search) ||
+      (sub.billing_email || '').toLowerCase().includes(search)
+    );
+  }
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><strong>No subscriptions found</strong>Billing records will appear here when tenant subscriptions exist.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(sub => {
+    const idx = subsCache.findIndex(entry => entry.id === sub.id);
+    return `
+      <tr class="clickable-row" data-sub-idx="${idx}">
+        <td class="table-primary">${escHtml(sub.tenant_name || sub.tenant_slug || '—')}</td>
+        <td>${escHtml(sub.plan_name || sub.plan_slug || '—')}</td>
+        <td>${statusBadge(sub.status)}</td>
+        <td class="mono">${fmtDate(sub.current_period_end)}</td>
+        <td class="mono">${fmtNumber(sub.searches_used_this_month)}</td>
+        <td class="mono">${sub.override_max_searches_per_day ?? '—'}</td>
+        <td class="mono">${fmtMoney(sub.plan_monthly_price_cents)}</td>
+      </tr>
+    `;
+  }).join('');
+}
+
 function openSubDrawer(idx) {
-  const s = subsCache[idx];
-  if (!s) return;
+  const sub = subsCache[idx];
+  if (!sub) return;
   drawerMode = 'sub';
   drawerIdx = idx;
-  document.getElementById('drawerTitle').textContent = s.tenant_name || 'Subscription';
-  document.getElementById('drawerSub').textContent = s.billing_email || s.tenant_slug || '';
-  const planOptions = plansCache.map(p => `<option value="${p.id}" ${p.id === s.plan_id ? 'selected' : ''}>${escHtml(p.name)} (${fmtMoney(p.monthly_price_cents)}/mo)</option>`).join('');
+  document.getElementById('drawerCrumb').textContent = 'Subscription';
+  document.getElementById('drawerTitle').textContent = sub.tenant_name || 'Subscription';
+  document.getElementById('drawerSub').textContent = sub.billing_email || sub.tenant_slug || '';
+
+  const planOptions = plansCache.map(plan => `
+    <option value="${plan.id}" ${plan.id === sub.plan_id ? 'selected' : ''}>
+      ${escHtml(plan.name)} (${fmtMoney(plan.monthly_price_cents)}/mo)
+    </option>
+  `).join('');
+
   document.getElementById('drawerBody').innerHTML = `
-    <div class="detail-row"><span class="detail-label">Plan</span><span class="detail-value">${escHtml(s.plan_name)}</span></div>
-    <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${statusBadge(s.status)}</span></div>
-    <div class="detail-row"><span class="detail-label">Period end</span><span class="detail-value">${fmtDate(s.current_period_end)}</span></div>
-    <div class="detail-row"><span class="detail-label">Searches this month</span><span class="detail-value">${s.searches_used_this_month ?? 0}</span></div>
-    <div class="detail-row"><span class="detail-label">Daily cap override</span><span class="detail-value">${s.override_max_searches_per_day ?? 'None'}</span></div>
-    <div class="detail-row"><span class="detail-label">Stripe customer</span><span class="detail-value" style="font-size:11px">${escHtml(s.stripe_customer_id || '—')}</span></div>
+    <div class="detail-row"><span class="detail-label">Plan</span><span class="detail-value">${escHtml(sub.plan_name || '—')}</span></div>
+    <div class="detail-row"><span class="detail-label">Status</span><span class="detail-value">${statusBadge(sub.status)}</span></div>
+    <div class="detail-row"><span class="detail-label">Current period end</span><span class="detail-value">${fmtDate(sub.current_period_end)}</span></div>
+    <div class="detail-row"><span class="detail-label">Searches this month</span><span class="detail-value mono">${fmtNumber(sub.searches_used_this_month)}</span></div>
+    <div class="detail-row"><span class="detail-label">Daily cap override</span><span class="detail-value mono">${sub.override_max_searches_per_day ?? 'None'}</span></div>
+    <div class="detail-row"><span class="detail-label">Stripe customer</span><span class="detail-value mono">${escHtml(sub.stripe_customer_id || '—')}</span></div>
+
     <div class="action-block">
-      <h4>Actions</h4>
+      <h4>Billing Actions</h4>
       <div class="action-row">
-        <input class="toolbar-input" type="number" id="extendDays" value="30" min="1" max="365" style="width:100px;min-width:0">
-        <button class="btn-sm" style="background:var(--hq-500);color:white" onclick="extendSub()">Extend period</button>
+        <input class="toolbar-input" id="extendDays" type="number" value="30" min="1" max="365">
+        <button class="btn-sm primary" type="button" onclick="extendSub()">Extend period</button>
       </div>
       <div class="action-row">
-        <input class="toolbar-input" type="number" id="overrideCap" placeholder="Daily search cap" style="width:140px;min-width:0">
-        <button class="btn-sm" style="background:var(--bg-elevated);color:var(--text-primary)" onclick="setOverride()">Set override</button>
-        <button class="btn-sm" style="background:var(--bg-elevated);color:var(--text-secondary)" onclick="clearOverride()">Clear</button>
+        <input class="toolbar-input" id="overrideCap" type="number" placeholder="Daily search cap">
+        <button class="btn-sm" type="button" onclick="setOverride()">Set override</button>
+        <button class="btn-sm subtle" type="button" onclick="clearOverride()">Clear</button>
       </div>
       <div class="action-row">
-        <select class="toolbar-input" id="changePlanSelect" style="min-width:180px">${planOptions}</select>
-        <button class="btn-sm" style="background:var(--hq-500);color:white" onclick="changePlan()">Change plan</button>
+        <select class="toolbar-select" id="changePlanSelect">${planOptions}</select>
+        <button class="btn-sm primary" type="button" onclick="changePlan()">Change plan</button>
       </div>
-    </div>`;
-  document.getElementById('drawerBackdrop').classList.add('open');
-  document.getElementById('drawer').classList.add('open');
+    </div>
+  `;
+  openDrawer();
 }
 
 async function extendSub() {
-  const s = subsCache[drawerIdx];
+  const sub = subsCache[drawerIdx];
   const days = parseInt(document.getElementById('extendDays').value, 10);
+  if (!sub || Number.isNaN(days)) {
+    showToast('Enter valid extension days');
+    return;
+  }
   try {
-    await apiPost(`/dashboard/platform/subscriptions/${s.id}/extend`, { days });
+    await apiPost(`/dashboard/platform/subscriptions/${sub.id}/extend`, { days });
     showToast(`Extended by ${days} days`);
     await loadSubscriptions();
-    openSubDrawer(subsCache.findIndex(x => x.id === s.id));
-  } catch (e) { showToast(e.message); }
+    openSubDrawer(subsCache.findIndex(entry => entry.id === sub.id));
+  } catch (error) {
+    showToast(error.message);
+  }
 }
 
 async function setOverride() {
-  const s = subsCache[drawerIdx];
-  const val = parseInt(document.getElementById('overrideCap').value, 10);
-  if (Number.isNaN(val)) { showToast('Enter a number'); return; }
+  const sub = subsCache[drawerIdx];
+  const value = parseInt(document.getElementById('overrideCap').value, 10);
+  if (!sub || Number.isNaN(value)) {
+    showToast('Enter a number');
+    return;
+  }
   try {
-    await apiPost(`/dashboard/platform/subscriptions/${s.id}/override-usage`, { override_max_searches_per_day: val });
+    await apiPost(`/dashboard/platform/subscriptions/${sub.id}/override-usage`, {
+      override_max_searches_per_day: value,
+    });
     showToast('Override set');
     await loadSubscriptions();
-    openSubDrawer(subsCache.findIndex(x => x.id === s.id));
-  } catch (e) { showToast(e.message); }
+    openSubDrawer(subsCache.findIndex(entry => entry.id === sub.id));
+  } catch (error) {
+    showToast(error.message);
+  }
 }
 
 async function clearOverride() {
-  const s = subsCache[drawerIdx];
+  const sub = subsCache[drawerIdx];
+  if (!sub) return;
   try {
-    await apiPost(`/dashboard/platform/subscriptions/${s.id}/override-usage`, { override_max_searches_per_day: null });
+    await apiPost(`/dashboard/platform/subscriptions/${sub.id}/override-usage`, {
+      override_max_searches_per_day: null,
+    });
     showToast('Override cleared');
     await loadSubscriptions();
-    openSubDrawer(subsCache.findIndex(x => x.id === s.id));
-  } catch (e) { showToast(e.message); }
+    openSubDrawer(subsCache.findIndex(entry => entry.id === sub.id));
+  } catch (error) {
+    showToast(error.message);
+  }
 }
 
 async function changePlan() {
-  const s = subsCache[drawerIdx];
-  const planId = document.getElementById('changePlanSelect').value;
+  const sub = subsCache[drawerIdx];
+  if (!sub) return;
   try {
-    await apiPost(`/dashboard/platform/subscriptions/${s.id}/change-plan`, { plan_id: planId });
+    await apiPost(`/dashboard/platform/subscriptions/${sub.id}/change-plan`, {
+      plan_id: document.getElementById('changePlanSelect').value,
+    });
     showToast('Plan changed');
     await loadSubscriptions();
-    openSubDrawer(subsCache.findIndex(x => x.id === s.id));
-  } catch (e) { showToast(e.message); }
+    openSubDrawer(subsCache.findIndex(entry => entry.id === sub.id));
+  } catch (error) {
+    showToast(error.message);
+  }
 }
 
 function debounceUserSearch() {
   clearTimeout(userSearchTimer);
-  userSearchTimer = setTimeout(loadUsers, 300);
+  userSearchTimer = setTimeout(loadUsers, 250);
 }
 
 async function loadUsers() {
@@ -450,81 +2770,341 @@ async function loadUsers() {
     const params = new URLSearchParams({ limit: '200' });
     if (search) params.set('search', search);
     if (role) params.set('role', role);
-    const data = await apiFetch(`/dashboard/platform/user-directory?${params}`);
+    const data = await apiFetch(`/dashboard/platform/user-directory?${params.toString()}`);
     usersCache = data.users || [];
     const tbody = document.querySelector('#usersTable tbody');
-    if (!usersCache.length) { tbody.innerHTML = '<tr><td colspan="8" class="empty-state">No users found</td></tr>'; return; }
-    tbody.innerHTML = usersCache.map((u, i) => `<tr class="clickable-row" data-user-idx="${i}">
-      <td style="color:var(--text-primary)">${escHtml(u.name || '—')}</td>
-      <td>${escHtml(u.email)}</td>
-      <td><span class="badge badge-inactive">${escHtml(u.role || '—')}</span></td>
-      <td style="font-size:12px">${escHtml(u.persona_type || '—')}</td>
-      <td>${escHtml(u.tenant_name || u.tenant_slug || '—')}</td>
-      <td>${u.is_active !== false ? '<span class="badge badge-active">Yes</span>' : '<span class="badge badge-cancelled">No</span>'}</td>
-      <td style="font-size:12px;font-family:'DM Mono',monospace">${fmtDate(u.last_login_at)}</td>
-      <td style="font-size:12px;font-family:'DM Mono',monospace">${fmtDate(u.created_at)}</td>
-    </tr>`).join('');
-    document.getElementById('syncLabel').textContent = 'Just synced';
-  } catch (e) {
-    console.error(e);
+    if (!usersCache.length) {
+      tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><strong>No users found</strong>Try broadening the search or clearing the role filter.</td></tr>';
+      return;
+    }
+    tbody.innerHTML = usersCache.map((user, idx) => `
+      <tr class="clickable-row" data-user-idx="${idx}">
+        <td class="table-primary">${escHtml(user.name || '—')}</td>
+        <td>${escHtml(user.email || '—')}</td>
+        <td><span class="badge badge-inactive">${escHtml(user.role || '—')}</span></td>
+        <td>${escHtml(user.persona_type || '—')}</td>
+        <td>${escHtml(user.tenant_name || user.tenant_slug || '—')}</td>
+        <td>${user.is_active !== false ? '<span class="badge badge-active">Active</span>' : '<span class="badge badge-cancelled">Inactive</span>'}</td>
+        <td class="mono">${fmtDate(user.last_login_at)}</td>
+        <td class="mono">${fmtDate(user.created_at)}</td>
+      </tr>
+    `).join('');
+  } catch (error) {
+    console.error(error);
     showToast('Could not load users');
   }
 }
 
 function openUserDrawer(idx) {
-  const u = usersCache[idx];
-  if (!u) return;
+  const user = usersCache[idx];
+  if (!user) return;
   drawerMode = 'user';
   drawerIdx = idx;
-  document.getElementById('drawerTitle').textContent = u.name || u.email;
-  document.getElementById('drawerSub').textContent = u.email;
-  const roles = ['platform_admin','tenant_admin','public_user','researcher','practitioner'];
-  const personas = ['general','clinician','researcher','medical_student','pharmacist','patient','lecturer','physiotherapist'];
+  document.getElementById('drawerCrumb').textContent = 'User';
+  document.getElementById('drawerTitle').textContent = user.name || user.email;
+  document.getElementById('drawerSub').textContent = user.email || '';
+
+  const roles = ['platform_admin', 'tenant_admin', 'public_user', 'researcher', 'practitioner'];
+  const personas = ['general', 'clinician', 'researcher', 'medical_student', 'pharmacist', 'patient', 'lecturer', 'physiotherapist'];
   document.getElementById('drawerBody').innerHTML = `
-    <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${escHtml(u.email)}</span></div>
-    <div class="detail-row"><span class="detail-label">Tenant</span><span class="detail-value">${escHtml(u.tenant_name || '—')}</span></div>
-    <div class="detail-row"><span class="detail-label">Joined</span><span class="detail-value">${fmtDate(u.created_at)}</span></div>
-    <div class="detail-row"><span class="detail-label">Last login</span><span class="detail-value">${fmtDate(u.last_login_at)}</span></div>
+    <div class="detail-row"><span class="detail-label">Email</span><span class="detail-value">${escHtml(user.email || '—')}</span></div>
+    <div class="detail-row"><span class="detail-label">Tenant</span><span class="detail-value">${escHtml(user.tenant_name || user.tenant_slug || '—')}</span></div>
+    <div class="detail-row"><span class="detail-label">Joined</span><span class="detail-value">${fmtDate(user.created_at)}</span></div>
+    <div class="detail-row"><span class="detail-label">Last login</span><span class="detail-value">${fmtDate(user.last_login_at)}</span></div>
+
     <div class="action-block">
       <h4>Edit user</h4>
       <div class="action-row">
-        <select class="toolbar-input" id="editRole">${roles.map(r => `<option value="${r}" ${u.role===r?'selected':''}>${r}</option>`).join('')}</select>
-        <select class="toolbar-input" id="editPersona">${personas.map(p => `<option value="${p}" ${u.persona_type===p?'selected':''}>${p}</option>`).join('')}</select>
+        <select class="toolbar-select" id="editRole">${roles.map(role => `<option value="${role}" ${user.role === role ? 'selected' : ''}>${role}</option>`).join('')}</select>
+        <select class="toolbar-select" id="editPersona">${personas.map(persona => `<option value="${persona}" ${user.persona_type === persona ? 'selected' : ''}>${persona}</option>`).join('')}</select>
       </div>
       <div class="action-row">
         <label style="display:flex;align-items:center;gap:8px;color:var(--text-secondary);font-size:13px">
-          <input type="checkbox" id="editActive" ${u.is_active !== false ? 'checked' : ''}> Account active
+          <input type="checkbox" id="editActive" ${user.is_active !== false ? 'checked' : ''}>
+          Account active
         </label>
-        <button class="btn-sm" style="background:var(--hq-500);color:white" onclick="saveUser()">Save changes</button>
+        <button class="btn-sm primary" type="button" onclick="saveUser()">Save changes</button>
       </div>
-      <div class="action-row" style="margin-top:16px">
-        <button class="btn-sm" style="background:var(--bg-elevated);color:var(--text-primary)" onclick="sendUserReset()">Send password reset email</button>
+      <div class="action-row">
+        <button class="btn-sm" type="button" onclick="sendUserReset()">Send password reset email</button>
       </div>
-    </div>`;
-  document.getElementById('drawerBackdrop').classList.add('open');
-  document.getElementById('drawer').classList.add('open');
+    </div>
+  `;
+  openDrawer();
 }
 
 async function saveUser() {
-  const u = usersCache[drawerIdx];
+  const user = usersCache[drawerIdx];
+  if (!user) return;
   try {
-    await apiPatch(`/dashboard/platform/user-directory/${u.id}`, {
+    await apiPatch(`/dashboard/platform/user-directory/${user.id}`, {
       role: document.getElementById('editRole').value,
       persona_type: document.getElementById('editPersona').value,
       is_active: document.getElementById('editActive').checked,
     });
     showToast('User updated');
     await loadUsers();
-    openUserDrawer(usersCache.findIndex(x => x.id === u.id));
-  } catch (e) { showToast(e.message); }
+    openUserDrawer(usersCache.findIndex(entry => entry.id === user.id));
+  } catch (error) {
+    showToast(error.message);
+  }
 }
 
 async function sendUserReset() {
-  const u = usersCache[drawerIdx];
+  const user = usersCache[drawerIdx];
+  if (!user) return;
   try {
-    const res = await apiPost(`/dashboard/platform/user-directory/${u.id}/send-reset`);
+    const res = await apiPost(`/dashboard/platform/user-directory/${user.id}/send-reset`);
     showToast(res.message || 'Reset email sent');
-  } catch (e) { showToast(e.message); }
+  } catch (error) {
+    showToast(error.message);
+  }
+}
+
+async function loadCosts() {
+  try {
+    const data = await apiFetch('/dashboard/platform/costs?limit=200');
+    costCache = data;
+    document.getElementById('cost-total').textContent = fmtUsdFlexible(data.total_cost_usd);
+    document.getElementById('cost-total-meta').textContent = `${fmtNumber(data.total_searches_with_llm || 0)} LLM calls`;
+    document.getElementById('cost-per-user').textContent = fmtUsdFlexible(data.avg_cost_per_user_usd);
+    document.getElementById('cost-user-meta').textContent = `${fmtNumber(data.distinct_users || 0)} distinct users`;
+    document.getElementById('cost-per-search').textContent = fmtUsdFlexible(data.avg_cost_per_search_usd);
+    document.getElementById('cost-tokens').textContent = fmtNumber((data.total_prompt_tokens || 0) + (data.total_completion_tokens || 0));
+    document.getElementById('cost-token-meta').textContent = `${fmtNumber(data.total_prompt_tokens || 0)} in · ${fmtNumber(data.total_completion_tokens || 0)} out`;
+    renderCostsTable();
+  } catch (error) {
+    console.error(error);
+    showToast('Could not load cost intelligence');
+  }
+}
+
+function renderCostsTable() {
+  const tbody = document.querySelector('#costsTable tbody');
+  const filter = (document.getElementById('costsFilter')?.value || '').trim().toLowerCase();
+  let rows = (costCache?.per_user || []).slice();
+  if (filter) {
+    rows = rows.filter(row =>
+      (row.name || '').toLowerCase().includes(filter) ||
+      (row.email || '').toLowerCase().includes(filter)
+    );
+  }
+  rows.sort((a, b) => (b.cost_usd || 0) - (a.cost_usd || 0));
+  if (!rows.length) {
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><strong>No cost data yet</strong>The table will populate after LLM-backed searches are recorded.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = rows.map(row => `
+    <tr>
+      <td class="table-primary">${escHtml(row.name || 'Anonymous')}</td>
+      <td>${escHtml(row.email || '—')}</td>
+      <td class="mono">${fmtNumber(row.searches)}</td>
+      <td class="mono">${fmtNumber(row.prompt_tokens)}</td>
+      <td class="mono">${fmtNumber(row.completion_tokens)}</td>
+      <td class="mono">${fmtUsdFlexible(row.cost_usd)}</td>
+      <td class="mono">${fmtUsdFlexible(row.avg_cost_per_search_usd)}</td>
+      <td class="mono">${fmtDateTime(row.last_search_at)}</td>
+    </tr>
+  `).join('');
+}
+
+async function loadSystemHealth() {
+  try {
+    const overviewPromise = overviewCache ? Promise.resolve(overviewCache) : apiFetch('/dashboard/platform/overview');
+    const [healthRes, overview] = await Promise.all([
+      fetch(`${API_BASE}/api/health`),
+      overviewPromise,
+    ]);
+
+    if (!overviewCache && overview) overviewCache = overview;
+
+    if (!healthRes.ok) throw new Error(`Health API ${healthRes.status}`);
+    const health = await healthRes.json();
+    renderSystemHealth(health, overviewCache || overview);
+  } catch (error) {
+    console.error(error);
+    renderSystemHealth(null, overviewCache);
+    showToast('Could not load system health');
+  }
+}
+
+function renderSystemHealth(health, overview) {
+  const cards = document.getElementById('healthCards');
+  const status = health?.status || 'unknown';
+  const good = status === 'healthy';
+  const indicatorClass = good ? 'health-good' : health ? 'health-warn' : 'health-bad';
+  const indicatorLabel = good ? 'Healthy' : health ? 'Attention' : 'Unavailable';
+
+  cards.innerHTML = `
+    <div class="health-card">
+      <div class="health-header">
+        <span class="health-name">API Status</span>
+        <span class="health-indicator ${indicatorClass}">${indicatorLabel}</span>
+      </div>
+      <strong>${escHtml((health?.service || 'LENA API').toString())}</strong>
+      <p>Primary health endpoint response: ${escHtml((health?.status || 'unreachable').toString())}</p>
+    </div>
+
+    <div class="health-card">
+      <div class="health-header">
+        <span class="health-name">Environment</span>
+        <span class="health-indicator ${health ? 'health-good' : 'health-bad'}">${health ? 'Live' : 'Unknown'}</span>
+      </div>
+      <strong>${escHtml((health?.environment || 'unknown').toString())}</strong>
+      <p>Deployment environment reported by the API.</p>
+    </div>
+
+    <div class="health-card">
+      <div class="health-header">
+        <span class="health-name">Railway</span>
+        <span class="health-indicator ${(health?.railway ? 'health-good' : 'health-warn')}">${health?.railway ? 'On' : 'Off'}</span>
+      </div>
+      <strong>${health?.railway ? 'Hosted on Railway' : 'Railway not reported'}</strong>
+      <p>Infrastructure flag returned by <span class="mono">/api/health</span>.</p>
+    </div>
+
+    <div class="health-card">
+      <div class="health-header">
+        <span class="health-name">Platform Snapshot</span>
+        <span class="health-indicator ${overview ? 'health-good' : 'health-warn'}">${overview ? 'Ready' : 'Waiting'}</span>
+      </div>
+      <strong>${overview ? fmtNumber(overview.active_sessions) + ' active sessions' : 'No overview data'}</strong>
+      <p>${overview ? `${fmtNumber(overview.total_users)} users · ${fmtNumber(overview.total_searches)} searches in the selected window.` : 'Overview stats will appear after the next successful data sync.'}</p>
+    </div>
+  `;
+}
+
+async function loadMonthSoFar() {
+  const now = new Date();
+  const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+  const range = {
+    start: formatDateInput(monthStart),
+    end: formatDateInput(now),
+  };
+  try {
+    const [overview, revenue, tenants] = await Promise.all([
+      apiFetchWithRange('/dashboard/platform/overview', range),
+      apiFetchWithRange('/dashboard/platform/revenue', range),
+      apiFetchWithRange('/dashboard/platform/tenants', range),
+    ]);
+    monthOverviewCache = overview;
+    monthRevenueCache = revenue;
+    monthTenantsCache = tenants.tenants || [];
+    renderActivityRail();
+  } catch (error) {
+    console.error(error);
+    renderActivityRail();
+  }
+}
+
+function renderActivityRail() {
+  const monthGrid = document.getElementById('monthKpiGrid');
+  const overview = monthOverviewCache || overviewCache || {};
+  const revenue = monthRevenueCache || revenueCache || {};
+  const tenants = (monthTenantsCache && monthTenantsCache.length ? monthTenantsCache : tenantsCache || []).slice().sort((a, b) => (b.mrr || 0) - (a.mrr || 0));
+
+  monthGrid.innerHTML = `
+    <div class="rail-kpi">
+      <div class="kpi-label">MRR</div>
+      <div class="kpi-value mono">${fmtCompactCurrency(revenue.mrr)}</div>
+      <div class="kpi-meta">Current snapshot</div>
+    </div>
+    <div class="rail-kpi">
+      <div class="kpi-label">Searches</div>
+      <div class="kpi-value mono">${fmtNumber(overview.total_searches)}</div>
+      <div class="kpi-meta">Month to date</div>
+    </div>
+    <div class="rail-kpi">
+      <div class="kpi-label">New Users</div>
+      <div class="kpi-value mono">${fmtNumber(overview.new_users_this_period)}</div>
+      <div class="kpi-meta">Month to date</div>
+    </div>
+    <div class="rail-kpi">
+      <div class="kpi-label">Active Subs</div>
+      <div class="kpi-value mono">${fmtNumber(revenue.active_subscriptions)}</div>
+      <div class="kpi-meta">Live subscriptions</div>
+    </div>
+  `;
+
+  const topTenants = document.getElementById('railTopTenants');
+  if (!tenants.length) {
+    topTenants.innerHTML = `
+      <div class="tenant-mini-row">
+        <div>
+          <div class="tenant-mini-name">No tenant data</div>
+          <div class="tenant-mini-meta">Leaderboard will populate after the first sync</div>
+        </div>
+        <div class="mono">—</div>
+      </div>
+    `;
+    return;
+  }
+  topTenants.innerHTML = tenants.slice(0, 5).map(tenant => `
+    <div class="tenant-mini-row">
+      <div>
+        <div class="tenant-mini-name">${escHtml(tenant.tenant_name || tenant.tenant_slug || '—')}</div>
+        <div class="tenant-mini-meta">${fmtNumber(tenant.user_count)} users · ${fmtNumber(tenant.search_count)} searches</div>
+      </div>
+      <div class="mono">${fmtCompactCurrency(tenant.mrr)}</div>
+    </div>
+  `).join('');
+}
+
+function openTenantDrawer(idx) {
+  const tenant = tenantsCache[idx];
+  if (!tenant) return;
+  drawerMode = 'tenant';
+  drawerIdx = idx;
+  document.getElementById('drawerCrumb').textContent = 'Tenant';
+  document.getElementById('drawerTitle').textContent = tenant.tenant_name || tenant.tenant_slug || 'Tenant';
+  document.getElementById('drawerSub').textContent = tenant.tenant_slug || '';
+
+  const subscription = subsCache.find(sub =>
+    (sub.tenant_slug && sub.tenant_slug === tenant.tenant_slug) ||
+    (sub.tenant_name && sub.tenant_name === tenant.tenant_name)
+  );
+
+  document.getElementById('drawerBody').innerHTML = `
+    <div class="detail-row"><span class="detail-label">Tenant slug</span><span class="detail-value mono">${escHtml(tenant.tenant_slug || '—')}</span></div>
+    <div class="detail-row"><span class="detail-label">Users</span><span class="detail-value mono">${fmtNumber(tenant.user_count)}</span></div>
+    <div class="detail-row"><span class="detail-label">Searches</span><span class="detail-value mono">${fmtNumber(tenant.search_count)}</span></div>
+    <div class="detail-row"><span class="detail-label">MRR</span><span class="detail-value mono">${fmtCurrency(tenant.mrr)}</span></div>
+    <div class="detail-row"><span class="detail-label">Active subscriptions</span><span class="detail-value mono">${fmtNumber(tenant.active_subscriptions)}</span></div>
+    <div class="detail-row"><span class="detail-label">Avg response time</span><span class="detail-value mono">${tenant.avg_response_time_ms != null ? Number(tenant.avg_response_time_ms).toFixed(0) + ' ms' : '—'}</span></div>
+    ${subscription ? `
+      <div class="detail-row"><span class="detail-label">Current plan</span><span class="detail-value">${escHtml(subscription.plan_name || '—')}</span></div>
+      <div class="detail-row"><span class="detail-label">Billing status</span><span class="detail-value">${statusBadge(subscription.status)}</span></div>
+      <div class="detail-row"><span class="detail-label">Period end</span><span class="detail-value">${fmtDate(subscription.current_period_end)}</span></div>
+    ` : ''}
+
+    <div class="drawer-note">
+      This tenant drawer is powered by the current platform comparison endpoint, so it focuses on HQ-level summary stats rather than a full tenant deep dive.
+    </div>
+
+    <div class="action-block">
+      <h4>Quick actions</h4>
+      <div class="action-row">
+        <button class="btn-sm primary" type="button" onclick="jumpToSubscriptionsForTenant()">Open subscriptions</button>
+        <a class="btn-linkish" href="/admin.html" target="_blank" rel="noopener">Open Product Admin</a>
+      </div>
+    </div>
+  `;
+  openDrawer();
+}
+
+function jumpToSubscriptionsForTenant() {
+  const tenant = tenantsCache[drawerIdx];
+  closeDrawer();
+  switchTab('subscriptions', document.querySelector('.nav-item[data-tab="subscriptions"]'));
+  if (tenant) {
+    document.getElementById('subSearch').value = tenant.tenant_name || tenant.tenant_slug || '';
+    renderSubscriptionsTable();
+  }
+}
+
+function openDrawer() {
+  document.getElementById('drawerBackdrop').classList.add('open');
+  document.getElementById('drawer').classList.add('open');
 }
 
 function closeDrawer() {
@@ -532,49 +3112,68 @@ function closeDrawer() {
   document.getElementById('drawer').classList.remove('open');
 }
 
-function updateClock() {
-  document.getElementById('clock').textContent = new Date().toLocaleTimeString('en-AU', { hour: '2-digit', minute: '2-digit', second: '2-digit' });
-}
-
 document.addEventListener('DOMContentLoaded', () => {
   updateClock();
   setInterval(updateClock, 1000);
+  setInterval(updateSyncLabel, 30000);
 
-  document.getElementById('subsTable').addEventListener('click', e => {
-    const row = e.target.closest('tr[data-sub-idx]');
+  setPresetRange(30);
+  document.getElementById('rangePreset').value = '30d';
+
+  document.getElementById('startDate').addEventListener('change', syncPresetWithDates);
+  document.getElementById('endDate').addEventListener('change', syncPresetWithDates);
+
+  document.getElementById('tenantsTable').addEventListener('click', event => {
+    const row = event.target.closest('tr[data-tenant-idx]');
+    if (row) openTenantDrawer(parseInt(row.dataset.tenantIdx, 10));
+  });
+
+  document.getElementById('subsTable').addEventListener('click', event => {
+    const row = event.target.closest('tr[data-sub-idx]');
     if (row) openSubDrawer(parseInt(row.dataset.subIdx, 10));
   });
-  document.getElementById('usersTable').addEventListener('click', e => {
-    const row = e.target.closest('tr[data-user-idx]');
+
+  document.getElementById('usersTable').addEventListener('click', event => {
+    const row = event.target.closest('tr[data-user-idx]');
     if (row) openUserDrawer(parseInt(row.dataset.userIdx, 10));
   });
-  document.addEventListener('keydown', e => { if (e.key === 'Escape') closeDrawer(); });
 
-  document.getElementById('loginForm').addEventListener('submit', async e => {
-    e.preventDefault();
+  document.addEventListener('keydown', event => {
+    if (event.key === 'Escape') {
+      closeDrawer();
+      toggleSidebar(false);
+    }
+  });
+
+  document.getElementById('loginForm').addEventListener('submit', async event => {
+    event.preventDefault();
     const email = document.getElementById('loginEmail').value;
     const password = document.getElementById('loginPassword').value;
     const btn = document.getElementById('loginBtn');
     const errEl = document.getElementById('loginError');
     btn.disabled = true;
     errEl.textContent = '';
+
     try {
       const res = await fetch(`${API_BASE}/api/auth/login`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ email, password }),
       });
-      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.detail || 'Login failed'); }
+      if (!res.ok) {
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.detail || 'Login failed');
+      }
       const data = await res.json();
       authToken = data.access_token;
       storeAuth(authToken, email);
       await verifyAccess(data.user);
       document.getElementById('loginOverlay').classList.add('hidden');
       document.getElementById('hqEmail').textContent = email;
-      loadOverview();
-    } catch (err) {
+      await loadAllData(false);
+    } catch (error) {
       clearAuth();
-      errEl.textContent = err.message;
+      errEl.textContent = error.message;
     } finally {
       btn.disabled = false;
     }
@@ -583,10 +3182,10 @@ document.addEventListener('DOMContentLoaded', () => {
   const stored = getStoredAuth();
   if (stored?.token) {
     authToken = stored.token;
-    verifyAccess().then(() => {
+    verifyAccess().then(async () => {
       document.getElementById('loginOverlay').classList.add('hidden');
       document.getElementById('hqEmail').textContent = stored.email;
-      loadOverview();
+      await loadAllData(false);
     }).catch(() => clearAuth());
   }
 });
