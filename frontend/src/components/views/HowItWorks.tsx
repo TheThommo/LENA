@@ -99,7 +99,6 @@ export default function HowItWorks() {
 
         {/* 30-second pitch */}
         <section className="mb-10 rounded-2xl bg-gradient-to-br from-lena-500 to-lena-700 p-6 text-white shadow-card">
-          <p className="text-[10px] font-bold uppercase tracking-[0.14em] text-white/70 mb-3">The 30-second pitch</p>
           <p className="text-[15px] leading-relaxed text-white/95">
             LENA separates research into four layers: <strong>Chat</strong> to discover evidence across {product.paperCount} papers,
             {' '}<strong>Projects</strong> to keep topic work organised, <strong>My Documents</strong> to build your evidence library,

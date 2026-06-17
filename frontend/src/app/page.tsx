@@ -682,6 +682,11 @@ export default function Home() {
     return (
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-3xl mx-auto">
+          <div className="mb-6 rounded-xl border border-lena-200/70 bg-lena-50/50 px-4 py-3 text-sm text-lena-900 leading-relaxed">
+            <strong>Projects group your research by topic.</strong> Select a project in the sidebar to open it here.
+            Click <strong>Search in project</strong> to start researching — every query and follow-up in that thread saves under this project automatically.
+            Use <strong>Add to Project</strong> on past results to file them retroactively.
+          </div>
           {/* Project header */}
           <div className="flex items-start gap-4 mb-8">
             <div className="text-3xl">{activeProject.emoji || '📁'}</div>
@@ -697,9 +702,9 @@ export default function Home() {
             </div>
             <button
               onClick={() => { setActiveProjectId(activeProject.id); setActiveView('chat'); }}
-              className="px-3 py-1.5 bg-lena-500 text-white text-xs font-medium rounded-lg hover:bg-lena-600 transition-colors"
+              className="px-4 py-2 bg-lena-500 text-white text-sm font-medium rounded-lg hover:bg-lena-600 transition-colors"
             >
-              Search in project
+              Search in this project
             </button>
           </div>
 
@@ -708,9 +713,9 @@ export default function Home() {
             <div className="text-center py-8 text-slate-400 text-sm">Loading searches...</div>
           )}
           {!projectLoading && projectSearches.length === 0 && (
-            <div className="text-center py-12 text-slate-400">
-              <p>No searches filed under this project yet.</p>
-              <p className="text-xs mt-1">Run a search while this project is active to see it here.</p>
+            <div className="text-center py-12 text-slate-500">
+              <p className="font-medium text-slate-700 mb-1">No searches in this project yet</p>
+              <p className="text-sm text-slate-400">Click &quot;Search in this project&quot; above, or file a past result with Add to Project.</p>
             </div>
           )}
           {!projectLoading && projectSearches.length > 0 && (
@@ -836,19 +841,12 @@ export default function Home() {
                     projects={isAuthenticated ? projects.filter(p => !p.archived_at).map(p => ({
                       id: p.id, name: p.name, emoji: p.emoji,
                     })) : undefined}
-                    onAddToProject={isAuthenticated ? (searchId, projectId) => {
-                      // Persist on the server (search_logs.project_id) and
-                      // move this session under the target project in the
-                      // sidebar. Also re-activate that project context so
-                      // follow-ups in the same thread keep filing there.
-                      // restoringThreadRef guards the effect that wipes
-                      // messages on project-switch so the current thread
-                      // stays visible right after the assign.
-                      assignSearch(searchId, projectId);
+                    onAddToProject={isAuthenticated ? async (searchId, projectId) => {
+                      await assignSearch(searchId, projectId);
                       setSessionProject(currentSessionIdRef.current, projectId);
                       restoringThreadRef.current = true;
                       setActiveProjectId(projectId);
-                      refreshProjects();
+                      await refreshProjects();
                     } : undefined}
                     onCreateProject={isAuthenticated ? async (name) => {
                       const p = await createNewProject({ name });
@@ -879,24 +877,23 @@ export default function Home() {
                 will file into. Click X to exit project context and run
                 free searches again. */}
             {isAuthenticated && activeProject && (
-              <div className="mb-2 inline-flex items-center gap-1 pl-2.5 pr-1 py-1 bg-lena-50 border border-lena-200/70 rounded-full text-[11px] text-lena-700">
-                <span className="text-[13px] leading-none">{activeProject.emoji || '📁'}</span>
+              <div className="mb-2 flex flex-wrap items-center gap-x-2 gap-y-1 px-3 py-2 bg-lena-50/90 border border-lena-200/70 rounded-lg text-[11px] text-lena-800">
+                <span className="font-semibold">Project active:</span>
+                <span>{activeProject.emoji || '📁'} {activeProject.name}</span>
+                <span className="text-lena-600/90">— new searches and follow-ups save here</span>
                 <button
                   onClick={() => setActiveView('projects')}
-                  title="View filed searches in this project"
-                  className="font-medium hover:underline"
+                  className="ml-auto text-lena-700 underline underline-offset-2 hover:text-lena-900"
                 >
-                  Searching in {activeProject.name}
+                  View project
                 </button>
                 <button
                   onClick={() => setActiveProjectId(null)}
-                  aria-label="Exit project context"
-                  title="Exit project - next search won't file here"
-                  className="w-4 h-4 flex items-center justify-center rounded-full hover:bg-lena-100 text-lena-600 hover:text-lena-800 transition-colors ml-1"
+                  aria-label="Exit project"
+                  title="Exit project — searches won't file here"
+                  className="text-lena-500 hover:text-lena-800"
                 >
-                  <svg className="w-3 h-3" fill="none" stroke="currentColor" viewBox="0 0 24 24" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  ✕
                 </button>
               </div>
             )}
@@ -978,27 +975,6 @@ export default function Home() {
           </div>
 
           <div className="flex items-center gap-2 flex-wrap justify-end">
-            {/* Active-project chip — shows which project new searches file under */}
-            {isAuthenticated && activeProject && (
-              <button
-                onClick={() => setActiveView('projects')}
-                className="flex items-center gap-1.5 px-2.5 py-1 border border-lena-200/70 bg-lena-50/60 rounded-full text-[11px] font-medium text-lena-700 hover:bg-lena-100/60 transition-all max-w-[200px] truncate"
-                title={`Searches file under "${activeProject.name}". Click to open project.`}
-              >
-                <span className="text-[11px]">{activeProject.emoji || '📁'}</span>
-                <span className="truncate">{activeProject.name}</span>
-                <button
-                  onClick={(e) => { e.stopPropagation(); setActiveProjectId(null); }}
-                  className="ml-0.5 text-lena-400 hover:text-lena-700"
-                  title="Stop filing searches under this project"
-                >
-                  <svg className="w-2.5 h-2.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
-                    <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </button>
-            )}
-
             {/* Result-mode checkbox dropdown (scalable for future filters) */}
             {(() => {
               const MODE_OPTIONS: { id: ResultMode; label: string; desc: string }[] = [
