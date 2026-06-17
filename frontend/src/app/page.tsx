@@ -333,6 +333,23 @@ export default function Home() {
     }
   }, [isAuthenticated, sessionsKey, threadsKey]);
 
+  const renameRecentSession = useCallback((sessionId: string, title: string) => {
+    if (!isAuthenticated || !sessionsKey) return;
+    const trimmed = title.trim();
+    setRecentSessions(prev => {
+      const next = prev.map(s => {
+        if (s.id !== sessionId) return s;
+        if (!trimmed || trimmed === s.firstQuery) {
+          const { title: _drop, ...rest } = s;
+          return rest;
+        }
+        return { ...s, title: trimmed };
+      });
+      try { localStorage.setItem(sessionsKey, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, [isAuthenticated, sessionsKey]);
+
   // Update a recent session's projectId in-place (after user clicks
   // "Add to Project" on a result). Lets the sidebar move it from top-
   // level Recent Sessions into the project's nested list without a reload.
@@ -951,6 +968,7 @@ export default function Home() {
           recentSessions={recentSessions}
           onSearchClick={(sid, q) => { handleRecentSessionClick(sid, q); if (window.innerWidth < 1024) setSidebarOpen(false); }}
           onDeleteSession={deleteRecentSession}
+          onRenameSession={renameRecentSession}
           userName={session.name || user?.name}
           userEmail={user?.email}
           isAuthenticated={isAuthenticated}

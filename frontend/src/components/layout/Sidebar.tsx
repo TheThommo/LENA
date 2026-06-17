@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import Image from 'next/image';
 import { branding } from '@/config/branding';
 import { useProjects } from '@/contexts/ProjectsContext';
-import { type RecentSessionRecord, formatSessionSubtitle } from '@/lib/sessionTime';
+import { type RecentSessionRecord, formatSessionSubtitle, getSessionDisplayTitle } from '@/lib/sessionTime';
 
 interface SidebarProps {
   activeView: string;
@@ -15,6 +15,7 @@ interface SidebarProps {
    *  fallback query (used only if the cached thread can't be restored). */
   onSearchClick: (sessionId: string, fallbackQuery: string) => void;
   onDeleteSession?: (sessionId: string) => void;
+  onRenameSession?: (sessionId: string, title: string) => void;
   userName?: string;
   userEmail?: string;
   isAuthenticated?: boolean;
@@ -37,6 +38,7 @@ export function Sidebar({
   recentSessions,
   onSearchClick,
   onDeleteSession,
+  onRenameSession,
   userName,
   userEmail,
   isAuthenticated,
@@ -123,6 +125,7 @@ export function Sidebar({
           recentSessions={recentSessions}
           onSearchClick={onSearchClick}
           onDeleteSession={onDeleteSession}
+          onRenameSession={onRenameSession}
         />
 
         {/* Recent Sessions — only UNFILED sessions show here; project-filed
@@ -137,35 +140,14 @@ export function Sidebar({
             </div>
             <ul className="space-y-1">
               {recentSessions.filter(s => !s.projectId).map((sess) => (
-                <li key={sess.id}>
-                  <div className="flex items-stretch gap-0.5 group">
-                    <button
-                      onClick={() => onSearchClick(sess.id, sess.firstQuery)}
-                      className="flex-1 min-w-0 text-left px-2 py-2 rounded-md hover:bg-gray-50 transition-colors"
-                    >
-                      <p className="text-sm text-gray-700 truncate group-hover:text-lena-500 transition-colors">
-                        {sess.firstQuery}
-                      </p>
-                      <p className="text-[11px] text-gray-400 mt-0.5">
-                        {formatSessionSubtitle(sess)}
-                      </p>
-                    </button>
-                    {onDeleteSession && (
-                      <button
-                        type="button"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          onDeleteSession(sess.id);
-                        }}
-                        className="flex-shrink-0 self-center p-1.5 mr-1 rounded-md text-gray-300 opacity-0 group-hover:opacity-100 hover:text-red-500 hover:bg-red-50 transition-all"
-                        title="Delete session"
-                        aria-label="Delete session"
-                      >
-                        <TrashIcon className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                  </div>
-                </li>
+                <SessionRow
+                  key={sess.id}
+                  session={sess}
+                  variant="recent"
+                  onOpen={() => onSearchClick(sess.id, sess.firstQuery)}
+                  onDelete={onDeleteSession}
+                  onRename={onRenameSession}
+                />
               ))}
             </ul>
           </div>
@@ -506,6 +488,146 @@ function TrashIcon({ className }: { className?: string }) {
   );
 }
 
+function PencilIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M12 20h9" />
+      <path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z" />
+    </svg>
+  );
+}
+
+/**
+ * One research thread in the sidebar — supports open, rename, delete.
+ */
+function SessionRow({
+  session,
+  variant,
+  onOpen,
+  onDelete,
+  onRename,
+}: {
+  session: RecentSessionRecord;
+  variant: 'recent' | 'project';
+  onOpen: () => void;
+  onDelete?: (sessionId: string) => void;
+  onRename?: (sessionId: string, title: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState('');
+  const inputRef = useRef<HTMLInputElement>(null);
+  const label = getSessionDisplayTitle(session);
+  const isRecent = variant === 'recent';
+
+  useEffect(() => {
+    if (editing) inputRef.current?.focus();
+  }, [editing]);
+
+  const startEdit = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setDraft(label);
+    setEditing(true);
+  };
+
+  const commitEdit = () => {
+    onRename?.(session.id, draft);
+    setEditing(false);
+  };
+
+  const cancelEdit = () => {
+    setEditing(false);
+    setDraft('');
+  };
+
+  if (editing) {
+    return (
+      <li>
+        <div className={`px-2 ${isRecent ? 'py-1.5' : 'py-1'}`}>
+          <input
+            ref={inputRef}
+            value={draft}
+            onChange={e => setDraft(e.target.value)}
+            onKeyDown={e => {
+              if (e.key === 'Enter') commitEdit();
+              if (e.key === 'Escape') cancelEdit();
+            }}
+            onBlur={commitEdit}
+            placeholder="Session name"
+            className={`w-full border border-lena-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-lena-200 bg-white ${
+              isRecent ? 'text-sm' : 'text-[12px]'
+            }`}
+          />
+          <p className="text-[10px] text-gray-400 mt-1">Enter to save · Esc to cancel</p>
+        </div>
+      </li>
+    );
+  }
+
+  return (
+    <li>
+      <div className={`flex items-stretch gap-0.5 ${isRecent ? 'group' : 'group/sess'}`}>
+        <button
+          type="button"
+          onClick={onOpen}
+          className={`flex-1 min-w-0 text-left rounded-md transition-colors ${
+            isRecent
+              ? 'px-2 py-2 hover:bg-gray-50'
+              : 'px-1.5 py-1 text-[12px] text-gray-600 hover:text-lena-600 hover:bg-lena-50/60'
+          }`}
+          title={session.firstQuery}
+        >
+          {isRecent ? (
+            <>
+              <p className="text-sm text-gray-700 truncate group-hover:text-lena-500 transition-colors">
+                {label}
+              </p>
+              <p className="text-[11px] text-gray-400 mt-0.5">
+                {formatSessionSubtitle(session)}
+              </p>
+            </>
+          ) : (
+            <span className="truncate block">
+              {label}
+              {session.queries.length > 1 && (
+                <span className="ml-1 text-[10px] text-gray-400">({session.queries.length})</span>
+              )}
+            </span>
+          )}
+        </button>
+        {onRename && (
+          <button
+            type="button"
+            onClick={startEdit}
+            className={`flex-shrink-0 self-center p-1 rounded-md text-gray-300 opacity-0 ${
+              isRecent ? 'group-hover:opacity-100 mr-0.5' : 'group-hover/sess:opacity-100'
+            } hover:text-lena-600 hover:bg-lena-50 transition-all`}
+            title="Rename session"
+            aria-label="Rename session"
+          >
+            <PencilIcon className={isRecent ? 'w-3.5 h-3.5' : 'w-3 h-3'} />
+          </button>
+        )}
+        {onDelete && (
+          <button
+            type="button"
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete(session.id);
+            }}
+            className={`flex-shrink-0 self-center p-1 rounded-md text-gray-300 opacity-0 ${
+              isRecent ? 'group-hover:opacity-100 mr-1 hover:bg-red-50' : 'group-hover/sess:opacity-100'
+            } hover:text-red-500 transition-all`}
+            title="Delete session"
+            aria-label="Delete session"
+          >
+            <TrashIcon className={isRecent ? 'w-3.5 h-3.5' : 'w-3 h-3'} />
+          </button>
+        )}
+      </div>
+    </li>
+  );
+}
+
 /**
  * ProjectsSection — lists the user's active projects and supports inline
  * create. Clicking a project makes it active (affects subsequent searches)
@@ -521,6 +643,7 @@ function ProjectsSection({
   recentSessions,
   onSearchClick,
   onDeleteSession,
+  onRenameSession,
 }: {
   isAuthenticated: boolean;
   onOpenProject: (projectId: string) => void;
@@ -528,6 +651,7 @@ function ProjectsSection({
   recentSessions?: RecentSessionRecord[];
   onSearchClick?: (sessionId: string, fallbackQuery: string) => void;
   onDeleteSession?: (sessionId: string) => void;
+  onRenameSession?: (sessionId: string, title: string) => void;
 }) {
   const { projects, activeProjectId, setActiveProjectId, createNew, error } = useProjects();
   const [creating, setCreating] = useState(false);
@@ -645,34 +769,14 @@ function ProjectsSection({
               {filed.length > 0 && onSearchClick && (
                 <ul className="ml-6 mt-0.5 mb-1 space-y-0.5 border-l border-gray-100 pl-2">
                   {filed.slice(0, 12).map(sess => (
-                    <li key={sess.id}>
-                      <div className="flex items-center gap-0.5 group/sess">
-                        <button
-                          onClick={() => onSearchClick(sess.id, sess.firstQuery)}
-                          className="flex-1 min-w-0 text-left px-1.5 py-1 rounded text-[12px] text-gray-600 hover:text-lena-600 hover:bg-lena-50/60 transition-colors truncate"
-                          title={sess.firstQuery}
-                        >
-                          {sess.firstQuery}
-                          {sess.queries.length > 1 && (
-                            <span className="ml-1 text-[10px] text-gray-400">({sess.queries.length})</span>
-                          )}
-                        </button>
-                        {onDeleteSession && (
-                          <button
-                            type="button"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              onDeleteSession(sess.id);
-                            }}
-                            className="flex-shrink-0 p-1 rounded text-gray-300 opacity-0 group-hover/sess:opacity-100 hover:text-red-500 transition-all"
-                            title="Delete session"
-                            aria-label="Delete session"
-                          >
-                            <TrashIcon className="w-3 h-3" />
-                          </button>
-                        )}
-                      </div>
-                    </li>
+                    <SessionRow
+                      key={sess.id}
+                      session={sess}
+                      variant="project"
+                      onOpen={() => onSearchClick!(sess.id, sess.firstQuery)}
+                      onDelete={onDeleteSession}
+                      onRename={onRenameSession}
+                    />
                   ))}
                 </ul>
               )}

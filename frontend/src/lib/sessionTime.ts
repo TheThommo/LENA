@@ -2,6 +2,8 @@
 export interface RecentSessionRecord {
   id: string;
   firstQuery: string;
+  /** Optional user label; falls back to firstQuery in the sidebar. */
+  title?: string;
   queries: string[];
   projectId?: string | null;
   createdAt: string;
@@ -58,6 +60,7 @@ export function normalizeRecentSession(raw: LegacySession): RecentSessionRecord 
   return {
     id: raw.id,
     firstQuery: raw.firstQuery,
+    title: raw.title?.trim() || undefined,
     queries: raw.queries ?? [],
     projectId: raw.projectId ?? null,
     createdAt,
@@ -75,4 +78,10 @@ export function formatSessionSubtitle(session: RecentSessionRecord): string {
     return `${session.queries.length} queries · ${when}`;
   }
   return when;
+}
+
+/** Sidebar label: custom title when set, otherwise the first search query. */
+export function getSessionDisplayTitle(session: RecentSessionRecord): string {
+  const custom = session.title?.trim();
+  return custom || session.firstQuery;
 }
