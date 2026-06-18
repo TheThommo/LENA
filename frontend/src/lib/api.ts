@@ -381,6 +381,35 @@ export async function checkHealth(): Promise<HealthStatus> {
   return response.json();
 }
 
+// ── Affiliation / co-branding ───────────────────────────────────────────
+
+export interface AffiliationValidateResponse {
+  code: string;
+  partner_id: string;
+  partner_name: string;
+  partner_slug: string;
+  segment: string;
+  logo_url?: string | null;
+  website_url?: string | null;
+  benefit_type: string;
+  benefit_value: number;
+  benefit_description?: string | null;
+  co_brand_duration_days?: number | null;
+  label?: string | null;
+}
+
+export async function validateAffiliationCode(code: string): Promise<AffiliationValidateResponse> {
+  const normalized = code.trim().toUpperCase().replace(/\s+/g, '-');
+  const response = await fetch(
+    `${API_BASE}/affiliation/validate?code=${encodeURIComponent(normalized)}`
+  );
+  if (!response.ok) {
+    const body = await response.json().catch(() => ({}));
+    throw new Error(body?.detail || 'Invalid affiliation code');
+  }
+  return response.json();
+}
+
 // ── Projects ────────────────────────────────────────────────────────────
 // Research folders grouping multiple search threads. Auth required.
 

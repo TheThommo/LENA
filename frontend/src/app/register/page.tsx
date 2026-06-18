@@ -6,6 +6,9 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { BrandMark, PartnerBenefitPill } from '@/components/brand/BrandMark';
+import { AffiliateCodeInput } from '@/components/brand/AffiliateCodeInput';
+import { normalizeAffiliationCode } from '@/lib/partnerBranding';
 
 function RegisterForm() {
   const router = useRouter();
@@ -25,6 +28,13 @@ function RegisterForm() {
       setSessionId(sid);
     }
   }, [searchParams]);
+
+  const refParam =
+    searchParams.get('ref') ||
+    searchParams.get('affiliate') ||
+    searchParams.get('code') ||
+    '';
+  const refCode = refParam ? normalizeAffiliationCode(refParam) : '';
 
   const validatePassword = (pwd: string): string | null => {
     if (pwd.length < 8) {
@@ -63,6 +73,10 @@ function RegisterForm() {
     <div className="min-h-dvh app-shell bg-gradient-to-br from-lena-50 to-white flex items-center justify-center px-4 py-12 safe-top safe-bottom">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-xl shadow-md p-8">
+          <div className="mb-6 flex justify-center">
+            <BrandMark height={52} />
+          </div>
+          <PartnerBenefitPill className="mb-6" />
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-slate-900 mb-2">Create Account</h1>
             <p className="text-slate-600">Sign up to start using LENA</p>
@@ -110,6 +124,8 @@ function RegisterForm() {
               </p>
             </div>
 
+            <AffiliateCodeInput initialCode={refCode || ''} />
+
             <Button
               type="submit"
               variant="primary"
@@ -125,7 +141,7 @@ function RegisterForm() {
             <p className="text-slate-600 text-sm">
               Already have an account?{' '}
               <Link
-                href="/login"
+                href={refCode ? `/login?ref=${encodeURIComponent(refCode)}` : '/login'}
                 className="text-lena-600 font-medium hover:text-lena-700 transition-colors"
               >
                 Sign in

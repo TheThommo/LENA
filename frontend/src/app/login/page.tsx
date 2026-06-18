@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
+import { BrandMark, PartnerBenefitPill } from '@/components/brand/BrandMark';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -38,6 +39,10 @@ export default function LoginPage() {
     <div className="min-h-dvh app-shell bg-gradient-to-br from-lena-50 to-white flex items-center justify-center px-4 py-12 safe-top safe-bottom">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-xl shadow-md p-8">
+          <div className="mb-6 flex justify-center">
+            <BrandMark height={52} />
+          </div>
+          <PartnerBenefitPill className="mb-6" />
           <div className="mb-8">
             <h1 className="text-3xl font-bold text-slate-900 mb-2">Sign In</h1>
             <p className="text-slate-600">Enter your credentials to access LENA</p>

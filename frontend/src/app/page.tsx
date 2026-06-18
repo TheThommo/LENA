@@ -33,7 +33,7 @@ import {
   sessionNeedsTimestampMigration,
 } from '@/lib/sessionTime';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
-import { LenaLogo } from '@/components/brand/LenaLogo';
+import { BrandMark } from '@/components/brand/BrandMark';
 import { useMediaQuery, useVisualViewportBottomInset } from '@/hooks/useMediaQuery';
 
 const RESULT_MODE_OPTIONS = [
@@ -1085,8 +1085,8 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-              <div className="lg:hidden min-w-0 max-w-[140px]">
-                <LenaLogo height={36} />
+              <div className="lg:hidden min-w-0 max-w-[min(100%,200px)]">
+                <BrandMark height={36} />
               </div>
             </div>
 

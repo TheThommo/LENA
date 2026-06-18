@@ -11,6 +11,8 @@ import {
   hydrateProfileFromCloud,
   syncProfileToCloud,
 } from '@/lib/userProfile';
+import { AffiliateCodeInput } from '@/components/brand/AffiliateCodeInput';
+import { PartnerBenefitPill } from '@/components/brand/BrandMark';
 
 // Map MyBrain specialty -> top-bar PersonaSelector default.
 // The top-right selector controls only LENA's response style — so we map
@@ -276,6 +278,24 @@ export default function ProfileSettings() {
           <p className="text-sm text-slate-500 leading-relaxed">
             Your account, research background, database preferences, and personal context — so LENA can tailor every answer to you.
           </p>
+        </div>
+
+        {/* Affiliation / co-branding */}
+        <div className="mb-8 bg-white border border-slate-200 rounded-2xl overflow-hidden">
+          <div className="px-5 py-4 border-b border-slate-100 bg-slate-50/60">
+            <h3 className="text-sm font-semibold text-slate-700">Affiliation &amp; co-branding</h3>
+            <p className="text-xs text-slate-500 mt-1">
+              University, hospital, clinic, or pharmacy code — your organisation&apos;s logo appears alongside LENA for your subscription.
+            </p>
+          </div>
+          <div className="px-5 py-4 space-y-4">
+            <PartnerBenefitPill />
+            <AffiliateCodeInput />
+            <p className="text-[11px] text-slate-400 leading-relaxed">
+              Demo: <span className="font-mono text-slate-500">DEMO-UNI</span> or{' '}
+              <span className="font-mono text-slate-500">DEMO-HOSP</span>
+            </p>
+          </div>
         </div>
 
         {/* Research profile */}

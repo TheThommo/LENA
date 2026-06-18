@@ -27,7 +27,7 @@ TABLE_GROUPS: Dict[str, List[str]] = {
         "user_personas",
     ],
     "Tenancy": ["tenants", "tenant_config"],
-    "Billing": ["plan_tiers", "tenant_subscriptions", "trial_config"],
+    "Billing": ["plan_tiers", "tenant_subscriptions", "trial_config", "partner_organizations", "affiliation_codes", "user_affiliations"],
     "Sessions and identity": ["sessions", "anon_fingerprints"],
     "Search and product": [
         "searches",

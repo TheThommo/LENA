@@ -1,7 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import { LenaLogo } from '@/components/brand/LenaLogo';
+import { BrandMark } from '@/components/brand/BrandMark';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { type Project } from '@/lib/api';
 import { type RecentSessionRecord, formatSessionSubtitle, getSessionDisplayTitle } from '@/lib/sessionTime';
@@ -69,7 +69,7 @@ export function Sidebar({
     <aside className="flex flex-col w-full h-full bg-white/95 backdrop-blur-xl border-r border-slate-200/80 shrink-0 shadow-[1px_0_0_rgba(15,23,42,0.04)] safe-top">
       {/* Logo — transparent wordmark, no background block */}
       <div className="px-4 pt-4 pb-2">
-        <LenaLogo height={68} priority />
+        <BrandMark height={68} priority />
       </div>
 
       {/* New Search Button */}
