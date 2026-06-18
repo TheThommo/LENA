@@ -38,7 +38,7 @@ export default function ModalOverlay({
   };
 
   return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center">
+    <div className="fixed inset-0 z-50 flex items-end sm:items-center justify-center safe-top safe-bottom overflow-y-auto">
       {/* Backdrop */}
       <div
         className="absolute inset-0 bg-black/40 backdrop-blur-sm transition-opacity duration-300"
@@ -47,8 +47,8 @@ export default function ModalOverlay({
       />
 
       {/* Modal Card */}
-      <div className="relative z-10 w-full max-w-md mx-4 animate-fade-in">
-        <div className="bg-white rounded-2xl shadow-2xl">
+      <div className="relative z-10 w-full max-w-md mx-auto sm:mx-4 animate-fade-in max-h-[90dvh] overflow-y-auto">
+        <div className="bg-white rounded-t-2xl sm:rounded-2xl shadow-2xl">
           {children}
         </div>
       </div>

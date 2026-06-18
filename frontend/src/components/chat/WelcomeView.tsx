@@ -75,7 +75,7 @@ export default function WelcomeView({ persona, onPromptClick }: WelcomeViewProps
   }, []);
 
   return (
-    <div className="flex flex-col items-center justify-center max-w-xl mx-auto px-5 py-20 animate-fade-in">
+    <div className="flex flex-col items-center justify-center max-w-xl mx-auto px-5 py-10 sm:py-16 animate-fade-in">
       {/* LENA avatar */}
       <Image
         src={branding.avatarSrc}
@@ -86,10 +86,10 @@ export default function WelcomeView({ persona, onPromptClick }: WelcomeViewProps
       />
 
       {/* Heading */}
-      <h1 className="text-[30px] font-semibold text-slate-900 text-center mb-2.5 tracking-tight">
+      <h1 className="text-2xl sm:text-[30px] font-semibold text-slate-900 text-center mb-2.5 tracking-tight">
         What would you like to research?
       </h1>
-      <p className="text-[15px] text-slate-500 text-center mb-12 max-w-md leading-relaxed">
+      <p className="text-sm sm:text-[15px] text-slate-500 text-center mb-8 sm:mb-12 max-w-md leading-relaxed">
         {product.description}
       </p>
 

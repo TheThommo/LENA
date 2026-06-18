@@ -343,7 +343,7 @@ function SourceCard({ result, isEdgeCase, index, query }: { result: ValidatedRes
         className="w-full text-left px-3 py-2"
       >
         <div className="flex items-center justify-between gap-2">
-          <div className="flex-1 min-w-0 flex items-center gap-1.5">
+        <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
             <span className={`px-1.5 py-0.5 text-[9px] font-semibold rounded ${style.bg} ${style.text} flex-shrink-0 tracking-wide`}>
               {style.label}
             </span>
@@ -648,8 +648,8 @@ export default function ChatMessage({
     <div className="mb-5 w-full animate-fade-in">
       <div className="chat-assistant-card rounded-3xl p-4 sm:p-5">
       {/* Header row */}
-      <div className="flex items-center justify-between mb-2.5">
-        <div className="flex items-center gap-2">
+      <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-2 mb-2.5">
+        <div className="flex items-center gap-2 min-w-0">
           {/* LENA avatar */}
           <Image
             src={branding.avatarSrc}
@@ -661,8 +661,7 @@ export default function ChatMessage({
           <span className="text-[13px] font-semibold text-slate-700 tracking-tight">{branding.name}</span>
         </div>
 
-        <div className="flex items-center gap-2">
-          {/* Add to Project */}
+        <div className="flex items-center gap-2 flex-wrap sm:flex-shrink-0">
           {response && response.search_id && onAddToProject && !response.guardrail_triggered && (
             <div>
               {projectSaved ? (
@@ -675,7 +674,7 @@ export default function ChatMessage({
               ) : (
                 <button
                   onClick={openProjectPicker}
-                  className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-white bg-lena-600 hover:bg-lena-700 rounded-lg shadow-sm transition-colors"
+                  className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-white bg-lena-600 hover:bg-lena-700 rounded-xl shadow-sm transition-colors min-h-[44px]"
                 >
                   <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
@@ -691,7 +690,7 @@ export default function ChatMessage({
             <div ref={shareRef}>
               <button
                 onClick={openShare}
-                className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[12px] font-semibold text-lena-700 bg-white border border-lena-300 hover:bg-lena-50 rounded-lg shadow-sm transition-colors"
+                className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-lena-700 bg-white border border-lena-300 hover:bg-lena-50 rounded-xl shadow-sm transition-colors min-h-[44px]"
               >
                 <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2.5} d="M8.684 13.342C8.886 12.938 9 12.482 9 12c0-.482-.114-.938-.316-1.342m0 2.684a3 3 0 110-2.684m0 2.684l6.632 3.316m-6.632-6l6.632-3.316m0 0a3 3 0 105.367-2.684 3 3 0 00-5.367 2.684zm0 9.316a3 3 0 105.368 2.684 3 3 0 00-5.368-2.684z" />
@@ -982,7 +981,7 @@ export default function ChatMessage({
                 onChange={(e) => setNewProjectName(e.target.value)}
                 placeholder="Project name"
                 maxLength={80}
-                className="w-full px-2.5 py-1.5 text-[13px] bg-white border border-slate-200 rounded-md outline-none focus:border-lena-400 focus:ring-2 focus:ring-lena-100 text-slate-800 placeholder-slate-400"
+                  className="w-full px-2.5 py-2 input-touch border border-slate-200 rounded-lg outline-none focus:border-lena-400 focus:ring-2 focus:ring-lena-100 text-slate-800 placeholder-slate-400"
               />
               {createError && <p className="text-[11px] text-red-600 mt-1.5 px-0.5">{createError}</p>}
               <div className="flex items-center gap-2 mt-2">

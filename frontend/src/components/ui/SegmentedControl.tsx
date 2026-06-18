@@ -62,7 +62,7 @@ export function SegmentedControl<T extends string>({
             aria-selected={active}
             onClick={() => toggle(opt.id)}
             className={`
-              flex-shrink-0 px-3 py-1.5 rounded-xl text-[11px] font-semibold transition-all duration-200
+              flex-shrink-0 px-3 py-2 rounded-xl text-xs font-semibold transition-all duration-200 min-h-[36px]
               ${active
                 ? 'bg-white text-slate-900 shadow-sm ring-1 ring-slate-200/80'
                 : 'text-slate-500 hover:text-slate-700'

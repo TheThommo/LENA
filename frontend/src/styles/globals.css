@@ -133,6 +133,41 @@ h1 {
   animation: pulse-glow 2s ease-in-out infinite;
 }
 
+/* Mobile / safe-area utilities */
+.app-shell {
+  min-height: 100dvh;
+  min-height: 100svh;
+}
+
+.safe-top {
+  padding-top: max(0px, env(safe-area-inset-top));
+}
+
+.safe-bottom {
+  padding-bottom: max(0px, env(safe-area-inset-bottom));
+}
+
+.safe-x {
+  padding-left: max(0px, env(safe-area-inset-left));
+  padding-right: max(0px, env(safe-area-inset-right));
+}
+
+.touch-target {
+  min-height: 44px;
+  min-width: 44px;
+}
+
+/* Prevent iOS Safari zoom on focus — use on inputs/textareas */
+.input-touch {
+  font-size: 16px;
+}
+
+@media (min-width: 640px) {
+  .input-touch {
+    font-size: 14px;
+  }
+}
+
 /* Apple-inspired surfaces */
 .glass-panel {
   background: rgba(255, 255, 255, 0.72);

@@ -178,8 +178,8 @@ export default function HowItWorks() {
                       <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
                     </svg>
                   </button>
-                  <div className={`overflow-hidden transition-all duration-300 ${isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'}`}>
-                    <div className="px-5 pb-4">
+                  <div className={`overflow-hidden transition-all duration-300 ${isOpen ? 'max-h-[70dvh] opacity-100' : 'max-h-0 opacity-0'}`}>
+                    <div className="px-5 pb-4 max-h-[60dvh] overflow-y-auto">
                       <p className="text-sm text-slate-600 leading-relaxed whitespace-pre-line">{item.answer}</p>
                     </div>
                   </div>

@@ -40,7 +40,7 @@ export default function ForgotPasswordPage() {
 
   if (submitted) {
     return (
-      <div className="min-h-screen bg-gradient-to-br from-lena-50 to-white flex items-center justify-center px-4 py-12">
+      <div className="min-h-dvh app-shell bg-gradient-to-br from-lena-50 to-white flex items-center justify-center px-4 py-12 safe-top safe-bottom">
         <div className="w-full max-w-md">
           <div className="bg-white rounded-xl shadow-md p-8 text-center">
             <div className="w-14 h-14 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4">
@@ -66,7 +66,7 @@ export default function ForgotPasswordPage() {
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-lena-50 to-white flex items-center justify-center px-4 py-12">
+    <div className="min-h-dvh app-shell bg-gradient-to-br from-lena-50 to-white flex items-center justify-center px-4 py-12 safe-top safe-bottom">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-xl shadow-md p-8">
           <div className="mb-8">

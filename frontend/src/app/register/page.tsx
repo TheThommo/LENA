@@ -60,7 +60,7 @@ function RegisterForm() {
   };
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-lena-50 to-white flex items-center justify-center px-4 py-12">
+    <div className="min-h-dvh app-shell bg-gradient-to-br from-lena-50 to-white flex items-center justify-center px-4 py-12 safe-top safe-bottom">
       <div className="w-full max-w-md">
         <div className="bg-white rounded-xl shadow-md p-8">
           <div className="mb-8">
@@ -141,7 +141,7 @@ function RegisterForm() {
 export default function RegisterPage() {
   return (
     <Suspense fallback={
-      <div className="min-h-screen bg-gradient-to-br from-lena-50 to-white flex items-center justify-center">
+      <div className="min-h-dvh app-shell bg-gradient-to-br from-lena-50 to-white flex items-center justify-center safe-top safe-bottom">
         <div className="text-lena-600">Loading...</div>
       </div>
     }>

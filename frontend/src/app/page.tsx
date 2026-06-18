@@ -33,6 +33,15 @@ import {
   sessionNeedsTimestampMigration,
 } from '@/lib/sessionTime';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { useMediaQuery, useVisualViewportBottomInset } from '@/hooks/useMediaQuery';
+
+const RESULT_MODE_OPTIONS = [
+  { id: 'all' as ResultMode, label: 'All', shortLabel: 'All' },
+  { id: 'supplements' as ResultMode, label: 'Supplements', shortLabel: 'Supp.' },
+  { id: 'herbal' as ResultMode, label: 'Herbal', shortLabel: 'Herbal' },
+  { id: 'alternatives' as ResultMode, label: 'Alt.', shortLabel: 'Alt.' },
+  { id: 'outlier' as ResultMode, label: 'Outlier', shortLabel: 'Out.' },
+];
 
 interface Message {
   id: string;
@@ -91,7 +100,15 @@ export default function Home() {
   }, [resultModesKey]);
 
   const [recentSessions, setRecentSessions] = useState<RecentSessionRecord[]>([]);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const isDesktop = useMediaQuery('(min-width: 1024px)');
+  const isTabletUp = useMediaQuery('(min-width: 768px)');
+  const keyboardInset = useVisualViewportBottomInset();
+
+  // Desktop: sidebar open by default; mobile: closed until user opens it
+  useEffect(() => {
+    setSidebarOpen(isDesktop);
+  }, [isDesktop]);
 
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
@@ -655,10 +672,10 @@ export default function Home() {
   const panelOpenRef = useRef(panelOpen);
   panelOpenRef.current = panelOpen;
   useEffect(() => {
-    if (realResponseCount === 1 && !panelOpenRef.current) {
+    if (realResponseCount === 1 && !panelOpenRef.current && isTabletUp) {
       setPanelOpen(true);
     }
-  }, [realResponseCount]);
+  }, [realResponseCount, isTabletUp]);
 
   // Funnel overlay: only renders when the user tries a SECOND search as
   // anon. Never fires automatically on searchCount>=1 (that was dismissing
@@ -744,26 +761,28 @@ export default function Home() {
             Use <strong>Add to Project</strong> on past results to file them retroactively.
           </div>
           {/* Project header */}
-          <div className="flex items-start gap-4 mb-8">
-            <div className="text-3xl">{activeProject.emoji || '📁'}</div>
-            <div className="flex-1">
-              <h2 className="text-xl font-bold text-slate-900">{activeProject.name}</h2>
-              {activeProject.description && (
-                <p className="text-sm text-slate-500 mt-1">{activeProject.description}</p>
-              )}
-              <div className="flex items-center gap-4 mt-2 text-xs text-slate-400">
-                <span>{activeProject.search_count} search{activeProject.search_count !== 1 ? 'es' : ''}</span>
-                <span>Created {new Date(activeProject.created_at).toLocaleDateString()}</span>
+          <div className="flex flex-col sm:flex-row sm:items-start gap-4 mb-8">
+            <div className="flex items-start gap-4 flex-1 min-w-0">
+              <div className="text-3xl flex-shrink-0">{activeProject.emoji || '📁'}</div>
+              <div className="flex-1 min-w-0">
+                <h2 className="text-xl font-bold text-slate-900">{activeProject.name}</h2>
+                {activeProject.description && (
+                  <p className="text-sm text-slate-500 mt-1">{activeProject.description}</p>
+                )}
+                <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-slate-400">
+                  <span>{activeProject.search_count} search{activeProject.search_count !== 1 ? 'es' : ''}</span>
+                  <span>Created {new Date(activeProject.created_at).toLocaleDateString()}</span>
+                </div>
               </div>
             </div>
-            <div className="flex items-center gap-2 flex-shrink-0">
+            <div className="flex flex-wrap items-center gap-2 flex-shrink-0">
               <button
                 type="button"
                 onClick={async () => {
                   const name = window.prompt('Rename project', activeProject.name);
                   if (name?.trim()) await renameProject(activeProject.id, name.trim());
                 }}
-                className="px-3 py-2 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+                className="px-3 py-2.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 min-h-[44px]"
               >
                 Rename
               </button>
@@ -775,13 +794,13 @@ export default function Home() {
                     setActiveView('chat');
                   }
                 }}
-                className="px-3 py-2 text-xs font-medium text-slate-600 border border-slate-200 rounded-lg hover:bg-slate-50"
+                className="px-3 py-2.5 text-xs font-medium text-slate-600 border border-slate-200 rounded-xl hover:bg-slate-50 min-h-[44px]"
               >
                 Archive
               </button>
               <button
                 onClick={() => { setActiveProjectId(activeProject.id); setActiveView('chat'); }}
-                className="px-4 py-2 bg-lena-500 text-white text-sm font-medium rounded-lg hover:bg-lena-600 transition-colors"
+                className="px-4 py-2.5 bg-lena-500 text-white text-sm font-medium rounded-xl hover:bg-lena-600 transition-colors min-h-[44px] flex-1 sm:flex-none"
               >
                 Search in this project
               </button>
@@ -872,7 +891,7 @@ export default function Home() {
               value={sessionSearch}
               onChange={e => setSessionSearch(e.target.value)}
               placeholder="Search within this session…"
-              className="flex-1 bg-transparent text-sm text-slate-700 placeholder-slate-400 outline-none"
+              className="flex-1 bg-transparent input-touch text-slate-700 placeholder-slate-400 outline-none"
             />
             {sessionSearch && (
               <span className="text-[11px] text-slate-400">
@@ -881,7 +900,8 @@ export default function Home() {
             )}
             <button
               onClick={() => { setSessionSearchOpen(false); setSessionSearch(''); }}
-              className="text-slate-400 hover:text-slate-600 p-0.5"
+              className="text-slate-400 hover:text-slate-600 p-2 -mr-1 touch-target flex items-center justify-center"
+              aria-label="Close session search"
             >
               <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
@@ -895,7 +915,7 @@ export default function Home() {
           {showWelcome ? (
             <WelcomeView persona={session.persona} onPromptClick={(q) => handleSend(q)} />
           ) : (
-            <div className="max-w-3xl mx-auto px-4 py-6 space-y-1">
+            <div className="max-w-3xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-1">
               {visibleMessages.map((msg) => {
                 const gt = msg.response?.guardrail_type;
                 if (gt === 'disclaimer_required') {
@@ -955,7 +975,10 @@ export default function Home() {
         </div>
 
         {/* Bottom search input */}
-        <div className="border-t border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 pt-3 pb-[max(0.75rem,env(safe-area-inset-bottom))] shadow-[0_-1px_0_rgba(15,23,42,0.04)]">
+        <div
+          className="border-t border-slate-200/80 bg-white/95 backdrop-blur-xl px-4 pt-3 shadow-[0_-1px_0_rgba(15,23,42,0.04)] safe-bottom"
+          style={{ paddingBottom: keyboardInset > 0 ? `${keyboardInset + 12}px` : undefined }}
+        >
           <div className="max-w-3xl mx-auto">
             {/* Active project pill - shows what context the next search
                 will file into. Click X to exit project context and run
@@ -989,12 +1012,12 @@ export default function Home() {
                 onKeyDown={handleKeyDown}
                 placeholder="Ask LENA a research question"
                 rows={1}
-                className="flex-1 bg-transparent border-none outline-none resize-none text-[14px] text-slate-800 placeholder-slate-400 max-h-[130px] py-0.5"
+                className="flex-1 bg-transparent border-none outline-none resize-none input-touch text-slate-800 placeholder-slate-400 max-h-[130px] py-0.5"
               />
               <button
                 onClick={() => handleSend()}
                 disabled={!input.trim() || loading}
-                className="w-8 h-8 flex items-center justify-center rounded-lg bg-lena-500 text-white hover:bg-lena-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex-shrink-0 shadow-sm"
+                className="w-11 h-11 flex items-center justify-center rounded-xl bg-lena-500 text-white hover:bg-lena-600 disabled:opacity-30 disabled:cursor-not-allowed transition-all flex-shrink-0 shadow-sm touch-target"
               >
                 <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 19V5M5 12l7-7 7 7" />
@@ -1012,7 +1035,7 @@ export default function Home() {
   };
 
   return (
-    <div className="h-[100dvh] flex bg-canvas-50 overflow-hidden">
+    <div className="app-shell h-dvh flex bg-canvas-50 overflow-hidden">
       {funnelOverlay}
 
       {/* Mobile sidebar backdrop */}
@@ -1025,7 +1048,7 @@ export default function Home() {
 
       {/* Left Sidebar — overlay on mobile, inline on desktop */}
       <div className={`
-        fixed inset-y-0 left-0 z-50 w-[280px] transition-transform duration-200 lg:relative lg:z-auto lg:translate-x-0
+        fixed inset-y-0 left-0 z-50 w-[min(280px,92vw)] transition-transform duration-200 lg:relative lg:z-auto lg:translate-x-0 lg:w-[280px]
         ${sidebarOpen ? 'translate-x-0' : '-translate-x-full lg:hidden'}
       `}>
         <Sidebar
@@ -1048,67 +1071,101 @@ export default function Home() {
 
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
-        {/* Top Bar */}
-        <header className="min-h-[52px] border-b border-slate-200/80 bg-white/95 backdrop-blur-xl flex items-center justify-between px-3 sm:px-4 flex-shrink-0 gap-2 shadow-[0_1px_0_rgba(15,23,42,0.04)]">
-          <div className="flex items-center gap-2 flex-shrink-0">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="w-9 h-9 flex items-center justify-center rounded-lg hover:bg-slate-100 transition-colors lg:hidden"
-            >
-              <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
-              </svg>
-            </button>
-          </div>
-
-          <div className="flex items-center gap-2 flex-wrap justify-end">
-            <SegmentedControl
-              options={[
-                { id: 'all', label: 'All', shortLabel: 'All' },
-                { id: 'supplements', label: 'Supplements', shortLabel: 'Supp.' },
-                { id: 'herbal', label: 'Herbal', shortLabel: 'Herbal' },
-                { id: 'alternatives', label: 'Alt.', shortLabel: 'Alt.' },
-                { id: 'outlier', label: 'Outlier', shortLabel: 'Out.' },
-              ]}
-              value={resultModes}
-              onChange={handleResultModesChange}
-            />
-
-            {/* Session search — only visible in chat view with messages */}
-            {activeView === 'chat' && messages.length > 0 && (
+        {/* Top Bar — two rows on mobile so filters don't crush action buttons */}
+        <header className="border-b border-slate-200/80 bg-white/95 backdrop-blur-xl flex-shrink-0 shadow-[0_1px_0_rgba(15,23,42,0.04)] safe-top">
+          <div className="flex items-center justify-between px-3 sm:px-4 min-h-[52px] gap-2">
+            <div className="flex items-center gap-2 flex-shrink-0">
               <button
-                onClick={() => { setSessionSearchOpen(o => !o); if (sessionSearchOpen) setSessionSearch(''); }}
-                title="Search within this session"
-                className={`flex items-center gap-1.5 px-2.5 py-1 border rounded-full text-[11px] font-medium transition-all ${
-                  sessionSearchOpen
+                onClick={() => setSidebarOpen(!sidebarOpen)}
+                className="touch-target flex items-center justify-center rounded-xl hover:bg-slate-100 transition-colors lg:hidden"
+                aria-label={sidebarOpen ? 'Close menu' : 'Open menu'}
+              >
+                <svg className="w-5 h-5 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
+                </svg>
+              </button>
+              <span className="text-sm font-semibold text-slate-800 lg:hidden truncate max-w-[120px]">
+                {activeView === 'chat' ? 'Chat' : activeView === 'projects' ? 'Projects' : activeView === 'documents' ? 'Documents' : activeView === 'profile' ? 'Profile' : 'LENA'}
+              </span>
+            </div>
+
+            {/* Desktop: filters inline with actions */}
+            <div className="hidden lg:flex items-center gap-2 flex-1 min-w-0 justify-end flex-wrap">
+              <SegmentedControl
+                options={RESULT_MODE_OPTIONS}
+                value={resultModes}
+                onChange={handleResultModesChange}
+              />
+              {activeView === 'chat' && messages.length > 0 && (
+                <button
+                  onClick={() => { setSessionSearchOpen(o => !o); if (sessionSearchOpen) setSessionSearch(''); }}
+                  title="Search within this session"
+                  className={`flex items-center gap-1.5 px-3 py-2 border rounded-full text-xs font-medium transition-all min-h-[44px] ${
+                    sessionSearchOpen
+                      ? 'border-lena-300/70 bg-lena-50/60 text-lena-700'
+                      : 'border-slate-200/70 text-slate-600 hover:border-slate-300 hover:text-slate-900'
+                  }`}
+                >
+                  <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  Search session
+                </button>
+              )}
+              <PersonaSelector />
+              <button
+                onClick={() => setPanelOpen(!panelOpen)}
+                className={`flex items-center gap-1.5 px-3 py-2 border rounded-full text-xs font-medium transition-all min-h-[44px] ${
+                  panelOpen
                     ? 'border-lena-300/70 bg-lena-50/60 text-lena-700'
                     : 'border-slate-200/70 text-slate-600 hover:border-slate-300 hover:text-slate-900'
                 }`}
               >
-                <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                  <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                <svg className="w-3.5 h-3.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                <span className="hidden sm:inline">Search session</span>
+                Research Summary
               </button>
-            )}
+            </div>
 
-            {/* Persona Selector */}
-            <PersonaSelector />
+            {/* Mobile: compact icon actions */}
+            <div className="flex items-center gap-1 lg:hidden ml-auto">
+              {activeView === 'chat' && messages.length > 0 && (
+                <button
+                  onClick={() => { setSessionSearchOpen(o => !o); if (sessionSearchOpen) setSessionSearch(''); }}
+                  aria-label="Search session"
+                  className={`touch-target flex items-center justify-center rounded-xl transition-all ${
+                    sessionSearchOpen ? 'bg-lena-50 text-lena-700' : 'text-slate-500 hover:bg-slate-100'
+                  }`}
+                >
+                  <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                </button>
+              )}
+              <PersonaSelector compact />
+              <button
+                onClick={() => setPanelOpen(!panelOpen)}
+                aria-label="Research summary"
+                className={`touch-target flex items-center justify-center rounded-xl transition-all ${
+                  panelOpen ? 'bg-lena-50 text-lena-700' : 'text-slate-500 hover:bg-slate-100'
+                }`}
+              >
+                <svg className="w-5 h-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                  <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                </svg>
+              </button>
+            </div>
+          </div>
 
-            {/* Research Panel Toggle */}
-            <button
-              onClick={() => setPanelOpen(!panelOpen)}
-              className={`flex items-center gap-1.5 px-2.5 py-1 border rounded-full text-[11px] font-medium transition-all ${
-                panelOpen
-                  ? 'border-lena-300/70 bg-lena-50/60 text-lena-700'
-                  : 'border-slate-200/70 text-slate-600 hover:border-slate-300 hover:text-slate-900'
-              }`}
-            >
-              <svg className="w-3 h-3 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              <span className="hidden sm:inline">Research Summary</span>
-            </button>
+          {/* Mobile: full-width filter row */}
+          <div className="lg:hidden px-3 pb-2 overflow-x-auto">
+            <SegmentedControl
+              options={RESULT_MODE_OPTIONS}
+              value={resultModes}
+              onChange={handleResultModesChange}
+              className="w-max min-w-full"
+            />
           </div>
         </header>
 
@@ -1123,7 +1180,7 @@ export default function Home() {
             <>
               {/* Mobile backdrop */}
               <div className="fixed inset-0 bg-black/40 z-40 md:hidden" onClick={() => setPanelOpen(false)} />
-              <div className="fixed inset-y-0 right-0 w-[85vw] max-w-[360px] z-50 border-l border-slate-200 bg-white md:relative md:inset-auto md:w-[320px] md:z-auto md:max-w-none">
+              <div className="fixed inset-y-0 right-0 w-full max-w-[360px] z-50 border-l border-slate-200 bg-white safe-top safe-bottom md:relative md:inset-auto md:w-[320px] md:z-auto md:max-w-none">
                 <ResearchPanel
                   messages={messages.map(m => ({ type: m.type, content: m.content, response: m.response, timestamp: m.timestamp }))}
                   persona={session.persona}

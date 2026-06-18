@@ -941,7 +941,7 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
         </div>
 
         {/* Citation cards */}
-        <div className="space-y-1.5 max-h-[calc(100dvh-320px)] overflow-y-auto pr-0.5">
+        <div className="space-y-1.5 flex-1 min-h-0 overflow-y-auto pr-0.5">
           {filteredCitations.length === 0 && (
             <p className="text-xs text-slate-400 text-center py-4">
               {citationFilter === 'starred' ? 'No starred citations yet. Star references you want to highlight in your export.' : 'No citations match this filter.'}
@@ -1000,7 +1000,7 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
                           onChange={e => setNoteInput(e.target.value)}
                           onKeyDown={e => { if (e.key === 'Enter') saveNote(key, noteInput); if (e.key === 'Escape') { setEditingNoteKey(null); setNoteInput(''); } }}
                           placeholder="Why is this paper relevant?"
-                          className="flex-1 text-[10px] border border-slate-200 rounded px-2 py-1 focus:outline-none focus:border-[#1B6B93]"
+                          className="flex-1 input-touch border border-slate-200 rounded-lg px-2 py-2 focus:outline-none focus:border-lena-500/50"
                           autoFocus
                         />
                         <button
@@ -1018,7 +1018,7 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
                     {/* Star toggle */}
                     <button
                       onClick={() => toggleStar(c)}
-                      className={`p-1 rounded transition-colors ${isStarred ? 'text-amber-500 hover:text-amber-600' : 'text-slate-300 hover:text-amber-400'}`}
+                      className={`p-2 rounded-lg transition-all touch-target flex items-center justify-center ${isStarred ? 'text-amber-500 hover:text-amber-600' : 'text-slate-300 hover:text-amber-400'}`}
                       aria-label={isStarred ? 'Remove star' : 'Star citation'}
                     >
                       <svg className="w-3.5 h-3.5" viewBox="0 0 24 24" fill={isStarred ? 'currentColor' : 'none'} stroke="currentColor" strokeWidth={2}>
@@ -1036,7 +1036,7 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
                           setNoteInput(note || '');
                         }
                       }}
-                      className={`p-1 rounded transition-colors ${note ? 'text-[#1B6B93]' : 'text-slate-300 hover:text-slate-500'}`}
+                      className={`p-2 rounded-lg transition-colors touch-target flex items-center justify-center ${note ? 'text-[#1B6B93]' : 'text-slate-300 hover:text-slate-500'}`}
                       aria-label="Add note"
                     >
                       <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1205,7 +1205,7 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
         </div>
         <button
           onClick={onClose}
-          className="p-1 rounded hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
+          className="touch-target flex items-center justify-center rounded-xl hover:bg-slate-100 text-slate-400 hover:text-slate-600 transition-colors"
           aria-label="Close panel"
         >
           <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -1234,7 +1234,7 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
                 }
               }}
               placeholder="Search within results..."
-              className="w-full pl-7 pr-7 py-2 text-[11px] bg-slate-100/60 border border-slate-200/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-lena-500/20 focus:border-lena-400/50 text-slate-700 placeholder-slate-400 transition-all"
+              className="w-full pl-7 pr-7 py-2.5 input-touch bg-slate-100/60 border border-slate-200/60 rounded-xl focus:outline-none focus:ring-2 focus:ring-lena-500/20 focus:border-lena-400/50 text-slate-700 placeholder-slate-400 transition-all"
             />
             {citationSearch && (
               <button
@@ -1283,7 +1283,7 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
 
       {/* Bottom Actions */}
       {hasData && (
-        <div className="border-t border-slate-200 p-3 space-y-2 flex-shrink-0 bg-white">
+        <div className="border-t border-slate-200 p-3 space-y-2 flex-shrink-0 bg-white safe-bottom">
           <button
             onClick={handleExport}
             disabled={exporting}

@@ -67,7 +67,7 @@ export function Sidebar({
   }, [menuOpen]);
 
   return (
-    <aside className="flex flex-col w-[260px] h-full bg-white/95 backdrop-blur-xl border-r border-slate-200/80 shrink-0 shadow-[1px_0_0_rgba(15,23,42,0.04)]">
+    <aside className="flex flex-col w-full h-full bg-white/95 backdrop-blur-xl border-r border-slate-200/80 shrink-0 shadow-[1px_0_0_rgba(15,23,42,0.04)] safe-top">
       {/* Logo Section */}
       <div className="px-5 pt-5 pb-3">
         <Image
@@ -156,7 +156,7 @@ export function Sidebar({
       </nav>
 
       {/* Footer */}
-      <div className="border-t border-gray-100 px-4 py-4">
+      <div className="border-t border-gray-100 px-4 py-4 safe-bottom">
         {isAuthenticated && userName ? (
           <div className="relative" ref={menuRef}>
             <div className="flex items-center justify-between">
@@ -170,7 +170,8 @@ export function Sidebar({
               </div>
               <button
                 onClick={() => setMenuOpen(!menuOpen)}
-                className="p-1.5 text-gray-400 hover:text-gray-600 transition-colors rounded-md hover:bg-gray-50"
+                className="touch-target flex items-center justify-center text-gray-400 hover:text-gray-600 transition-colors rounded-xl hover:bg-gray-50"
+                aria-label="Account menu"
               >
                 <SettingsIcon className="w-4 h-4" />
               </button>
@@ -555,9 +556,7 @@ function SessionRow({
             }}
             onBlur={commitEdit}
             placeholder="Session name"
-            className={`w-full border border-lena-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-lena-200 bg-white ${
-              isRecent ? 'text-sm' : 'text-[12px]'
-            }`}
+            className="w-full border border-lena-300 rounded-md px-2 py-2 focus:outline-none focus:ring-2 focus:ring-lena-200 bg-white input-touch"
           />
           <p className="text-[10px] text-gray-400 mt-1">Enter to save · Esc to cancel</p>
         </div>
@@ -600,8 +599,8 @@ function SessionRow({
           <button
             type="button"
             onClick={startEdit}
-            className={`flex-shrink-0 self-center p-1 rounded-md text-gray-300 opacity-0 ${
-              isRecent ? 'group-hover:opacity-100 mr-0.5' : 'group-hover/sess:opacity-100'
+            className={`flex-shrink-0 self-center touch-target flex items-center justify-center rounded-md text-gray-400 lg:opacity-0 ${
+              isRecent ? 'lg:group-hover:opacity-100 mr-0.5' : 'lg:group-hover/sess:opacity-100'
             } hover:text-lena-600 hover:bg-lena-50 transition-all`}
             title="Rename session"
             aria-label="Rename session"
@@ -616,8 +615,8 @@ function SessionRow({
               e.stopPropagation();
               onDelete(session.id);
             }}
-            className={`flex-shrink-0 self-center p-1 rounded-md text-gray-300 opacity-0 ${
-              isRecent ? 'group-hover:opacity-100 mr-1 hover:bg-red-50' : 'group-hover/sess:opacity-100'
+            className={`flex-shrink-0 self-center touch-target flex items-center justify-center rounded-md text-gray-400 lg:opacity-0 ${
+              isRecent ? 'lg:group-hover:opacity-100 mr-1 hover:bg-red-50' : 'lg:group-hover/sess:opacity-100'
             } hover:text-red-500 transition-all`}
             title="Delete session"
             aria-label="Delete session"
@@ -700,7 +699,7 @@ function ProjectRow({
           }}
           onBlur={commitRename}
           disabled={busy}
-          className="w-full text-sm border border-lena-300 rounded-md px-2 py-1 focus:outline-none focus:ring-2 focus:ring-lena-200 bg-white"
+          className="w-full input-touch border border-lena-300 rounded-md px-2 py-2 focus:outline-none focus:ring-2 focus:ring-lena-200 bg-white"
         />
       </li>
     );
@@ -727,7 +726,7 @@ function ProjectRow({
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
-            className="p-1 rounded text-gray-300 opacity-0 group-hover/proj:opacity-100 hover:text-gray-600 hover:bg-gray-100 transition-all"
+            className="touch-target flex items-center justify-center rounded-md text-gray-400 lg:opacity-0 lg:group-hover/proj:opacity-100 hover:text-gray-600 hover:bg-gray-100 transition-all"
             aria-label="Project options"
           >
             <MoreIcon className="w-3.5 h-3.5" />
@@ -899,7 +898,7 @@ function ProjectsSection({
             }}
             placeholder="e.g. SGLT2 in HFpEF"
             disabled={submitting}
-            className="w-full text-sm border border-lena-300 rounded-md px-2 py-1.5 focus:outline-none focus:ring-2 focus:ring-lena-200 bg-white"
+            className="w-full input-touch border border-lena-300 rounded-md px-2 py-2 focus:outline-none focus:ring-2 focus:ring-lena-200 bg-white"
           />
           <div className="flex items-center justify-between mt-1.5">
             <span className="text-[10px] text-gray-400">Enter to save · Esc to cancel</span>
