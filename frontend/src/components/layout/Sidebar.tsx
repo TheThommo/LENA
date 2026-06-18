@@ -1,8 +1,7 @@
 'use client';
 
 import React, { useState, useRef, useEffect } from 'react';
-import Image from 'next/image';
-import { branding } from '@/config/branding';
+import { LenaLogo } from '@/components/brand/LenaLogo';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { type Project } from '@/lib/api';
 import { type RecentSessionRecord, formatSessionSubtitle, getSessionDisplayTitle } from '@/lib/sessionTime';
@@ -68,16 +67,9 @@ export function Sidebar({
 
   return (
     <aside className="flex flex-col w-full h-full bg-white/95 backdrop-blur-xl border-r border-slate-200/80 shrink-0 shadow-[1px_0_0_rgba(15,23,42,0.04)] safe-top">
-      {/* Logo Section */}
-      <div className="px-5 pt-5 pb-3">
-        <Image
-          src={branding.logoSrc}
-          alt={branding.name}
-          width={220}
-          height={72}
-          className="object-contain"
-          priority
-        />
+      {/* Logo — transparent wordmark, no background block */}
+      <div className="px-4 pt-4 pb-2">
+        <LenaLogo height={68} priority />
       </div>
 
       {/* New Search Button */}

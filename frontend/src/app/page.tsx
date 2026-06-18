@@ -33,6 +33,7 @@ import {
   sessionNeedsTimestampMigration,
 } from '@/lib/sessionTime';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
+import { LenaLogo } from '@/components/brand/LenaLogo';
 import { useMediaQuery, useVisualViewportBottomInset } from '@/hooks/useMediaQuery';
 
 const RESULT_MODE_OPTIONS = [
@@ -1084,9 +1085,9 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-              <span className="text-sm font-semibold text-slate-800 lg:hidden truncate max-w-[120px]">
-                {activeView === 'chat' ? 'Chat' : activeView === 'projects' ? 'Projects' : activeView === 'documents' ? 'Documents' : activeView === 'profile' ? 'Profile' : 'LENA'}
-              </span>
+              <div className="lg:hidden min-w-0 max-w-[140px]">
+                <LenaLogo height={36} />
+              </div>
             </div>
 
             {/* Desktop: filters inline with actions */}

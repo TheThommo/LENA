@@ -9,11 +9,11 @@ export const branding = {
   /** App name displayed in sidebar and UI */
   name: 'LENA',
 
-  /** Subtitle under the app name */
-  subtitle: 'Research Agent',
+  /** Subtitle under the app name (also used in logo alt text) */
+  subtitle: 'Literature Evidence based Navigation Agent',
 
-  /** Logo image used in sidebar header (full brand logo with text) */
-  logoSrc: '/lena-logo.jpg',
+  /** Full wordmark — transparent PNG in /public */
+  logoSrc: '/lena_logo_1.png',
 
   /** Agent avatar used in chat messages and thinking indicator */
   avatarSrc: '/lena-avatar.jpg',
