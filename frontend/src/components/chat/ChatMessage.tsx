@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useMemo, useEffect, useRef, useCallback } from 'react';
+import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { branding } from '@/config/branding';
 import type { SearchResponse, ValidatedResult, ResultMode, SupplementVerification } from '@/lib/api';
@@ -515,10 +516,11 @@ export default function ChatMessage({
   const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
-  const [sharePos, setSharePos] = useState<{ top: number; right: number } | null>(null);
+  const [sharePos, setSharePos] = useState<{ top: number; left: number } | null>(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
-  const shareRef = useRef<HTMLDivElement>(null);
+  const shareMenuRef = useRef<HTMLDivElement>(null);
+  const shareTriggerRef = useRef<HTMLButtonElement | null>(null);
 
   const closeProjectPicker = useCallback(() => {
     setProjectPickerOpen(false);
@@ -576,14 +578,18 @@ export default function ChatMessage({
   useEffect(() => {
     if (!shareOpen) return;
     const handleClick = (e: MouseEvent) => {
-      if (shareRef.current && !shareRef.current.contains(e.target as Node)) {
-        setShareOpen(false);
-      }
+      const target = e.target as Node;
+      if (shareMenuRef.current?.contains(target)) return;
+      if (shareTriggerRef.current?.contains(target)) return;
+      setShareOpen(false);
     };
     const handleScroll = () => setShareOpen(false);
-    document.addEventListener('mousedown', handleClick);
+    const timer = window.setTimeout(() => {
+      document.addEventListener('mousedown', handleClick);
+    }, 0);
     window.addEventListener('scroll', handleScroll, true);
     return () => {
+      window.clearTimeout(timer);
       document.removeEventListener('mousedown', handleClick);
       window.removeEventListener('scroll', handleScroll, true);
     };
@@ -591,10 +597,100 @@ export default function ChatMessage({
 
   /** Open share dropdown, computing fixed position from the triggering button. */
   const openShare = (e: React.MouseEvent<HTMLButtonElement>) => {
+    e.stopPropagation();
+    e.preventDefault();
     if (shareOpen) { setShareOpen(false); return; }
     const rect = e.currentTarget.getBoundingClientRect();
-    setSharePos({ top: rect.bottom + 4, right: window.innerWidth - rect.right });
+    shareTriggerRef.current = e.currentTarget;
+    setSharePos({
+      top: rect.bottom + 4,
+      left: Math.max(8, Math.min(rect.left, window.innerWidth - 232)),
+    });
     setShareOpen(true);
+  };
+
+  const renderShareMenu = () => {
+    if (!shareOpen || !sharePos || !response || typeof document === 'undefined') return null;
+
+    const shareText = `LENA research: "${response.query}"`;
+    const shareUrl = window.location.href;
+    const encUrl = encodeURIComponent(shareUrl);
+    const encText = encodeURIComponent(shareText);
+    const channels = [
+      { key: 'copy', label: shareCopied ? 'Link copied' : 'Copy link',
+        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />,
+        action: async () => {
+          try {
+            await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
+            setShareCopied(true);
+            window.setTimeout(() => setShareCopied(false), 2000);
+          } catch {}
+        } },
+      { key: 'x', label: 'X (Twitter)',
+        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />,
+        href: `https://twitter.com/intent/tweet?text=${encText}&url=${encUrl}` },
+      { key: 'linkedin', label: 'LinkedIn',
+        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.063 2.063 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452z" />,
+        href: `https://www.linkedin.com/sharing/share-offsite/?url=${encUrl}` },
+      { key: 'facebook', label: 'Facebook',
+        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M22 12a10 10 0 10-11.5 9.87v-6.98H8v-2.89h2.5V9.8c0-2.47 1.47-3.83 3.72-3.83 1.08 0 2.21.19 2.21.19v2.43h-1.24c-1.22 0-1.6.76-1.6 1.54v1.85h2.72l-.43 2.89h-2.29v6.98A10 10 0 0022 12z" />,
+        href: `https://www.facebook.com/sharer/sharer.php?u=${encUrl}&quote=${encText}` },
+      { key: 'whatsapp', label: 'WhatsApp',
+        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.52 3.48A11.9 11.9 0 0012 0a11.9 11.9 0 00-10.34 17.92L0 24l6.22-1.63A11.9 11.9 0 0012 24a11.9 11.9 0 0012-12 11.9 11.9 0 00-3.48-8.52z" />,
+        href: `https://wa.me/?text=${encText}%20${encUrl}` },
+      { key: 'email', label: 'Email',
+        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
+        href: `mailto:?subject=${encText}&body=${encText}%0A%0A${encUrl}` },
+    ];
+
+    return createPortal(
+      <div
+        ref={shareMenuRef}
+        className="fixed w-56 bg-white border border-slate-200/80 rounded-lg shadow-xl shadow-slate-900/5 z-[9999] overflow-hidden"
+        style={{ top: sharePos.top, left: sharePos.left }}
+      >
+        <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-100 bg-slate-50/80 font-medium">
+          Share this research
+        </div>
+        {channels.map(c => (
+          c.href ? (
+            <a
+              key={c.key}
+              href={c.href}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setShareOpen(false)}
+              className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {c.icon}
+              </svg>
+              <span>{c.label}</span>
+            </a>
+          ) : (
+            <button
+              key={c.key}
+              type="button"
+              onClick={() => c.action && c.action()}
+              className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 transition-colors"
+            >
+              <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                {c.icon}
+              </svg>
+              <span>{c.label}</span>
+            </button>
+          )
+        ))}
+        <button
+          type="button"
+          onClick={() => { setShareOpen(false); setShareModalOpen(true); }}
+          className="w-full text-left px-3 py-2 text-[13px] text-lena-700 hover:bg-lena-50 border-t border-slate-100"
+        >
+          Share with recipient tracking
+        </button>
+      </div>,
+      document.body,
+    );
   };
   if (type === 'user') {
     return (
@@ -687,8 +783,9 @@ export default function ChatMessage({
 
           {/* Share - brand pill with social channel menu */}
           {response && (
-            <div ref={shareRef}>
+            <div>
               <button
+                type="button"
                 onClick={openShare}
                 className="inline-flex items-center gap-1.5 px-3 py-2 text-xs font-semibold text-lena-700 bg-white border border-lena-300 hover:bg-lena-50 rounded-xl shadow-sm transition-colors min-h-[44px]"
               >
@@ -697,84 +794,7 @@ export default function ChatMessage({
                 </svg>
                 Share
               </button>
-
-              {shareOpen && sharePos && (
-                <div
-                  className="fixed w-56 bg-white border border-slate-200/80 rounded-lg shadow-xl shadow-slate-900/5 z-[9999] overflow-hidden"
-                  style={{ top: sharePos.top, right: sharePos.right }}
-                >
-                  <div className="px-3 py-1.5 text-[10px] uppercase tracking-wider text-slate-400 border-b border-slate-100 bg-slate-50/80 font-medium">
-                    Share this research
-                  </div>
-                  {(() => {
-                    const shareText = `LENA research: "${response.query}"`;
-                    const shareUrl = typeof window !== 'undefined' ? window.location.href : 'https://lena-app.up.railway.app';
-                    const encUrl = encodeURIComponent(shareUrl);
-                    const encText = encodeURIComponent(shareText);
-                    const channels = [
-                      { key: 'copy', label: shareCopied ? 'Link copied' : 'Copy link',
-                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />,
-                        action: async () => {
-                          try {
-                            await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-                            setShareCopied(true);
-                            setTimeout(() => setShareCopied(false), 2000);
-                          } catch {}
-                        } },
-                      { key: 'x', label: 'X (Twitter)',
-                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />,
-                        href: `https://twitter.com/intent/tweet?text=${encText}&url=${encUrl}` },
-                      { key: 'linkedin', label: 'LinkedIn',
-                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.063 2.063 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452z" />,
-                        href: `https://www.linkedin.com/sharing/share-offsite/?url=${encUrl}` },
-                      { key: 'facebook', label: 'Facebook',
-                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M22 12a10 10 0 10-11.5 9.87v-6.98H8v-2.89h2.5V9.8c0-2.47 1.47-3.83 3.72-3.83 1.08 0 2.21.19 2.21.19v2.43h-1.24c-1.22 0-1.6.76-1.6 1.54v1.85h2.72l-.43 2.89h-2.29v6.98A10 10 0 0022 12z" />,
-                        href: `https://www.facebook.com/sharer/sharer.php?u=${encUrl}&quote=${encText}` },
-                      { key: 'whatsapp', label: 'WhatsApp',
-                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.52 3.48A11.9 11.9 0 0012 0a11.9 11.9 0 00-10.34 17.92L0 24l6.22-1.63A11.9 11.9 0 0012 24a11.9 11.9 0 0012-12 11.9 11.9 0 00-3.48-8.52z" />,
-                        href: `https://wa.me/?text=${encText}%20${encUrl}` },
-                      { key: 'email', label: 'Email',
-                        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
-                        href: `mailto:?subject=${encText}&body=${encText}%0A%0A${encUrl}` },
-                    ];
-                    return channels.map(c => (
-                      c.href ? (
-                        <a
-                          key={c.key}
-                          href={c.href}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          onClick={() => setShareOpen(false)}
-                          className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 transition-colors"
-                        >
-                          <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            {c.icon}
-                          </svg>
-                          <span>{c.label}</span>
-                        </a>
-                      ) : (
-                        <button
-                          key={c.key}
-                          onClick={() => c.action && c.action()}
-                          className="flex items-center gap-2 w-full px-3 py-2 text-[13px] text-slate-700 hover:bg-slate-50 transition-colors"
-                        >
-                          <svg className="w-3.5 h-3.5 text-slate-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                            {c.icon}
-                          </svg>
-                          <span>{c.label}</span>
-                        </button>
-                      )
-                    ));
-                  })()}
-                  <button
-                    type="button"
-                    onClick={() => { setShareOpen(false); setShareModalOpen(true); }}
-                    className="w-full text-left px-3 py-2 text-[13px] text-lena-700 hover:bg-lena-50 border-t border-slate-100"
-                  >
-                    Share with recipient tracking
-                  </button>
-                </div>
-              )}
+              {renderShareMenu()}
             </div>
           )}
           <ShareModal
@@ -875,6 +895,7 @@ export default function ChatMessage({
                   </span>
                 )}
                 <button
+                  type="button"
                   onClick={openShare}
                   className="inline-flex items-center gap-1.5 px-3 py-1.5 text-[11px] font-semibold text-lena-700 bg-white border border-lena-300 hover:bg-lena-50 rounded-lg shadow-sm transition-colors"
                 >

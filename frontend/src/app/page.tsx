@@ -102,6 +102,9 @@ export default function Home() {
 
   const [recentSessions, setRecentSessions] = useState<RecentSessionRecord[]>([]);
   const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [projectSearches, setProjectSearches] = useState<ProjectSearch[]>([]);
+  const [projectLoading, setProjectLoading] = useState(false);
+  const [projectSearchesRevision, setProjectSearchesRevision] = useState(0);
   const isDesktop = useMediaQuery('(min-width: 1024px)');
   const isTabletUp = useMediaQuery('(min-width: 768px)');
   const keyboardInset = useVisualViewportBottomInset();
@@ -483,6 +486,8 @@ export default function Home() {
       }
       // Update the project's search_count badge in the sidebar
       if (isAuthenticated && activeProjectId) {
+        setSessionProject(currentSessionIdRef.current, activeProjectId);
+        setProjectSearchesRevision(r => r + 1);
         refreshProjects();
       }
     } catch (err) {
@@ -606,6 +611,20 @@ export default function Home() {
   // explicitly restoring a session; that path already sets its own
   // activeProjectId and shouldn't be wiped.
   const lastProjectIdRef = useRef<string | null>(null);
+
+  /** Blank chat thread filed under a project — used by "Search in project" and new-project create. */
+  const startFreshProjectChat = useCallback((projectId: string) => {
+    restoringThreadRef.current = true;
+    setActiveProjectId(projectId);
+    setMessages([]);
+    setError(null);
+    setInput('');
+    currentSessionIdRef.current = Date.now().toString();
+    lastProjectIdRef.current = projectId;
+    setActiveView('chat');
+    inputRef.current?.focus();
+  }, [setActiveProjectId]);
+
   useEffect(() => {
     if (restoringThreadRef.current) {
       restoringThreadRef.current = false;
@@ -714,10 +733,6 @@ export default function Home() {
     }
   };
 
-  // Project detail view — shows all searches filed under the active project
-  const [projectSearches, setProjectSearches] = useState<ProjectSearch[]>([]);
-  const [projectLoading, setProjectLoading] = useState(false);
-
   useEffect(() => {
     if (activeView !== 'projects' || !activeProjectId || !authToken) {
       setProjectSearches([]);
@@ -733,7 +748,7 @@ export default function Home() {
       if (!cancelled) setProjectLoading(false);
     })();
     return () => { cancelled = true; };
-  }, [activeView, activeProjectId, authToken]);
+  }, [activeView, activeProjectId, authToken, projectSearchesRevision]);
 
   const renderProjectView = () => {
     if (!isAuthenticated) {
@@ -753,6 +768,13 @@ export default function Home() {
       );
     }
 
+    const localFiledCount = recentSessions.filter(s => s.projectId === activeProject.id).length;
+    const displaySearchCount = Math.max(
+      activeProject.search_count,
+      localFiledCount,
+      projectSearches.length,
+    );
+
     return (
       <div className="flex-1 overflow-y-auto p-6">
         <div className="max-w-3xl mx-auto">
@@ -771,7 +793,7 @@ export default function Home() {
                   <p className="text-sm text-slate-500 mt-1">{activeProject.description}</p>
                 )}
                 <div className="flex flex-wrap items-center gap-x-4 gap-y-1 mt-2 text-xs text-slate-400">
-                  <span>{activeProject.search_count} search{activeProject.search_count !== 1 ? 'es' : ''}</span>
+                  <span>{displaySearchCount} search{displaySearchCount !== 1 ? 'es' : ''}</span>
                   <span>Created {new Date(activeProject.created_at).toLocaleDateString()}</span>
                 </div>
               </div>
@@ -800,7 +822,7 @@ export default function Home() {
                 Archive
               </button>
               <button
-                onClick={() => { setActiveProjectId(activeProject.id); setActiveView('chat'); }}
+                onClick={() => startFreshProjectChat(activeProject.id)}
                 className="px-4 py-2.5 bg-lena-500 text-white text-sm font-medium rounded-xl hover:bg-lena-600 transition-colors min-h-[44px] flex-1 sm:flex-none"
               >
                 Search in this project
@@ -950,6 +972,7 @@ export default function Home() {
                       setSessionProject(currentSessionIdRef.current, projectId);
                       restoringThreadRef.current = true;
                       setActiveProjectId(projectId);
+                      setProjectSearchesRevision(r => r + 1);
                       await refreshProjects();
                     } : undefined}
                     onCreateProject={isAuthenticated ? async (name) => {
@@ -1062,6 +1085,7 @@ export default function Home() {
           onRenameSession={renameRecentSession}
           onUpgrade={() => handleUpgrade('pro_monthly')}
           onShareReferral={handleShareReferral}
+          onStartProjectSearch={(pid) => { startFreshProjectChat(pid); if (window.innerWidth < 1024) setSidebarOpen(false); }}
           userName={session.name || user?.name}
           userEmail={user?.email}
           isAuthenticated={isAuthenticated}

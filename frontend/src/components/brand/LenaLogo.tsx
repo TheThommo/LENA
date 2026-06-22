@@ -1,6 +1,7 @@
 'use client';
 
 import Image from 'next/image';
+import { useState } from 'react';
 import { branding } from '@/config/branding';
 import type { PartnerSegment } from '@/lib/partnerBranding';
 import { PARTNER_SEGMENT_LABELS } from '@/lib/partnerBranding';
@@ -14,17 +15,25 @@ interface LenaLogoProps {
 
 /**
  * Full LENA wordmark — transparent PNG, no background box.
+ * Falls back to the legacy JPG if the PNG is not deployed yet.
  */
 export function LenaLogo({ height = 64, className = '', priority = false }: LenaLogoProps) {
+  const [src, setSrc] = useState<string>(branding.logoSrc);
+
   return (
     <Image
-      src={branding.logoSrc}
+      src={src}
       alt={`${branding.name} — ${branding.subtitle}`}
       width={Math.round(height * 2.8)}
       height={height}
       priority={priority}
       className={`w-auto object-contain object-left ${className}`}
       style={{ height, width: 'auto', maxWidth: '100%' }}
+      onError={() => {
+        if (src !== branding.logoFallbackSrc) {
+          setSrc(branding.logoFallbackSrc);
+        }
+      }}
     />
   );
 }
