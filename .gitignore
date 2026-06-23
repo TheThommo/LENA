@@ -43,3 +43,4 @@ htmlcov/
 npm-debug.log*
 .auto-memory/
 .claude/
+frontend/tsconfig.tsbuildinfo
