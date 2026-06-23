@@ -24,6 +24,10 @@ import os
 # Allow imports from the backend package
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
+# Load .env before any app imports (pydantic settings reads env at import time)
+from dotenv import load_dotenv
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", ".env"))
+
 import bcrypt
 
 
