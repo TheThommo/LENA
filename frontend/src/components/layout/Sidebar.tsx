@@ -73,8 +73,8 @@ export function Sidebar({
 
   return (
     <aside className="flex flex-col w-full h-full bg-white/95 backdrop-blur-xl border-r border-slate-200/80 shrink-0 shadow-[1px_0_0_rgba(15,23,42,0.04)] safe-top">
-      {/* Logo — cropped wordmark, full sidebar width */}
-      <div className="px-3 pt-4 pb-3 flex justify-center">
+      {/* Logo — cropped wordmark; sized to leave room for partner co-brand */}
+      <div className="px-3 pt-4 pb-3 flex justify-center min-w-0">
         <BrandMark
           height={branding.logoSizes.sidebar}
           className="w-full"
@@ -159,8 +159,8 @@ export function Sidebar({
         )}
       </nav>
 
-      {/* Footer — pinned; sign-in CTA prominent for anonymous users */}
-      <div className="flex-shrink-0 border-t border-gray-100 px-3 py-4 safe-bottom bg-white/95">
+      {/* Footer — pinned; sign-in CTA lifted above screen edge */}
+      <div className="flex-shrink-0 border-t border-gray-100 px-3 pt-4 pb-6 mb-2 safe-bottom bg-white/95">
         {isAuthenticated && userName ? (
           <div className="relative" ref={menuRef}>
             <div className="flex items-center justify-between">

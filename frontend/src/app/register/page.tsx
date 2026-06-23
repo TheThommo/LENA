@@ -75,7 +75,7 @@ function RegisterForm() {
       <div className="w-full max-w-md">
         <div className="bg-white rounded-xl shadow-md p-8">
           <div className="mb-6 flex justify-center w-full">
-            <BrandMark height={branding.logoSizes.auth} priority style={{ maxWidth: 280 }} />
+            <BrandMark height={branding.logoSizes.auth} priority style={{ maxWidth: 252 }} />
           </div>
           <PartnerBenefitPill className="mb-6" />
           <div className="mb-8">

@@ -21,15 +21,15 @@ export const branding = {
   /** Wordmark PNG aspect (width / height) after tight crop */
   logoAspect: 551 / 530,
 
-  /** Display heights (px) — cropped wordmark; tagline must stay readable */
+  /** Display heights (px) — ~10% under max so a partner logo can sit alongside */
   logoSizes: {
-    sidebar: 168,
-    auth: 140,
-    mobileHeader: 80,
+    sidebar: 151,
+    auth: 126,
+    mobileHeader: 72,
   },
 
-  /** Max rendered width for sidebar wordmark */
-  logoMaxWidth: 252,
+  /** Max rendered width for sidebar wordmark (room for co-brand partner) */
+  logoMaxWidth: 227,
 
   /** Agent avatar used in chat messages and thinking indicator */
   avatarSrc: '/lena-avatar.jpg',

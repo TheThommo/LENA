@@ -1111,7 +1111,7 @@ export default function Home() {
                 </svg>
               </button>
               <div className="lg:hidden min-w-0 flex-shrink">
-                <BrandMark height={branding.logoSizes.mobileHeader} style={{ maxWidth: 120 }} />
+                <BrandMark height={branding.logoSizes.mobileHeader} style={{ maxWidth: 108 }} />
               </div>
             </div>
 
