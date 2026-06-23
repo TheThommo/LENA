@@ -24,7 +24,7 @@ export function LenaLogo({ height = 64, className = '', priority = false }: Lena
     <Image
       src={src}
       alt={`${branding.name} — ${branding.subtitle}`}
-      width={Math.round(height * 2.8)}
+      width={Math.round(height * branding.logoAspect)}
       height={height}
       priority={priority}
       className={`w-auto object-contain object-left ${className}`}

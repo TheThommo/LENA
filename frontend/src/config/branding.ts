@@ -18,6 +18,16 @@ export const branding = {
   /** Shown when logoSrc is missing or fails to load */
   logoFallbackSrc: '/lena-logo.jpg',
 
+  /** Wordmark PNG is square (icon + LENA + tagline stacked vertically) */
+  logoAspect: 1,
+
+  /** Display heights (px) — tagline in the PNG needs generous size to read */
+  logoSizes: {
+    sidebar: 128,
+    auth: 112,
+    mobileHeader: 64,
+  },
+
   /** Agent avatar used in chat messages and thinking indicator */
   avatarSrc: '/lena-avatar.jpg',
 

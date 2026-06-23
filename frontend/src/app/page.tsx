@@ -3,7 +3,7 @@
 import { useState, useRef, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { Sidebar } from '@/components/layout/Sidebar';
-import { product } from '@/config/branding';
+import { product, branding } from '@/config/branding';
 import WelcomeView from '@/components/chat/WelcomeView';
 import ChatMessage from '@/components/chat/ChatMessage';
 import ResearchPanel from '@/components/chat/ResearchPanel';
@@ -1109,8 +1109,8 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-              <div className="lg:hidden min-w-0 max-w-[min(100%,200px)]">
-                <BrandMark height={36} />
+              <div className="lg:hidden min-w-0 max-w-[min(100%,120px)]">
+                <BrandMark height={branding.logoSizes.mobileHeader} />
               </div>
             </div>
 

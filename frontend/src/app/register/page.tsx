@@ -7,6 +7,7 @@ import { useAuth } from '@/contexts/AuthContext';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 import { BrandMark, PartnerBenefitPill } from '@/components/brand/BrandMark';
+import { branding } from '@/config/branding';
 import { AffiliateCodeInput } from '@/components/brand/AffiliateCodeInput';
 import { normalizeAffiliationCode } from '@/lib/partnerBranding';
 
@@ -74,7 +75,7 @@ function RegisterForm() {
       <div className="w-full max-w-md">
         <div className="bg-white rounded-xl shadow-md p-8">
           <div className="mb-6 flex justify-center">
-            <BrandMark height={52} />
+            <BrandMark height={branding.logoSizes.auth} priority />
           </div>
           <PartnerBenefitPill className="mb-6" />
           <div className="mb-8">
