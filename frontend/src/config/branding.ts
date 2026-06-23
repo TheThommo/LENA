@@ -12,8 +12,11 @@ export const branding = {
   /** Subtitle under the app name (also used in logo alt text) */
   subtitle: 'Literature Evidence based Navigation Agent',
 
-  /** Full wordmark — transparent PNG in /public */
+  /** Full wordmark — transparent PNG in /public (falls back to logoFallbackSrc) */
   logoSrc: '/lena_logo_1.png',
+
+  /** Shown when logoSrc is missing or fails to load */
+  logoFallbackSrc: '/lena-logo.jpg',
 
   /** Agent avatar used in chat messages and thinking indicator */
   avatarSrc: '/lena-avatar.jpg',

@@ -23,6 +23,8 @@ interface SidebarProps {
   onLogout?: () => void;
   onUpgrade?: () => void;
   onShareReferral?: () => void;
+  /** Start a blank chat scoped to a project (fresh session, autosave enabled). */
+  onStartProjectSearch?: (projectId: string) => void;
 }
 
 const navItems = [
@@ -48,6 +50,7 @@ export function Sidebar({
   onLogout,
   onUpgrade,
   onShareReferral,
+  onStartProjectSearch,
 }: SidebarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
   const [referralCopied, setReferralCopied] = useState(false);
@@ -114,6 +117,7 @@ export function Sidebar({
         <ProjectsSection
           isAuthenticated={!!isAuthenticated}
           onOpenProject={() => { onViewChange('projects'); }}
+          onStartProjectSearch={onStartProjectSearch}
           onSignIn={onSignIn}
           recentSessions={recentSessions}
           onSearchClick={onSearchClick}
@@ -802,6 +806,7 @@ function MoreIcon({ className }: { className?: string }) {
 function ProjectsSection({
   isAuthenticated,
   onOpenProject,
+  onStartProjectSearch,
   onSignIn,
   recentSessions,
   onSearchClick,
@@ -810,6 +815,7 @@ function ProjectsSection({
 }: {
   isAuthenticated: boolean;
   onOpenProject: (projectId: string) => void;
+  onStartProjectSearch?: (projectId: string) => void;
   onSignIn?: () => void;
   recentSessions?: RecentSessionRecord[];
   onSearchClick?: (sessionId: string, fallbackQuery: string) => void;
@@ -839,7 +845,11 @@ function ProjectsSection({
     try {
       const p = await createNew({ name });
       setActiveProjectId(p.id);
-      onOpenProject(p.id);
+      if (onStartProjectSearch) {
+        onStartProjectSearch(p.id);
+      } else {
+        onOpenProject(p.id);
+      }
       setNewName('');
       setCreating(false);
     } catch (e) {

@@ -307,7 +307,22 @@ export async function searchLiterature(
     headers['X-Session-ID'] = options.sessionId;
   }
 
-  const response = await fetch(`${API_BASE}/search?${params}`, { headers });
+  const url = `${API_BASE}/search?${params}`;
+  let response: Response;
+  try {
+    response = await fetch(url, { headers });
+  } catch (firstErr) {
+    // One retry for transient network blips (common on mobile / Railway cold start).
+    try {
+      await new Promise((r) => setTimeout(r, 800));
+      response = await fetch(url, { headers });
+    } catch {
+      throw new Error(
+        'Network error — LENA could not reach the search service. Check your connection and try again.',
+      );
+    }
+  }
+
   if (!response.ok) {
     // HTTP/2 drops statusText, so read the JSON body (FastAPI returns {detail}).
     let detail = '';
