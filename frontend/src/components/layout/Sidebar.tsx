@@ -21,6 +21,7 @@ interface SidebarProps {
   userEmail?: string;
   isAuthenticated?: boolean;
   onSignIn?: () => void;
+  onRegister?: () => void;
   onLogout?: () => void;
   onUpgrade?: () => void;
   onShareReferral?: () => void;
@@ -48,6 +49,7 @@ export function Sidebar({
   userEmail,
   isAuthenticated,
   onSignIn,
+  onRegister,
   onLogout,
   onUpgrade,
   onShareReferral,
@@ -71,9 +73,14 @@ export function Sidebar({
 
   return (
     <aside className="flex flex-col w-full h-full bg-white/95 backdrop-blur-xl border-r border-slate-200/80 shrink-0 shadow-[1px_0_0_rgba(15,23,42,0.04)] safe-top">
-      {/* Logo — transparent wordmark, no background block */}
-      <div className="px-4 pt-4 pb-3">
-        <BrandMark height={branding.logoSizes.sidebar} priority />
+      {/* Logo — cropped wordmark, full sidebar width */}
+      <div className="px-3 pt-4 pb-3 flex justify-center">
+        <BrandMark
+          height={branding.logoSizes.sidebar}
+          className="w-full"
+          priority
+          style={{ maxWidth: branding.logoMaxWidth }}
+        />
       </div>
 
       {/* New Search Button */}
@@ -152,8 +159,8 @@ export function Sidebar({
         )}
       </nav>
 
-      {/* Footer */}
-      <div className="border-t border-gray-100 px-4 py-4 safe-bottom">
+      {/* Footer — pinned; sign-in CTA prominent for anonymous users */}
+      <div className="flex-shrink-0 border-t border-gray-100 px-3 py-4 safe-bottom bg-white/95">
         {isAuthenticated && userName ? (
           <div className="relative" ref={menuRef}>
             <div className="flex items-center justify-between">
@@ -265,12 +272,30 @@ export function Sidebar({
             )}
           </div>
         ) : (
-          <button
-            onClick={onSignIn}
-            className="text-sm text-lena-500 hover:text-lena-700 font-medium transition-colors"
-          >
-            Sign in for full access
-          </button>
+          <div className="rounded-2xl border border-lena-200/80 bg-gradient-to-br from-lena-50/90 to-white p-4 shadow-sm">
+            <p className="text-sm font-semibold text-slate-900 leading-snug">
+              Save your research
+            </p>
+            <p className="text-xs text-slate-600 mt-1.5 leading-relaxed">
+              Sign in to keep projects, session history, and documents — synced for 7 days on this device.
+            </p>
+            <button
+              type="button"
+              onClick={onSignIn}
+              className="mt-3.5 w-full min-h-[44px] px-4 py-2.5 bg-lena-500 hover:bg-lena-600 text-white text-sm font-semibold rounded-xl shadow-sm transition-colors"
+            >
+              Sign in for full access
+            </button>
+            {onRegister && (
+              <button
+                type="button"
+                onClick={onRegister}
+                className="mt-2 w-full min-h-[40px] px-4 py-2 text-sm font-medium text-lena-700 hover:text-lena-800 hover:bg-lena-50/80 rounded-xl transition-colors"
+              >
+                Create free account
+              </button>
+            )}
+          </div>
         )}
       </div>
     </aside>

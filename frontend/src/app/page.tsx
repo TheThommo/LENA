@@ -1090,6 +1090,7 @@ export default function Home() {
           userEmail={user?.email}
           isAuthenticated={isAuthenticated}
           onSignIn={() => router.push('/login')}
+          onRegister={() => router.push('/register')}
           onLogout={logout}
         />
       </div>
@@ -1109,8 +1110,8 @@ export default function Home() {
                   <path strokeLinecap="round" strokeLinejoin="round" d="M4 6h16M4 12h16M4 18h16" />
                 </svg>
               </button>
-              <div className="lg:hidden min-w-0 max-w-[min(100%,120px)]">
-                <BrandMark height={branding.logoSizes.mobileHeader} />
+              <div className="lg:hidden min-w-0 flex-shrink">
+                <BrandMark height={branding.logoSizes.mobileHeader} style={{ maxWidth: 120 }} />
               </div>
             </div>
 

@@ -1,6 +1,12 @@
 'use client';
 
-import React, { createContext, useContext, useEffect, useState } from 'react';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import {
+  clearAuthSession,
+  isTokenStillValid,
+  persistAuthSession,
+  SESSION_STORAGE_KEYS,
+} from '@/lib/authSession';
 
 export interface User {
   id: string;
@@ -30,7 +36,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 function readStoredUser(): User | null {
   if (typeof window === 'undefined') return null;
   try {
-    const stored = localStorage.getItem('lena_user');
+    const stored = localStorage.getItem(SESSION_STORAGE_KEYS.user);
     return stored ? JSON.parse(stored) : null;
   } catch {
     return null;
@@ -39,7 +45,7 @@ function readStoredUser(): User | null {
 
 function readStoredToken(): string | null {
   if (typeof window === 'undefined') return null;
-  return localStorage.getItem('lena_token');
+  return localStorage.getItem(SESSION_STORAGE_KEYS.token);
 }
 
 export function AuthProvider({ children }: { children: React.ReactNode }) {
@@ -47,31 +53,45 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(() => readStoredToken());
   const [isLoading, setIsLoading] = useState(true);
 
-  // Persist token and user to localStorage whenever they change
+  const clearSession = useCallback(() => {
+    setToken(null);
+    setUser(null);
+    clearAuthSession();
+  }, []);
+
+  // Drop expired tokens on load so stale sessions don't linger past 7 days.
+  useEffect(() => {
+    const stored = readStoredToken();
+    if (stored && !isTokenStillValid(stored)) {
+      clearSession();
+    }
+  }, [clearSession]);
+
   useEffect(() => {
     if (token) {
-      localStorage.setItem('lena_token', token);
+      localStorage.setItem(SESSION_STORAGE_KEYS.token, token);
     } else {
-      localStorage.removeItem('lena_token');
+      localStorage.removeItem(SESSION_STORAGE_KEYS.token);
     }
   }, [token]);
 
   useEffect(() => {
     if (user) {
-      localStorage.setItem('lena_user', JSON.stringify(user));
+      localStorage.setItem(SESSION_STORAGE_KEYS.user, JSON.stringify(user));
     } else {
-      localStorage.removeItem('lena_user');
+      localStorage.removeItem(SESSION_STORAGE_KEYS.user);
     }
   }, [user]);
 
-  useEffect(() => {
-    refreshUser();
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  const refreshUser = async () => {
+  const refreshUser = useCallback(async () => {
     const activeToken = token || readStoredToken();
     if (!activeToken) {
+      setIsLoading(false);
+      return;
+    }
+
+    if (!isTokenStillValid(activeToken)) {
+      clearSession();
       setIsLoading(false);
       return;
     }
@@ -90,21 +110,32 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       });
 
       if (response.status === 401 || response.status === 403) {
-        setToken(null);
-        setUser(null);
+        // Only clear if the JWT is actually expired — avoids logout on transient misconfig.
+        if (!isTokenStillValid(activeToken)) {
+          clearSession();
+        }
       } else if (response.ok) {
         const userData = await response.json();
         setUser(userData);
+        persistAuthSession(activeToken, userData);
       }
-      // Non-auth failures (5xx, network blips): keep cached session alive
+      // Non-auth failures (5xx, network): keep cached session alive
     } catch (error) {
       console.error('Error refreshing user:', error);
       const cached = readStoredUser();
-      if (cached) setUser(cached);
+      if (cached && isTokenStillValid(activeToken)) {
+        setUser(cached);
+        setToken(activeToken);
+      }
     } finally {
       setIsLoading(false);
     }
-  };
+  }, [token, user, clearSession]);
+
+  useEffect(() => {
+    refreshUser();
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
 
   const login = async (email: string, password: string) => {
     try {
@@ -123,6 +154,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await response.json();
       setToken(data.access_token);
       setUser(data.user);
+      persistAuthSession(data.access_token, data.user);
     } catch (error) {
       console.error('Error logging in:', error);
       throw error;
@@ -148,6 +180,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
       const data = await response.json();
       setToken(data.access_token);
       setUser(data.user);
+      persistAuthSession(data.access_token, data.user);
     } catch (error) {
       console.error('Error registering:', error);
       throw error;
@@ -157,18 +190,17 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   };
 
   const logout = () => {
-    setToken(null);
-    setUser(null);
-    localStorage.removeItem('lena_token');
-    localStorage.removeItem('lena_user');
+    clearSession();
   };
+
+  const hasValidSession = !!user && !!token && isTokenStillValid(token);
 
   return (
     <AuthContext.Provider
       value={{
         user,
         token,
-        isAuthenticated: !!user && !!token,
+        isAuthenticated: hasValidSession,
         isLoading,
         login,
         register,

@@ -1,6 +1,6 @@
 'use client';
 
-import Image from 'next/image';
+import type { CSSProperties } from 'react';
 import { LenaLogo, CoBrandLogo } from '@/components/brand/LenaLogo';
 import { usePartnerBranding } from '@/contexts/PartnerBrandingContext';
 import { PARTNER_SEGMENT_LABELS } from '@/lib/partnerBranding';
@@ -9,12 +9,13 @@ interface BrandMarkProps {
   height?: number;
   className?: string;
   priority?: boolean;
+  style?: CSSProperties;
 }
 
 /**
  * Renders LENA alone, or LENA + partner when an affiliation is active.
  */
-export function BrandMark({ height = 64, className = '', priority = false }: BrandMarkProps) {
+export function BrandMark({ height = 64, className = '', priority = false, style }: BrandMarkProps) {
   const { affiliation, hasCoBrand } = usePartnerBranding();
 
   if (hasCoBrand && affiliation) {
@@ -30,7 +31,7 @@ export function BrandMark({ height = 64, className = '', priority = false }: Bra
     );
   }
 
-  return <LenaLogo height={height} className={className} priority={priority} />;
+  return <LenaLogo height={height} className={className} priority={priority} style={style} />;
 }
 
 interface PartnerBenefitPillProps {

@@ -11,13 +11,14 @@ interface LenaLogoProps {
   height?: number;
   className?: string;
   priority?: boolean;
+  style?: React.CSSProperties;
 }
 
 /**
  * Full LENA wordmark — transparent PNG, no background box.
  * Falls back to the legacy JPG if the PNG is not deployed yet.
  */
-export function LenaLogo({ height = 64, className = '', priority = false }: LenaLogoProps) {
+export function LenaLogo({ height = 64, className = '', priority = false, style }: LenaLogoProps) {
   const [src, setSrc] = useState<string>(branding.logoSrc);
 
   return (
@@ -27,8 +28,8 @@ export function LenaLogo({ height = 64, className = '', priority = false }: Lena
       width={Math.round(height * branding.logoAspect)}
       height={height}
       priority={priority}
-      className={`w-auto object-contain object-left ${className}`}
-      style={{ height, width: 'auto', maxWidth: '100%' }}
+      className={`w-auto object-contain object-left max-w-full ${className}`}
+      style={{ height, width: 'auto', maxWidth: '100%', ...style }}
       onError={() => {
         if (src !== branding.logoFallbackSrc) {
           setSrc(branding.logoFallbackSrc);

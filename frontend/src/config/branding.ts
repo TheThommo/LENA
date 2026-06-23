@@ -18,15 +18,18 @@ export const branding = {
   /** Shown when logoSrc is missing or fails to load */
   logoFallbackSrc: '/lena-logo.jpg',
 
-  /** Wordmark PNG is square (icon + LENA + tagline stacked vertically) */
-  logoAspect: 1,
+  /** Wordmark PNG aspect (width / height) after tight crop */
+  logoAspect: 551 / 530,
 
-  /** Display heights (px) — tagline in the PNG needs generous size to read */
+  /** Display heights (px) — cropped wordmark; tagline must stay readable */
   logoSizes: {
-    sidebar: 128,
-    auth: 112,
-    mobileHeader: 64,
+    sidebar: 168,
+    auth: 140,
+    mobileHeader: 80,
   },
+
+  /** Max rendered width for sidebar wordmark */
+  logoMaxWidth: 252,
 
   /** Agent avatar used in chat messages and thinking indicator */
   avatarSrc: '/lena-avatar.jpg',
