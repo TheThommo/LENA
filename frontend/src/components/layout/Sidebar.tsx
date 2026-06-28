@@ -4,7 +4,7 @@ import React, { useState, useRef, useEffect } from 'react';
 import { BrandMark } from '@/components/brand/BrandMark';
 import { branding } from '@/config/branding';
 import { useProjects } from '@/contexts/ProjectsContext';
-import { LenaUpgradeRequiredError } from '@/lib/api';
+import { LenaUpgradeRequiredError, type Project } from '@/lib/api';
 import { defaultContactHandler } from '@/components/chat/UpgradeCTACard';
 import { type RecentSessionRecord, formatSessionSubtitle, getSessionDisplayTitle } from '@/lib/sessionTime';
 
@@ -852,7 +852,7 @@ function ProjectsSection({
   onDeleteSession?: (sessionId: string) => void;
   onRenameSession?: (sessionId: string, title: string) => void;
 }) {
-  const { projects, activeProjectId, setActiveProjectId, createNew, limits } = useProjects();
+  const { projects, activeProjectId, setActiveProjectId, createNew, limits, error } = useProjects();
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [submitting, setSubmitting] = useState(false);

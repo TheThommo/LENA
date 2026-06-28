@@ -125,13 +125,21 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
 
   const rename = useCallback(async (projectId: string, newName: string) => {
     if (!token) throw new Error('Sign in to rename a project.');
-    const updated = await updateProject(token, projectId, { name: newName });
+    const result = await updateProject(token, projectId, { name: newName });
+    if (typeof result === 'object' && result !== null && 'kind' in result && result.kind === 'upgrade') {
+      throw new LenaUpgradeRequiredError(result.feature, result.message);
+    }
+    const updated = result as Project;
     setProjects(prev => prev.map(p => (p.id === projectId ? updated : p)));
   }, [token]);
 
   const archive = useCallback(async (projectId: string) => {
     if (!token) throw new Error('Sign in to archive a project.');
-    const updated = await updateProject(token, projectId, { archived: true });
+    const result = await updateProject(token, projectId, { archived: true });
+    if (typeof result === 'object' && result !== null && 'kind' in result && result.kind === 'upgrade') {
+      throw new LenaUpgradeRequiredError(result.feature, result.message);
+    }
+    const updated = result as Project;
     setProjects(prev => prev.map(p => (p.id === projectId ? updated : p)));
     if (activeProjectId === projectId) setActiveProjectId(null);
     setLimits(prev => prev ? {
