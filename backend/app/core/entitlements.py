@@ -39,24 +39,16 @@ async def lookup_user_email(client, user_id: str) -> Optional[str]:
 
 
 def is_bypass_email(email: Optional[str]) -> bool:
-    """True for owner, configured bypass emails, and named internal testers."""
+    """True for owner and explicitly listed bypass emails only."""
     if not email:
         return False
-    el = email.lower().strip()
-    if el == settings.admin_email.lower().strip():
-        return True
-    if el in settings.bypass_user_email_set:
-        return True
-    local = el.split("@", 1)[0]
-    if local in settings.internal_tester_local_names_set:
-        return True
-    return False
+    return email.lower().strip() in settings.bypass_user_email_set
 
 
 async def user_has_full_access(client, user_id: Optional[str]) -> bool:
     """
     Full access = skip project caps, search quotas, and content guardrails.
-    Used for owner (Mark), Lauren QA, and Railway-configured bypass UUIDs.
+    Used for owner (Mark), named QA emails in BYPASS_USER_EMAILS, and bypass UUIDs.
     """
     if not user_id:
         return False

@@ -8,16 +8,12 @@ def test_owner_email_bypassed():
     assert is_bypass_email("mark.e.s.thompson@gmail.com")
 
 
-def test_lauren_local_name_bypassed():
-    assert is_bypass_email("lauren@gmail.com")
-    assert is_bypass_email("Lauren@company.com")
-
-
-def test_random_user_not_bypassed():
+def test_explicit_bypass_email_only():
+    assert not is_bypass_email("lauren@gmail.com")
     assert not is_bypass_email("random.user@gmail.com")
 
 
-def test_bypass_user_emails_config():
+def test_bypass_user_emails_config_includes_admin():
     assert "mark.e.s.thompson@gmail.com" in settings.bypass_user_email_set
 
 

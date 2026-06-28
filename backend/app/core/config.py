@@ -64,12 +64,8 @@ class Settings(BaseSettings):
     # a first-class "grant full access" toggle.
     bypass_user_ids: str = ""
 
-    # Comma-separated emails with full access (owner + QA). Also see
-    # admin_email and internal_tester_local_names below.
+    # Comma-separated emails with full access (owner + named QA testers only).
     bypass_user_emails: str = "mark.e.s.thompson@gmail.com"
-
-    # Email local-parts (before @) for internal testers, e.g. lauren → lauren@gmail.com
-    internal_tester_local_names: str = "lauren"
 
     # Email (Resend)
     resend_api_key: Optional[str] = None
@@ -121,19 +117,13 @@ class Settings(BaseSettings):
 
     @property
     def bypass_user_email_set(self) -> set[str]:
-        return {
+        emails = {
             e.strip().lower()
             for e in (self.bypass_user_emails or "").split(",")
             if e.strip()
         }
-
-    @property
-    def internal_tester_local_names_set(self) -> set[str]:
-        return {
-            n.strip().lower()
-            for n in (self.internal_tester_local_names or "").split(",")
-            if n.strip()
-        }
+        emails.add(self.admin_email.lower().strip())
+        return emails
 
     def is_bypass_user(self, user_id: Optional[str]) -> bool:
         if not user_id:
