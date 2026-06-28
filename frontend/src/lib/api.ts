@@ -307,7 +307,11 @@ export async function searchLiterature(
 
   const headers: Record<string, string> = {};
   if (options?.profileContext) {
-    headers['X-LENA-Profile-Context'] = options.profileContext.slice(0, 2000);
+    // fetch() rejects header values outside Latin-1 (emojis, smart quotes, etc.).
+    // URI-encode so personalised search works for any profile notes.
+    headers['X-LENA-Profile-Context'] = encodeURIComponent(
+      options.profileContext.slice(0, 2000),
+    );
   }
   if (options?.sessionToken) {
     headers['Authorization'] = `Bearer ${options.sessionToken}`;

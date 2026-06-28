@@ -8,24 +8,26 @@ const PRODUCTION_API_DEFAULT = 'https://lena-production-health.up.railway.app/ap
 
 /**
  * Resolve the API base URL.
- * - NEXT_PUBLIC_API_URL at build time (preferred)
- * - Production Railway host → backend service URL
+ * - Browser on deployed frontend → same-origin `/api` (middleware proxies to backend)
+ * - NEXT_PUBLIC_API_URL at build time for SSR/server fallbacks
  * - Development → /api (Next.js rewrite to localhost:8000)
  */
 export function resolveApiBase(): string {
-  const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
-  if (fromEnv) return fromEnv.replace(/\/$/, '');
-
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
     if (
       host === 'lena-app.up.railway.app'
       || host.endsWith('.up.railway.app')
       || host.includes('lena-app')
+      || host === 'localhost'
+      || host === '127.0.0.1'
     ) {
-      return PRODUCTION_API_DEFAULT;
+      return '/api';
     }
   }
+
+  const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (fromEnv) return fromEnv.replace(/\/$/, '');
 
   if (process.env.NODE_ENV === 'production') {
     return PRODUCTION_API_DEFAULT;

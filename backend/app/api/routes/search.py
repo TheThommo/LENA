@@ -2,6 +2,8 @@
 Search routes - the core LENA query endpoint.
 """
 
+from urllib.parse import unquote
+
 from fastapi import APIRouter, Query, Request
 from typing import Optional
 import uuid
@@ -88,7 +90,8 @@ async def search_literature(
     bypass_all = bool(getattr(request.state, "bypass_all", False))
 
     # Step 4: Run the full search pipeline (guardrail + parallel queries + PULSE + caching)
-    profile_context = request.headers.get("X-LENA-Profile-Context") or None
+    profile_raw = request.headers.get("X-LENA-Profile-Context") or None
+    profile_context = unquote(profile_raw) if profile_raw else None
     search_result = await run_search(
         query=q,
         max_results_per_source=max_results,

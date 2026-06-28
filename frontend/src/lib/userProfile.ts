@@ -113,5 +113,5 @@ export function buildProfileContextForSearch(userId?: string | null): string | u
   }
 
   if (lines.length === 0) return undefined;
-  return lines.join('\n').slice(0, 2000);
+  return lines.join(' ').slice(0, 2000);
 }
