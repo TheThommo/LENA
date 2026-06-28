@@ -301,6 +301,7 @@ export async function searchLiterature(
     projectId?: string;
     profileContext?: string;
     attachedContext?: string;
+    attachmentMeta?: { filename: string; kind: string };
   }
 ): Promise<SearchResponse> {
   const params = new URLSearchParams({ q: query });
@@ -327,6 +328,11 @@ export async function searchLiterature(
   if (options?.attachedContext) {
     headers['X-LENA-Attached-Context'] = encodeURIComponent(
       options.attachedContext.slice(0, 16000),
+    );
+  }
+  if (options?.attachmentMeta) {
+    headers['X-LENA-Attachment-Meta'] = encodeURIComponent(
+      JSON.stringify(options.attachmentMeta),
     );
   }
   if (options?.sessionToken) {

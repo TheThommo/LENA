@@ -94,6 +94,17 @@ async def search_literature(
     profile_context = unquote(profile_raw) if profile_raw else None
     attached_raw = request.headers.get("X-LENA-Attached-Context") or None
     attached_context = unquote(attached_raw) if attached_raw else None
+    attached_meta_raw = request.headers.get("X-LENA-Attachment-Meta") or None
+    attached_filename: str | None = None
+    attached_kind: str | None = None
+    if attached_meta_raw:
+        try:
+            import json
+            meta = json.loads(unquote(attached_meta_raw))
+            attached_filename = meta.get("filename") or None
+            attached_kind = meta.get("kind") or None
+        except Exception:
+            pass
     search_result = await run_search(
         query=q,
         max_results_per_source=max_results,
@@ -104,6 +115,8 @@ async def search_literature(
         bypass_guardrails=bypass_all,
         profile_context=profile_context,
         attached_context=attached_context,
+        attached_filename=attached_filename,
+        attached_kind=attached_kind,
     )
 
     # A "chargeable" search is one that was NOT guardrail-blocked AND

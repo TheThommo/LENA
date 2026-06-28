@@ -11,6 +11,7 @@ import { buildResearchSharePayload } from '@/lib/shareResearch';
 import SupplementVerificationCard from './SupplementVerificationCard';
 import ShareModal from './ShareModal';
 import PulseExplainer from '@/components/pulse/PulseExplainer';
+import { resolvePulseConfidencePercent } from '@/lib/pulseLabels';
 
 /* ────────────────────────────────────────
    Lightweight Markdown → JSX renderer
@@ -184,9 +185,17 @@ interface ProjectOption {
   emoji: string | null;
 }
 
+interface MessageAttachment {
+  name: string;
+  kind: string;
+  previewUrl?: string;
+  charCount?: number;
+}
+
 interface ChatMessageProps {
   type: 'user' | 'assistant';
   content: string;
+  attachment?: MessageAttachment;
   response?: SearchResponse;
   /** Currently active result-mode filters; used for client-side filtering of
    *  results returned by the backend. ['all'] (or missing) means show everything. */
@@ -234,7 +243,7 @@ function getPulseScoreBadge(score: number) {
 function generateSummary(response: SearchResponse): string {
   const sourceCount = response.sources_queried.length;
   const { total_results, pulse_report } = response;
-  const confidence = Math.round(pulse_report.confidence_ratio * 100);
+  const confidence = resolvePulseConfidencePercent(pulse_report);
 
   let summary = `Based on analysis across ${sourceCount} medical database${sourceCount !== 1 ? 's' : ''}, I found ${total_results} relevant result${total_results !== 1 ? 's' : ''} for your query.`;
 
@@ -502,6 +511,7 @@ function SourceCardList({ allResults, query }: { allResults: { result: Validated
 export default function ChatMessage({
   type,
   content,
+  attachment,
   response,
   onFollowUp,
   activeModes,
@@ -718,8 +728,29 @@ export default function ChatMessage({
   if (type === 'user') {
     return (
       <div className="flex justify-end mb-4 animate-fade-in">
-        <div className="max-w-[75%] px-4 py-2.5 rounded-[20px] rounded-br-md text-white user-bubble">
-          <p className="text-[14px] leading-relaxed">{content}</p>
+        <div className="max-w-[75%]">
+          {attachment && (
+            <div className="flex justify-end mb-1.5">
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-xl bg-white/90 border border-white/30 text-[11px] text-slate-700 shadow-sm">
+                {attachment.previewUrl ? (
+                  <img
+                    src={attachment.previewUrl}
+                    alt=""
+                    className="w-8 h-8 rounded object-cover border border-slate-200"
+                  />
+                ) : (
+                  <span>📎</span>
+                )}
+                <span className="font-medium truncate max-w-[180px]">{attachment.name}</span>
+                {attachment.charCount ? (
+                  <span className="text-slate-500">({attachment.charCount.toLocaleString()} chars)</span>
+                ) : null}
+              </div>
+            </div>
+          )}
+          <div className="px-4 py-2.5 rounded-[20px] rounded-br-md text-white user-bubble">
+            <p className="text-[14px] leading-relaxed">{content}</p>
+          </div>
         </div>
       </div>
     );
@@ -840,6 +871,31 @@ export default function ChatMessage({
           />
         </div>
       </div>
+
+      {response?.attached_content && response.attached_content.length > 0 && (
+        <div className="mb-3 px-3 py-2.5 rounded-xl bg-emerald-50/80 border border-emerald-200/70">
+          <p className="text-[11px] font-semibold uppercase tracking-wide text-emerald-800 mb-1.5">
+            Label / document read
+          </p>
+          <ul className="space-y-1">
+            {response.attached_content.map((doc, i) => (
+              <li key={`${doc.source}-${i}`} className="flex items-start gap-2 text-[12px] text-emerald-900">
+                <span className="flex-shrink-0 mt-0.5">
+                  {doc.kind === 'image' ? '🖼️' : doc.kind === 'pdf' ? '📄' : '📎'}
+                </span>
+                <span>
+                  <span className="font-medium">{doc.title || doc.source}</span>
+                  {doc.error ? (
+                    <span className="text-amber-700"> — could not read: {doc.error}</span>
+                  ) : doc.chars ? (
+                    <span className="text-emerald-700"> — {doc.chars.toLocaleString()} characters used in this answer</span>
+                  ) : null}
+                </span>
+              </li>
+            ))}
+          </ul>
+        </div>
+      )}
 
       {/* Natural language summary */}
       <div className="space-y-4">

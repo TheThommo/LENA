@@ -1,4 +1,5 @@
 import type { SearchResponse, ValidatedResult } from '@/lib/api';
+import { resolvePulseConfidencePercent } from '@/lib/pulseLabels';
 
 const SOURCE_LABELS: Record<string, string> = {
   pubmed: 'PubMed',
@@ -71,7 +72,7 @@ function buildEvidenceSection(response: SearchResponse): string[] {
   const pr = response.pulse_report;
   if (!pr) return lines;
 
-  const confidence = Math.round((pr.confidence_ratio || 0) * 100);
+  const confidence = resolvePulseConfidencePercent(pr);
   const dbCount = response.sources_queried?.length || 0;
 
   lines.push('Evidence snapshot');

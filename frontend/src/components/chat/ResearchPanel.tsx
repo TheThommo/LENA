@@ -6,6 +6,7 @@ import { makeDocumentId, saveDocument, listDocuments } from '@/lib/savedDocument
 import { buildSessionEvidenceDocument, type SessionEvidenceInput } from '@/lib/evidenceDocument';
 import { downloadEvidencePdf } from '@/lib/evidencePdf';
 import { copyTextToClipboard } from '@/lib/clipboard';
+import { resolvePulseConfidencePercent } from '@/lib/pulseLabels';
 import PulseExplainer from '@/components/pulse/PulseExplainer';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 
@@ -402,9 +403,9 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
       .map(([kw]) => kw);
 
     // Average confidence
-    const confidences = responses.map(r => r.pulse_report.confidence_ratio);
+    const confidences = responses.map(r => resolvePulseConfidencePercent(r.pulse_report));
     const avgConfidence = confidences.length > 0
-      ? Math.round((confidences.reduce((a, b) => a + b, 0) / confidences.length) * 100)
+      ? Math.round(confidences.reduce((a, b) => a + b, 0) / confidences.length)
       : 0;
 
     // Total results: the active-mode filter drops rows from `citations`,
@@ -502,7 +503,7 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
         query: r.query,
         summary: r.llm_summary || '',
         attached: r.attached_content,
-        pulseConfidence: Math.round((r.pulse_report?.confidence_ratio || 0) * 100),
+        pulseConfidence: resolvePulseConfidencePercent(r.pulse_report),
         consensus: r.pulse_report?.status?.replace(/_/g, ' '),
         keyFinding: r.pulse_report?.consensus_summary,
         evidenceLevel: analysis.bestEvidence ? `Level ${analysis.bestEvidence}` : 'N/A',
