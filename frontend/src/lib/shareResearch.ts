@@ -7,6 +7,9 @@ const SOURCE_LABELS: Record<string, string> = {
   who_iris: 'WHO IRIS',
   cdc: 'CDC',
   openalex: 'OpenAlex',
+  semantic_scholar: 'Semantic Scholar',
+  europe_pmc: 'Europe PMC',
+  dailymed: 'FDA DailyMed',
   ods_dsld: 'NIH DSLD',
   openfda: 'openFDA',
 };

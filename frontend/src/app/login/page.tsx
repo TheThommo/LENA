@@ -24,7 +24,7 @@ export default function LoginPage() {
 
     try {
       await login(email, password);
-      router.push('/');
+      router.push('/chat');
     } catch (err) {
       setError(
         err instanceof Error

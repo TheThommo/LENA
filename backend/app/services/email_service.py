@@ -111,8 +111,8 @@ async def send_consent_confirmation_email(to_email: str, name: str) -> bool:
                 <div style="background: #f8fafc; border: 1px solid #e2e8f0; border-radius: 12px; padding: 16px 20px; margin-bottom: 24px; font-size: 13px; line-height: 1.7; color: #334155;">
                     <p style="margin: 0 0 8px 0;"><strong>What you can do now:</strong></p>
                     <ul style="margin: 0; padding-left: 18px;">
-                        <li>Run up to 5 literature searches per day on the free tier</li>
-                        <li>Query 250M+ papers across PubMed, Cochrane, OpenAlex and more</li>
+                        <li>Run up to 10 literature searches per month on the free tier</li>
+                        <li>Query 250M+ papers across 11 databases including PubMed, Cochrane, and Semantic Scholar</li>
                         <li>See cross-source PULSE validation on every result</li>
                     </ul>
                 </div>

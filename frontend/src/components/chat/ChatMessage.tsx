@@ -208,8 +208,11 @@ const SOURCE_COLORS: Record<string, { border: string; bg: string; text: string; 
   who_iris:        { border: 'border-l-[#0891B2]', bg: 'bg-cyan-50',    text: 'text-cyan-700',    label: 'WHO IRIS' },
   cdc:             { border: 'border-l-[#059669]', bg: 'bg-emerald-50', text: 'text-emerald-700', label: 'CDC' },
   openalex:        { border: 'border-l-[#DC2626]', bg: 'bg-red-50',     text: 'text-red-700',     label: 'OpenAlex' },
+  semantic_scholar:{ border: 'border-l-[#4F46E5]', bg: 'bg-indigo-50',  text: 'text-indigo-700',  label: 'Semantic Scholar' },
+  europe_pmc:      { border: 'border-l-[#0284C7]', bg: 'bg-sky-50',     text: 'text-sky-700',     label: 'Europe PMC' },
+  dailymed:        { border: 'border-l-[#DB2777]', bg: 'bg-pink-50',    text: 'text-pink-700',    label: 'FDA DailyMed' },
   ods_dsld:        { border: 'border-l-[#0D9488]', bg: 'bg-teal-50',    text: 'text-teal-700',    label: 'NIH DSLD' },
-  openfda:         { border: 'border-l-[#B91C1C]', bg: 'bg-rose-50',    text: 'text-rose-700',    label: 'openFDA CAERS' },
+  openfda:         { border: 'border-l-[#B91C1C]', bg: 'bg-rose-50',    text: 'text-rose-700',    label: 'openFDA' },
 };
 
 function getSourceStyle(source: string) {

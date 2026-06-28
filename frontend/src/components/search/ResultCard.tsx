@@ -14,6 +14,12 @@ const SOURCE_COLORS: Record<string, { badge: string; bar: string; label: string 
   cochrane: { badge: 'bg-orange-50 text-orange-700 border-orange-200', bar: 'bg-orange-500', label: 'Cochrane' },
   who_iris: { badge: 'bg-cyan-50 text-cyan-700 border-cyan-200', bar: 'bg-cyan-500', label: 'WHO IRIS' },
   cdc: { badge: 'bg-emerald-50 text-emerald-700 border-emerald-200', bar: 'bg-emerald-500', label: 'CDC' },
+  openalex: { badge: 'bg-red-50 text-red-700 border-red-200', bar: 'bg-red-500', label: 'OpenAlex' },
+  semantic_scholar: { badge: 'bg-indigo-50 text-indigo-700 border-indigo-200', bar: 'bg-indigo-500', label: 'Semantic Scholar' },
+  europe_pmc: { badge: 'bg-sky-50 text-sky-700 border-sky-200', bar: 'bg-sky-500', label: 'Europe PMC' },
+  dailymed: { badge: 'bg-pink-50 text-pink-700 border-pink-200', bar: 'bg-pink-500', label: 'FDA DailyMed' },
+  ods_dsld: { badge: 'bg-teal-50 text-teal-700 border-teal-200', bar: 'bg-teal-500', label: 'NIH DSLD' },
+  openfda: { badge: 'bg-rose-50 text-rose-700 border-rose-200', bar: 'bg-rose-500', label: 'openFDA' },
 };
 
 export default function ResultCard({ result, isEdgeCase = false, compact = false }: ResultCardProps) {

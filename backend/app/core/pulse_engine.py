@@ -62,6 +62,11 @@ SOURCE_EVIDENCE_DEFAULTS = {
     "who_iris": "unknown",
     "cdc": "observational",
     "openalex": "unknown",
+    "semantic_scholar": "unknown",
+    "europe_pmc": "unknown",
+    "dailymed": "unknown",
+    "ods_dsld": "observational",
+    "openfda": "observational",
 }
 
 # Patterns to detect study type from abstract text

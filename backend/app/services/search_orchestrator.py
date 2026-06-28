@@ -14,7 +14,7 @@ from app.core.pulse_engine import SourceResult, run_pulse_validation, PULSERepor
 from app.core.guardrails import run_all_guardrails
 from app.core.logging import get_logger
 from app.core.config import settings
-from app.services import pubmed, clinical_trials, cochrane, who_iris, cdc, openalex, ods_dsld, openfda
+from app.services import pubmed, clinical_trials, cochrane, who_iris, cdc, openalex, ods_dsld, openfda, semantic_scholar, europe_pmc, dailymed
 from app.services.topic_classifier import classify_query_topic
 from app.services.result_cache import get_cached_result, cache_result
 from app.services.outlier_authors import (
@@ -26,7 +26,11 @@ logger = get_logger("lena.search")
 
 
 # Maps source names to their query functions
-ALL_SOURCES = ["pubmed", "clinical_trials", "cochrane", "who_iris", "cdc", "openalex", "ods_dsld", "openfda"]
+ALL_SOURCES = [
+    "pubmed", "clinical_trials", "cochrane", "who_iris", "cdc", "openalex",
+    "semantic_scholar", "europe_pmc", "dailymed",
+    "ods_dsld", "openfda",
+]
 
 
 async def _query_pubmed(query: str, max_results: int) -> list[SourceResult]:
@@ -52,16 +56,24 @@ async def _query_pubmed(query: str, max_results: int) -> list[SourceResult]:
 async def _query_clinical_trials(query: str, max_results: int) -> list[SourceResult]:
     """Query ClinicalTrials.gov and convert to SourceResult objects."""
     trials = await clinical_trials.search_trials(query, max_results=max_results)
-    return [
-        SourceResult(
-            source_name="clinical_trials",
-            title=t.title,
-            summary=t.summary,
-            url=t.url,
-            year=int(t.start_date[:4]) if t.start_date and len(t.start_date) >= 4 else None,
+    results = []
+    for t in trials:
+        summary = t.summary or ""
+        if t.nct_id:
+            summary += (
+                f"\n\nIPD data may be available via Vivli (partner platform): "
+                f"https://vivli.org/ — search for {t.nct_id}"
+            )
+        results.append(
+            SourceResult(
+                source_name="clinical_trials",
+                title=t.title,
+                summary=summary.strip(),
+                url=t.url,
+                year=int(t.start_date[:4]) if t.start_date and len(t.start_date) >= 4 else None,
+            )
         )
-        for t in trials
-    ]
+    return results
 
 
 async def _query_cochrane(query: str, max_results: int) -> list[SourceResult]:
@@ -160,6 +172,51 @@ async def _query_openfda(query: str, max_results: int) -> list[SourceResult]:
     ]
 
 
+async def _query_dailymed(query: str, max_results: int) -> list[SourceResult]:
+    labels = await dailymed.search_dailymed(query, max_results=max_results)
+    return [
+        SourceResult(
+            source_name="dailymed",
+            title=l.title,
+            summary=l.summary,
+            url=l.url,
+        )
+        for l in labels
+    ]
+
+
+async def _query_semantic_scholar(query: str, max_results: int) -> list[SourceResult]:
+    papers = await semantic_scholar.search_semantic_scholar(query, max_results=max_results)
+    return [
+        SourceResult(
+            source_name="semantic_scholar",
+            title=p.title,
+            summary=p.abstract,
+            url=p.url,
+            doi=p.doi,
+            year=p.year,
+            authors=list(p.authors or []),
+        )
+        for p in papers
+    ]
+
+
+async def _query_europe_pmc(query: str, max_results: int) -> list[SourceResult]:
+    articles = await europe_pmc.search_europe_pmc(query, max_results=max_results)
+    return [
+        SourceResult(
+            source_name="europe_pmc",
+            title=a.title,
+            summary=a.abstract,
+            url=a.url,
+            doi=a.doi,
+            year=a.year,
+            authors=list(a.authors or []),
+        )
+        for a in articles
+    ]
+
+
 # Map source names to their query functions
 SOURCE_QUERY_MAP = {
     "pubmed": _query_pubmed,
@@ -168,6 +225,9 @@ SOURCE_QUERY_MAP = {
     "who_iris": _query_who_iris,
     "cdc": _query_cdc,
     "openalex": _query_openalex,
+    "semantic_scholar": _query_semantic_scholar,
+    "europe_pmc": _query_europe_pmc,
+    "dailymed": _query_dailymed,
     "ods_dsld": _query_ods_dsld,
     "openfda": _query_openfda,
 }
@@ -272,6 +332,9 @@ async def _generate_llm_summary(
             "who_iris": "WHO IRIS",
             "cdc": "CDC Open Data",
             "openalex": "OpenAlex",
+            "semantic_scholar": "Semantic Scholar",
+            "europe_pmc": "Europe PMC",
+            "dailymed": "FDA DailyMed (drug labels)",
             "ods_dsld": "NIH ODS DSLD (supplement labels)",
             "openfda": "openFDA CAERS (adverse events)",
         }

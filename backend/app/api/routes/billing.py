@@ -6,9 +6,9 @@ Scaffolded before Stripe keys are in Railway env. All endpoints return
 frontend can degrade gracefully to a mailto fallback.
 
 Plans (env-driven, not hardcoded):
-- pro_monthly   ($30/mo)   -> STRIPE_PRICE_PRO_MONTHLY
-- pro_annual    ($300/yr)  -> STRIPE_PRICE_PRO_ANNUAL
-- pro_founding  ($50/yr)   -> STRIPE_PRICE_PRO_FOUNDING  (first 50 only)
+- pro_monthly   ($19/mo)   -> STRIPE_PRICE_PRO_MONTHLY
+- pro_annual    ($190/yr)  -> STRIPE_PRICE_PRO_ANNUAL
+- pro_founding  ($50/yr)   -> STRIPE_PRICE_PRO_FOUNDING  (first 10 only)
 
 Webhook events handled:
 - checkout.session.completed          -> write customer/subscription IDs
