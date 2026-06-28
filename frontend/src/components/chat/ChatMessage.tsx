@@ -7,6 +7,7 @@ import { branding } from '@/config/branding';
 import type { SearchResponse, ValidatedResult, ResultMode, SupplementVerification } from '@/lib/api';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import { logShareEvent, LenaUpgradeRequiredError } from '@/lib/api';
+import { buildResearchSharePayload } from '@/lib/shareResearch';
 import SupplementVerificationCard from './SupplementVerificationCard';
 import ShareModal from './ShareModal';
 import PulseExplainer from '@/components/pulse/PulseExplainer';
@@ -620,41 +621,44 @@ export default function ChatMessage({
   const renderShareMenu = () => {
     if (!shareOpen || !sharePos || !response || typeof document === 'undefined') return null;
 
-    const rawQuery = response.query || '';
-    const shortQuery = rawQuery.length > 140 ? `${rawQuery.slice(0, 137)}…` : rawQuery;
-    const shareText = `LENA research: "${shortQuery}"`;
-    const shareUrl = window.location.href;
-    const encUrl = encodeURIComponent(shareUrl);
-    const encText = encodeURIComponent(shareText);
+    const share = buildResearchSharePayload({
+      response,
+      content,
+      shareUrl: window.location.origin,
+    });
+    const encUrl = encodeURIComponent(share.shareUrl);
+    const encTeaser = encodeURIComponent(share.socialTeaser);
+    const encFull = encodeURIComponent(share.fullText);
+    const encSubject = encodeURIComponent(share.emailSubject);
     const copyLabel = shareCopied
-      ? 'Link copied!'
+      ? 'Brief copied!'
       : shareCopyFailed
         ? 'Copy failed — tap to retry'
-        : 'Copy link';
+        : 'Copy research brief';
     const channels = [
       { key: 'copy', label: copyLabel,
-        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />,
+        icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />,
         action: async () => {
-          const ok = await copyTextToClipboard(`${shareText}\n${shareUrl}`);
+          const ok = await copyTextToClipboard(share.fullText);
           setShareCopied(ok);
           setShareCopyFailed(!ok);
           if (ok) window.setTimeout(() => setShareCopied(false), 2500);
         } },
       { key: 'x', label: 'X (Twitter)',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />,
-        href: `https://twitter.com/intent/tweet?text=${encText}&url=${encUrl}` },
+        href: `https://twitter.com/intent/tweet?text=${encTeaser}&url=${encUrl}` },
       { key: 'linkedin', label: 'LinkedIn',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.447 20.452h-3.554v-5.569c0-1.328-.027-3.037-1.852-3.037-1.853 0-2.136 1.445-2.136 2.939v5.667H9.351V9h3.414v1.561h.046c.477-.9 1.637-1.85 3.37-1.85 3.601 0 4.267 2.37 4.267 5.455v6.286zM5.337 7.433a2.062 2.062 0 01-2.063-2.065 2.063 2.063 0 112.063 2.065zm1.782 13.019H3.555V9h3.564v11.452z" />,
-        href: `https://www.linkedin.com/sharing/share-offsite/?url=${encUrl}` },
+        href: `https://www.linkedin.com/shareArticle?mini=true&url=${encUrl}&title=${encSubject}&summary=${encTeaser}` },
       { key: 'facebook', label: 'Facebook',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M22 12a10 10 0 10-11.5 9.87v-6.98H8v-2.89h2.5V9.8c0-2.47 1.47-3.83 3.72-3.83 1.08 0 2.21.19 2.21.19v2.43h-1.24c-1.22 0-1.6.76-1.6 1.54v1.85h2.72l-.43 2.89h-2.29v6.98A10 10 0 0022 12z" />,
-        href: `https://www.facebook.com/sharer/sharer.php?u=${encUrl}&quote=${encText}` },
+        href: `https://www.facebook.com/sharer/sharer.php?u=${encUrl}&quote=${encTeaser}` },
       { key: 'whatsapp', label: 'WhatsApp',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M20.52 3.48A11.9 11.9 0 0012 0a11.9 11.9 0 00-10.34 17.92L0 24l6.22-1.63A11.9 11.9 0 0012 24a11.9 11.9 0 0012-12 11.9 11.9 0 00-3.48-8.52z" />,
-        href: `https://wa.me/?text=${encText}%20${encUrl}` },
+        href: `https://wa.me/?text=${encFull}` },
       { key: 'email', label: 'Email',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />,
-        href: `mailto:?subject=${encText}&body=${encText}%0A%0A${encUrl}` },
+        href: `mailto:?subject=${encSubject}&body=${encFull}` },
     ];
 
     return createPortal(
