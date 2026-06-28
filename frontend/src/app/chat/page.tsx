@@ -33,6 +33,7 @@ import {
   normalizeRecentSession,
   sessionNeedsTimestampMigration,
 } from '@/lib/sessionTime';
+import { resolvePulseConfidencePercent } from '@/lib/pulseLabels';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { BrandMark } from '@/components/brand/BrandMark';
 import { useMediaQuery, useVisualViewportBottomInset } from '@/hooks/useMediaQuery';
@@ -45,10 +46,18 @@ const RESULT_MODE_OPTIONS = [
   { id: 'outlier' as ResultMode, label: 'Outlier', shortLabel: 'Out.' },
 ];
 
+interface MessageAttachment {
+  name: string;
+  kind: string;
+  previewUrl?: string;
+  charCount?: number;
+}
+
 interface Message {
   id: string;
   type: 'user' | 'assistant';
   content: string;
+  attachment?: MessageAttachment;
   response?: SearchResponse;
   timestamp: Date;
 }
@@ -70,7 +79,12 @@ export default function Home() {
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
-  const [pendingAttachment, setPendingAttachment] = useState<{ name: string; text: string } | null>(null);
+  const [pendingAttachment, setPendingAttachment] = useState<{
+    name: string;
+    text: string;
+    kind: string;
+    previewUrl?: string;
+  } | null>(null);
   const [attaching, setAttaching] = useState(false);
   const [loading, setLoading] = useState(false);
   type ClientNotice = { kind: 'support' } | { kind: 'upgrade'; message: string };
@@ -122,6 +136,45 @@ export default function Home() {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const attachFile = useCallback(async (file: File) => {
+    setAttaching(true);
+    try {
+      const ingested = await ingestDocument(file);
+      if (!ingested.text?.trim()) {
+        setClientNotice({
+          kind: 'upgrade',
+          message: 'LENA could not read text from that file. Try a clearer photo of the label, or paste the product URL in your question.',
+        });
+        return;
+      }
+      const previewUrl = file.type.startsWith('image/')
+        ? URL.createObjectURL(file)
+        : undefined;
+      setPendingAttachment({
+        name: ingested.filename || ingested.title || file.name,
+        text: ingested.text,
+        kind: ingested.kind || (file.type.startsWith('image/') ? 'image' : 'text'),
+        previewUrl,
+      });
+    } catch {
+      setClientNotice({
+        kind: 'upgrade',
+        message: 'Could not read that file. Try a JPG/PNG label photo, PDF, or paste the product link in your question.',
+      });
+    } finally {
+      setAttaching(false);
+    }
+  }, []);
+
+  // Revoke blob preview URLs when attachment is removed or replaced
+  useEffect(() => {
+    return () => {
+      if (pendingAttachment?.previewUrl) {
+        URL.revokeObjectURL(pendingAttachment.previewUrl);
+      }
+    };
+  }, [pendingAttachment?.previewUrl]);
   const currentSessionIdRef = useRef<string>(Date.now().toString());
 
   // ── Recent sessions: per-user, auth-gated, zero-leak ──────────────
@@ -419,7 +472,18 @@ export default function Home() {
 
     setInput('');
     setClientNotice(null);
+    const attachmentSnapshot: MessageAttachment | undefined = pendingAttachment
+      ? {
+          name: pendingAttachment.name,
+          kind: pendingAttachment.kind,
+          previewUrl: pendingAttachment.previewUrl,
+          charCount: pendingAttachment.text.length,
+        }
+      : undefined;
     const attachmentText = pendingAttachment?.text;
+    const attachmentMeta = pendingAttachment
+      ? { filename: pendingAttachment.name, kind: pendingAttachment.kind }
+      : undefined;
     setPendingAttachment(null);
     if (inputRef.current) {
       inputRef.current.style.height = 'auto';
@@ -430,6 +494,7 @@ export default function Home() {
       id: `user-${Date.now()}`,
       type: 'user',
       content: query,
+      attachment: attachmentSnapshot,
       timestamp: new Date(),
     };
     setMessages(prev => [...prev, userMsg]);
@@ -447,6 +512,7 @@ export default function Home() {
         persona: session.persona,
         profileContext: buildProfileContextForSearch(user?.id),
         attachedContext: attachmentText,
+        attachmentMeta,
         projectId: isAuthenticated && activeProjectId ? activeProjectId : undefined,
       });
 
@@ -965,6 +1031,7 @@ export default function Home() {
                     key={msg.id}
                     type={msg.type}
                     content={msg.content}
+                    attachment={msg.attachment}
                     response={msg.response}
                     activeModes={resultModes}
                     onFollowUp={(q) => handleSend(q)}
@@ -1044,13 +1111,32 @@ export default function Home() {
               </div>
             )}
             {pendingAttachment && (
-              <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700">
-                <span className="font-medium">📎 {pendingAttachment.name}</span>
-                <span className="text-slate-500 truncate flex-1">Label / document attached — LENA will read it with your question</span>
+              <div className="mb-2 flex items-center gap-3 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700">
+                {pendingAttachment.previewUrl ? (
+                  <img
+                    src={pendingAttachment.previewUrl}
+                    alt=""
+                    className="w-10 h-10 rounded object-cover border border-slate-200 flex-shrink-0"
+                  />
+                ) : (
+                  <span className="text-base flex-shrink-0">📎</span>
+                )}
+                <div className="min-w-0 flex-1">
+                  <p className="font-medium truncate">{pendingAttachment.name}</p>
+                  <p className="text-slate-500 truncate">
+                    Label / document attached — LENA will read it with your question
+                    {pendingAttachment.text ? ` (${pendingAttachment.text.length.toLocaleString()} chars extracted)` : ''}
+                  </p>
+                </div>
                 <button
                   type="button"
-                  onClick={() => setPendingAttachment(null)}
-                  className="text-slate-400 hover:text-slate-700"
+                  onClick={() => {
+                    if (pendingAttachment.previewUrl) {
+                      URL.revokeObjectURL(pendingAttachment.previewUrl);
+                    }
+                    setPendingAttachment(null);
+                  }}
+                  className="text-slate-400 hover:text-slate-700 flex-shrink-0"
                   aria-label="Remove attachment"
                 >
                   ✕
@@ -1067,15 +1153,7 @@ export default function Home() {
                   const file = e.target.files?.[0];
                   e.target.value = '';
                   if (!file) return;
-                  setAttaching(true);
-                  try {
-                    const ingested = await ingestDocument(file);
-                    setPendingAttachment({ name: ingested.title || file.name, text: ingested.text });
-                  } catch (err) {
-                    setClientNotice({ kind: 'support' });
-                  } finally {
-                    setAttaching(false);
-                  }
+                  await attachFile(file);
                 }}
               />
               <button
@@ -1097,6 +1175,19 @@ export default function Home() {
                 ref={inputRef}
                 value={input}
                 onChange={handleInputChange}
+                onPaste={(e) => {
+                  const items = e.clipboardData?.items;
+                  if (!items) return;
+                  for (let i = 0; i < items.length; i++) {
+                    const item = items[i];
+                    if (item.type.startsWith('image/')) {
+                      e.preventDefault();
+                      const file = item.getAsFile();
+                      if (file) void attachFile(file);
+                      return;
+                    }
+                  }
+                }}
                 onKeyDown={handleKeyDown}
                 placeholder="Ask LENA a research question — paste a product link or attach a label"
                 rows={1}
@@ -1113,7 +1204,7 @@ export default function Home() {
               </button>
             </div>
             <div className="flex items-center justify-between mt-1.5 px-1">
-              <span className="text-[11px] text-slate-400 hidden sm:inline">Paste URLs · attach labels · Shift+Enter new line</span>
+              <span className="text-[11px] text-slate-400 hidden sm:inline">Paste URLs · paste or attach label photos · Shift+Enter new line</span>
               <span className="text-[11px] text-slate-400">{product.tagline}</span>
             </div>
           </div>
@@ -1302,7 +1393,7 @@ function generateSummary(result: SearchResponse): string {
   }
 
   const sourceCount = (sources_queried || []).length;
-  const confidence = Math.round((pulse_report.confidence_ratio || 0) * 100);
+  const confidence = resolvePulseConfidencePercent(pulse_report);
   const statusLabel = {
     validated: 'strong consensus',
     edge_case: 'mixed evidence',

@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import type { PulseReport } from '@/lib/api';
-import { formatSourceName, formatStudyType, PULSE_STATUS_LABELS } from '@/lib/pulseLabels';
+import { formatSourceName, formatStudyType, PULSE_STATUS_LABELS, resolvePulseConfidencePercent, resolvePulseStatusLabel } from '@/lib/pulseLabels';
 
 interface PulseExplainerProps {
   report: PulseReport;
@@ -89,7 +89,7 @@ export default function PulseExplainer({
   const [expanded, setExpanded] = useState(!compact);
   const [showMethodology, setShowMethodology] = useState(false);
 
-  const confidencePct = Math.round((report.confidence_ratio || 0) * 100);
+  const confidencePct = resolvePulseConfidencePercent(report);
   const attempted = report.sources_attempted ?? report.source_count;
   const failed = report.sources_failed ?? 0;
   const responded = report.source_count;
@@ -124,7 +124,7 @@ export default function PulseExplainer({
     }
     return reasons.slice(0, 4);
   }, [report, failed, bd]);
-  const statusLabel = PULSE_STATUS_LABELS[report.status] || report.status.replace(/_/g, ' ');
+  const statusLabel = resolvePulseStatusLabel(report);
 
   const statusTone =
     report.status === 'validated'
@@ -188,7 +188,7 @@ export default function PulseExplainer({
             />
             <MetricTile
               label="Papers shown"
-              value={report.validated_count ?? 0}
+              value={(report.validated_count ?? 0) + (report.edge_case_count ?? 0)}
               sub={strongestEvidence ? `incl. ${strongestEvidence}` : 'top relevance'}
             />
           </div>

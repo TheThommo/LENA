@@ -408,6 +408,16 @@ class PULSEReport:
             raw_confidence *= (1.0 - (contradiction_penalty * 0.30))
 
         ratio = min(max(raw_confidence, 0.0), 0.95)
+
+        # Evidence-present floor: multi-source retrieval with papers should
+        # never display as 0% PULSE when cross-validation hasn't run yet.
+        if total_papers > 0 and ratio < 0.08:
+            baseline = min(
+                0.28,
+                0.035 * self.source_count + 0.008 * min(total_papers, 30),
+            )
+            ratio = max(ratio, baseline)
+
         return {
             "ratio": ratio,
             "cross_validation_density": round(xval_density, 2),

@@ -862,6 +862,17 @@ def _post_filter_by_query_fit(
     pulse_report.validated_results = kept
     pulse_report.edge_cases.extend(dropped)
 
+    # Never leave validated empty when papers exist — keeps PULSE scoring visible
+    if primary_terms and not pulse_report.validated_results:
+        pool = sorted(
+            pulse_report.edge_cases,
+            key=lambda r: r.relevance_score,
+            reverse=True,
+        )
+        if pool:
+            pulse_report.validated_results = pool[:8]
+            pulse_report.edge_cases = pool[8:]
+
 
 def _prioritize_display_keywords(result: SourceResult, subject_terms: list[str]) -> None:
     """Reorder keywords so query-relevant terms appear first; trim off-topic noise."""
@@ -963,6 +974,8 @@ async def run_search(
     bypass_guardrails: bool = False,
     profile_context: Optional[str] = None,
     attached_context: Optional[str] = None,
+    attached_filename: Optional[str] = None,
+    attached_kind: Optional[str] = None,
 ) -> dict:
     """
     Full LENA search pipeline:
@@ -1027,7 +1040,11 @@ async def run_search(
         strip_urls,
     )
     url_blocks = await ingest_urls_from_query(query)
-    header_blocks = await ingest_attached_context_header(attached_context)
+    header_blocks = await ingest_attached_context_header(
+        attached_context,
+        filename=attached_filename,
+        kind=attached_kind,
+    )
     attached_blocks = url_blocks + header_blocks
     attached_context_text = format_attached_context(attached_blocks)
     literature_query = strip_urls(query) or query

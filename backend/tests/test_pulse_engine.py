@@ -316,7 +316,21 @@ class TestPULSEValidation:
             assert cochrane_result.relevance_score <= 1.0
 
     @pytest.mark.asyncio
-    async def test_pulse_confidence_ratio_calculation(self, create_test_search_result):
+    async def test_pulse_confidence_floor_with_papers_no_xval(self, create_test_search_result):
+        """Multi-source results without cross-validation still earn a visible PULSE score."""
+        results = {
+            "pubmed": [create_test_search_result("pubmed", keywords=["aspirin", "headache"])],
+            "openalex": [create_test_search_result("openalex", keywords=["caffeine", "analgesic"])],
+            "clinical_trials": [create_test_search_result("clinical_trials", keywords=["aspirin", "trial"])],
+        }
+        report = await run_pulse_validation(
+            query="headache powders",
+            results_by_source=results,
+            subject_terms=["aspirin", "caffeine"],
+        )
+        assert report.confidence_ratio >= 0.08
+        assert report.to_dict()["confidence_ratio"] >= 0.08
+
         """Confidence ratio should be agreement_count / source_count."""
         results = {
             "pubmed": [create_test_search_result("pubmed", keywords=["heart", "failure"])],

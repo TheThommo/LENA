@@ -213,11 +213,17 @@ def format_attached_context(blocks: list[IngestedContent]) -> str:
     return "\n\n".join(lines)
 
 
-async def ingest_attached_context_header(raw_header: Optional[str]) -> list[IngestedContent]:
+async def ingest_attached_context_header(
+    raw_header: Optional[str],
+    filename: Optional[str] = None,
+    kind: Optional[str] = None,
+) -> list[IngestedContent]:
     """Parse pre-ingested attachment text from X-LENA-Attached-Context header."""
     if not raw_header or not raw_header.strip():
         return []
-    return [IngestedContent("text", "upload", "Attached document", raw_header.strip()[:MAX_ATTACH_CHARS])]
+    name = (filename or "Attached document").strip()
+    attach_kind = (kind or "text").strip()
+    return [IngestedContent(attach_kind, name, name, raw_header.strip()[:MAX_ATTACH_CHARS])]
 
 
 # Known active ingredients / drug names for product-context search steering.
