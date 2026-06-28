@@ -11,6 +11,7 @@ import ThinkingIndicator from '@/components/search/ThinkingIndicator';
 import SearchLimitModal from '@/components/funnel/SearchLimitModal';
 import DisclaimerCard from '@/components/chat/DisclaimerCard';
 import UpgradeCTACard from '@/components/chat/UpgradeCTACard';
+import ContactSupportCard from '@/components/chat/ContactSupportCard';
 import PersonaSelector from '@/components/PersonaSelector';
 import ComingSoon, { COMMUNITY_CONFIG, CONTRIBUTION_CONFIG } from '@/components/views/ComingSoon';
 import HowItWorks from '@/components/views/HowItWorks';
@@ -20,7 +21,7 @@ import { useSession } from '@/contexts/SessionContext';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
-import { searchLiterature, SearchResponse, ResultMode, listProjectSearches, type ProjectSearch, getBillingStatus, createCheckoutSession, type BillingPlan, fetchSavedDocuments, upsertSavedDocumentApi, deleteSavedDocumentApi } from '@/lib/api';
+import { searchLiterature, SearchResponse, ResultMode, listProjectSearches, type ProjectSearch, getBillingStatus, createCheckoutSession, type BillingPlan, fetchSavedDocuments, upsertSavedDocumentApi, deleteSavedDocumentApi, LenaSystemError, LenaUpgradeRequiredError } from '@/lib/api';
 import {
   configureDocumentsSync,
   hydrateDocumentsFromCloud,
@@ -70,7 +71,8 @@ export default function Home() {
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  type ClientNotice = { kind: 'support' } | { kind: 'upgrade'; message: string };
+  const [clientNotice, setClientNotice] = useState<ClientNotice | null>(null);
   const [signupModalOpen, setSignupModalOpen] = useState(false);
 
   // UI state
@@ -154,7 +156,7 @@ export default function Home() {
       if (prevUserIdRef.current !== null) {
         setRecentSessions([]);
         setMessages([]);
-        setError(null);
+        setClientNotice(null);
       }
       prevUserIdRef.current = null;
       return;
@@ -355,7 +357,7 @@ export default function Home() {
     } catch {}
     if (currentSessionIdRef.current === sessionId) {
       setMessages([]);
-      setError(null);
+      setClientNotice(null);
       currentSessionIdRef.current = Date.now().toString();
     }
   }, [isAuthenticated, sessionsKey, threadsKey]);
@@ -413,7 +415,7 @@ export default function Home() {
     }
 
     setInput('');
-    setError(null);
+    setClientNotice(null);
     if (inputRef.current) {
       inputRef.current.style.height = 'auto';
     }
@@ -487,15 +489,11 @@ export default function Home() {
         refreshProjects();
       }
     } catch (err) {
-      const errorMessage = err instanceof Error ? err.message : 'An unexpected error occurred';
-      setError(errorMessage);
-      const errorMsg: Message = {
-        id: `assistant-${Date.now()}`,
-        type: 'assistant',
-        content: `I wasn't able to complete your search. ${errorMessage}. Please try again.`,
-        timestamp: new Date(),
-      };
-      setMessages(prev => [...prev, errorMsg]);
+      if (err instanceof LenaUpgradeRequiredError) {
+        setClientNotice({ kind: 'upgrade', message: err.message });
+      } else {
+        setClientNotice({ kind: 'support' });
+      }
     } finally {
       setLoading(false);
     }
@@ -550,7 +548,7 @@ export default function Home() {
     if (thread && thread.length > 0) {
       currentSessionIdRef.current = sessionId;
       setMessages(thread);
-      setError(null);
+      setClientNotice(null);
       setActiveView('chat');
       return;
     }
@@ -613,7 +611,7 @@ export default function Home() {
     restoringThreadRef.current = true;
     setActiveProjectId(projectId);
     setMessages([]);
-    setError(null);
+    setClientNotice(null);
     setInput('');
     currentSessionIdRef.current = Date.now().toString();
     lastProjectIdRef.current = projectId;
@@ -631,7 +629,7 @@ export default function Home() {
     const curr = activeProjectId || null;
     if (prev !== curr) {
       setMessages([]);
-      setError(null);
+      setClientNotice(null);
       currentSessionIdRef.current = Date.now().toString();
       lastProjectIdRef.current = curr;
     }
@@ -645,7 +643,7 @@ export default function Home() {
     restoringThreadRef.current = true;
     setActiveProjectId(null);
     setMessages([]);
-    setError(null);
+    setClientNotice(null);
     setActiveView('chat');
     currentSessionIdRef.current = Date.now().toString();
     inputRef.current?.focus();
@@ -984,10 +982,21 @@ export default function Home() {
                   <ThinkingIndicator />
                 </div>
               )}
-              {error && !loading && (
-                <div className="bg-red-50 border border-red-200 rounded-xl p-4">
-                  <p className="text-sm text-red-600">{error}</p>
-                </div>
+              {clientNotice?.kind === 'upgrade' && !loading && (
+                <UpgradeCTACard
+                  message={clientNotice.message}
+                  onUpgrade={() => handleUpgrade('pro_monthly')}
+                  onContact={() => {
+                    window.location.href = 'mailto:hello@lena-app.com?subject=LENA%20Enterprise%20enquiry';
+                  }}
+                />
+              )}
+              {clientNotice?.kind === 'support' && !loading && (
+                <ContactSupportCard
+                  onContact={() => {
+                    window.location.href = 'mailto:hello@lena-app.com?subject=LENA%20Support%20request';
+                  }}
+                />
               )}
               <div ref={messagesEndRef} />
             </div>

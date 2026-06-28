@@ -18,6 +18,7 @@ import {
   createProject,
   deleteProject,
   fetchProjectLimits,
+  LenaUpgradeRequiredError,
   listProjects,
   type Project,
   type ProjectLimits,
@@ -109,14 +110,17 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
 
   const createNew = useCallback(async (body: { name: string; description?: string; color?: string; emoji?: string }) => {
     if (!token) throw new Error('Sign in to create a project.');
-    const p = await createProject(token, body);
-    setProjects(prev => [p, ...prev]);
+    const result = await createProject(token, body);
+    if (result.kind === 'upgrade') {
+      throw new LenaUpgradeRequiredError(result.feature, result.message);
+    }
+    setProjects(prev => [result.project, ...prev]);
     setLimits(prev => prev ? {
       ...prev,
       active_count: prev.active_count + 1,
       can_create: prev.max_active == null || prev.active_count + 1 < prev.max_active,
     } : prev);
-    return p;
+    return result.project;
   }, [token]);
 
   const rename = useCallback(async (projectId: string, newName: string) => {
@@ -139,7 +143,11 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
 
   const unarchive = useCallback(async (projectId: string) => {
     if (!token) throw new Error('Sign in to unarchive a project.');
-    const updated = await updateProject(token, projectId, { archived: false });
+    const result = await updateProject(token, projectId, { archived: false });
+    if (typeof result === 'object' && result !== null && 'kind' in result && result.kind === 'upgrade') {
+      throw new LenaUpgradeRequiredError(result.feature, result.message);
+    }
+    const updated = result as Project;
     setProjects(prev => prev.map(p => (p.id === projectId ? updated : p)));
     setLimits(prev => prev ? {
       ...prev,

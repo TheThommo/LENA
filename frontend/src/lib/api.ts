@@ -321,14 +321,11 @@ export async function searchLiterature(
       await new Promise((r) => setTimeout(r, 800));
       response = await fetch(url, { headers });
     } catch {
-      throw new Error(
-        'Network error — LENA could not reach the search service. Check your connection and try again.',
-      );
+      throw new LenaSystemError();
     }
   }
 
   if (!response.ok) {
-    // HTTP/2 drops statusText, so read the JSON body (FastAPI returns {detail}).
     let detail = '';
     try {
       const body = await response.json();
@@ -336,9 +333,7 @@ export async function searchLiterature(
     } catch {
       // response body may not be JSON
     }
-    throw new Error(
-      `Search failed (${response.status}): ${detail || response.statusText || 'Unknown error'}`,
-    );
+    throwForFailedResponse(response.status, detail);
   }
   return response.json();
 }
@@ -461,15 +456,51 @@ function authHeaders(token: string): Record<string, string> {
   return { Authorization: `Bearer ${token}`, 'Content-Type': 'application/json' };
 }
 
+/** Thrown for plan limits — UI shows UpgradeCTACard, never red errors */
+export class LenaUpgradeRequiredError extends Error {
+  readonly isUpgradeRequired = true;
+  constructor(
+    public feature: string,
+    message: string,
+  ) {
+    super(message);
+    this.name = 'LenaUpgradeRequiredError';
+  }
+}
+
+/** Thrown for unexpected server failures — UI shows ContactSupportCard */
+export class LenaSystemError extends Error {
+  readonly isSystemError = true;
+  constructor() {
+    super('system');
+    this.name = 'LenaSystemError';
+  }
+}
+
+function throwForFailedResponse(status: number, detail: string): never {
+  const msg = typeof detail === 'string' ? detail : '';
+  if (status === 402 || status === 403) {
+    throw new LenaUpgradeRequiredError('feature', msg || 'Upgrade to Pro to unlock this feature.');
+  }
+  if (status >= 500) {
+    throw new LenaSystemError();
+  }
+  throw new Error(msg || 'Something went wrong. Please contact us if this keeps happening.');
+}
+
 async function readJsonOrThrow(response: Response, action: string) {
   if (!response.ok) {
     let detail = '';
     try { detail = (await response.json())?.detail || ''; } catch {}
-    throw new Error(`${action} failed (${response.status}): ${detail || 'Unknown error'}`);
+    throwForFailedResponse(response.status, detail || `${action} could not be completed`);
   }
   if (response.status === 204) return null;
   return response.json();
 }
+
+export type CreateProjectResult =
+  | { kind: 'project'; project: Project }
+  | { kind: 'upgrade'; message: string; feature: string };
 
 export interface ProjectLimits {
   plan: 'free' | 'pro';
@@ -491,26 +522,58 @@ export async function fetchProjectLimits(token: string): Promise<ProjectLimits> 
 export async function createProject(
   token: string,
   body: { name: string; description?: string; color?: string; emoji?: string },
-): Promise<Project> {
+): Promise<CreateProjectResult> {
   const r = await fetch(`${API_BASE}/projects`, {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(body),
   });
-  return (await readJsonOrThrow(r, 'Create project')) as Project;
+  let data: Record<string, unknown> = {};
+  try {
+    data = await r.json();
+  } catch {
+    /* empty */
+  }
+  if (data.upgrade_required) {
+    return {
+      kind: 'upgrade',
+      message: String(data.message || ''),
+      feature: String(data.feature || 'projects'),
+    };
+  }
+  if (!r.ok) {
+    throwForFailedResponse(r.status, String(data.detail || ''));
+  }
+  return { kind: 'project', project: data as unknown as Project };
 }
 
 export async function updateProject(
   token: string,
   projectId: string,
   body: Partial<{ name: string; description: string; color: string; emoji: string; archived: boolean }>,
-): Promise<Project> {
+): Promise<Project | CreateProjectResult> {
   const r = await fetch(`${API_BASE}/projects/${projectId}`, {
     method: 'PATCH',
     headers: authHeaders(token),
     body: JSON.stringify(body),
   });
-  return (await readJsonOrThrow(r, 'Update project')) as Project;
+  let data: Record<string, unknown> = {};
+  try {
+    data = await r.json();
+  } catch {
+    /* empty */
+  }
+  if (data.upgrade_required) {
+    return {
+      kind: 'upgrade',
+      message: String(data.message || ''),
+      feature: String(data.feature || 'projects'),
+    };
+  }
+  if (!r.ok) {
+    throwForFailedResponse(r.status, String(data.detail || ''));
+  }
+  return data as unknown as Project;
 }
 
 export async function deleteProject(token: string, projectId: string): Promise<void> {

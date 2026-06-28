@@ -6,7 +6,7 @@ import Image from 'next/image';
 import { branding } from '@/config/branding';
 import type { SearchResponse, ValidatedResult, ResultMode, SupplementVerification } from '@/lib/api';
 import { copyTextToClipboard } from '@/lib/clipboard';
-import { logShareEvent } from '@/lib/api';
+import { logShareEvent, LenaUpgradeRequiredError } from '@/lib/api';
 import SupplementVerificationCard from './SupplementVerificationCard';
 import ShareModal from './ShareModal';
 import PulseExplainer from '@/components/pulse/PulseExplainer';
@@ -511,7 +511,7 @@ export default function ChatMessage({
   const [creatingProject, setCreatingProject] = useState(false);
   const [newProjectName, setNewProjectName] = useState('');
   const [creatingBusy, setCreatingBusy] = useState(false);
-  const [createError, setCreateError] = useState<string | null>(null);
+  const [createUpgradeCta, setCreateUpgradeCta] = useState<string | null>(null);
   const [assignError, setAssignError] = useState<string | null>(null);
   const [assigningProject, setAssigningProject] = useState(false);
   const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
@@ -998,13 +998,21 @@ export default function ChatMessage({
                 if (!name || creatingBusy) return;
                 setCreatingBusy(true);
                 setCreateError(null);
+                setCreateUpgradeCta(null);
                 try {
                   const created = await onCreateProject(name);
                   await handleAssignToProject(created.id, created.name);
                   setCreatingProject(false);
                   setNewProjectName('');
                 } catch (err) {
-                  setCreateError(err instanceof Error ? err.message : 'Failed to create project');
+                  if (err instanceof LenaUpgradeRequiredError) {
+                    setCreateUpgradeCta(err.message);
+                    setCreatingProject(false);
+                    setNewProjectName('');
+                  } else {
+                    setCreateError(null);
+                    window.location.href = 'mailto:hello@lena-app.com?subject=LENA%20Support%20request';
+                  }
                 } finally {
                   setCreatingBusy(false);
                 }
@@ -1020,7 +1028,14 @@ export default function ChatMessage({
                 maxLength={80}
                   className="w-full px-2.5 py-2 input-touch border border-slate-200 rounded-lg outline-none focus:border-lena-400 focus:ring-2 focus:ring-lena-100 text-slate-800 placeholder-slate-400"
               />
-              {createError && <p className="text-[11px] text-red-600 mt-1.5 px-0.5">{createError}</p>}
+              {createUpgradeCta && (
+                <p
+                  className="text-[11px] text-slate-700 mt-1.5 px-0.5 leading-snug"
+                  dangerouslySetInnerHTML={{
+                    __html: createUpgradeCta.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'),
+                  }}
+                />
+              )}
               <div className="flex items-center gap-2 mt-2">
                 <button
                   type="submit"

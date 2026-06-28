@@ -60,9 +60,16 @@ class Settings(BaseSettings):
     # Per-user bypass allowlist. Comma-separated user UUIDs. These users
     # skip ALL gates: registered 24h quota, content guardrails (self-harm
     # / profanity / off-topic / disclaimer / medical-advice) and fingerprint
-    # limits. Used for internal testers (e.g. Lauren pre-launch) until the
-    # management console ships a first-class "grant full access" toggle.
+    # limits. Used for internal testers until the management console ships
+    # a first-class "grant full access" toggle.
     bypass_user_ids: str = ""
+
+    # Comma-separated emails with full access (owner + QA). Also see
+    # admin_email and internal_tester_local_names below.
+    bypass_user_emails: str = "mark.e.s.thompson@gmail.com"
+
+    # Email local-parts (before @) for internal testers, e.g. lauren → lauren@gmail.com
+    internal_tester_local_names: str = "lauren"
 
     # Email (Resend)
     resend_api_key: Optional[str] = None
@@ -110,6 +117,22 @@ class Settings(BaseSettings):
             uid.strip().lower()
             for uid in (self.bypass_user_ids or "").split(",")
             if uid.strip()
+        }
+
+    @property
+    def bypass_user_email_set(self) -> set[str]:
+        return {
+            e.strip().lower()
+            for e in (self.bypass_user_emails or "").split(",")
+            if e.strip()
+        }
+
+    @property
+    def internal_tester_local_names_set(self) -> set[str]:
+        return {
+            n.strip().lower()
+            for n in (self.internal_tester_local_names or "").split(",")
+            if n.strip()
         }
 
     def is_bypass_user(self, user_id: Optional[str]) -> bool:

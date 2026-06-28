@@ -13,9 +13,14 @@ from typing import Optional, List
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
 
 from app.core.auth import require_auth
+from app.core.entitlements import (
+    project_limit_upgrade_message,
+    user_has_full_access,
+)
 from app.core.logging import get_logger
 from app.db.supabase import get_supabase_admin_client
 
@@ -166,14 +171,27 @@ async def list_projects(user=Depends(require_auth)):
     return [_enrich(r, counts.get(r["id"], 0)) for r in rows]
 
 
-async def _project_limits_for_user(client, user_id: str) -> ProjectLimitsOut:
-    from app.core.config import settings as _settings
+async def _first_active_project_name(client, user_id: str) -> Optional[str]:
+    res = (
+        client.table("projects")
+        .select("name")
+        .eq("user_id", user_id)
+        .is_("archived_at", "null")
+        .order("created_at", desc=True)
+        .limit(1)
+        .execute()
+    )
+    if res.data:
+        return res.data[0].get("name")
+    return None
 
+
+async def _project_limits_for_user(client, user_id: str) -> ProjectLimitsOut:
     active = await _count_active_projects(client, user_id)
     is_free = await _user_plan_is_free(client, user_id)
-    bypass = _settings.is_bypass_user(user_id)
+    full_access = await user_has_full_access(client, user_id)
 
-    if bypass or not is_free:
+    if full_access or not is_free:
         return ProjectLimitsOut(
             plan="pro" if not is_free else "free",
             max_active=None,
@@ -196,24 +214,26 @@ async def project_limits(user=Depends(require_auth)):
     return await _project_limits_for_user(client, user["user_id"])
 
 
-@router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
+@router.post("")
 async def create_project(body: ProjectCreate, user=Depends(require_auth)):
     """Create a new project. Free tier capped at FREE_TIER_PROJECT_LIMIT active projects."""
     client = get_supabase_admin_client()
     user_id = user["user_id"]
     tenant_id = user["tenant_id"]
 
-    # Bypass users (internal testers) are never capped.
-    from app.core.config import settings as _settings
-    if not _settings.is_bypass_user(user_id) and await _user_plan_is_free(client, user_id):
+    full_access = await user_has_full_access(client, user_id)
+    if not full_access and await _user_plan_is_free(client, user_id):
         active = await _count_active_projects(client, user_id)
         if active >= FREE_TIER_PROJECT_LIMIT:
-            raise HTTPException(
-                status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                detail=(
-                    f"Free plan allows {FREE_TIER_PROJECT_LIMIT} active project. "
-                    "Archive an existing project (⋯ menu) or upgrade to Pro for unlimited projects."
-                ),
+            active_name = await _first_active_project_name(client, user_id)
+            return JSONResponse(
+                status_code=200,
+                content={
+                    "upgrade_required": True,
+                    "feature": "projects",
+                    "message": project_limit_upgrade_message(active_name),
+                    "active_project_name": active_name,
+                },
             )
 
     payload = {
@@ -227,7 +247,7 @@ async def create_project(body: ProjectCreate, user=Depends(require_auth)):
     res = client.table("projects").insert(payload).execute()
     if not res.data:
         raise HTTPException(status_code=500, detail="Failed to create project")
-    return _enrich(res.data[0], 0)
+    return JSONResponse(status_code=201, content=_enrich(res.data[0], 0).model_dump(mode="json"))
 
 
 @router.patch("/{project_id}", response_model=ProjectOut)
@@ -266,16 +286,19 @@ async def update_project(project_id: UUID, body: ProjectUpdate, user=Depends(req
     else:
         # Unarchive-and-over-limit check
         if body.archived is False:
-            from app.core.config import settings as _settings
-            if not _settings.is_bypass_user(user_id) and await _user_plan_is_free(client, user_id):
+            full_access = await user_has_full_access(client, user_id)
+            if not full_access and await _user_plan_is_free(client, user_id):
                 active = await _count_active_projects(client, user_id)
                 if active >= FREE_TIER_PROJECT_LIMIT:
-                    raise HTTPException(
-                        status_code=status.HTTP_402_PAYMENT_REQUIRED,
-                        detail=(
-                            f"Free plan allows {FREE_TIER_PROJECT_LIMIT} active project. "
-                            "Archive another before unarchiving this one, or upgrade to Pro."
-                        ),
+                    active_name = await _first_active_project_name(client, user_id)
+                    return JSONResponse(
+                        status_code=200,
+                        content={
+                            "upgrade_required": True,
+                            "feature": "projects",
+                            "message": project_limit_upgrade_message(active_name),
+                            "active_project_name": active_name,
+                        },
                     )
         res = (
             client.table("projects")

@@ -4,7 +4,8 @@ import React, { useState, useRef, useEffect } from 'react';
 import { BrandMark } from '@/components/brand/BrandMark';
 import { branding } from '@/config/branding';
 import { useProjects } from '@/contexts/ProjectsContext';
-import { type Project } from '@/lib/api';
+import { LenaUpgradeRequiredError } from '@/lib/api';
+import { defaultContactHandler } from '@/components/chat/UpgradeCTACard';
 import { type RecentSessionRecord, formatSessionSubtitle, getSessionDisplayTitle } from '@/lib/sessionTime';
 
 interface SidebarProps {
@@ -127,6 +128,7 @@ export function Sidebar({
           onOpenProject={() => { onViewChange('projects'); }}
           onStartProjectSearch={onStartProjectSearch}
           onSignIn={onSignIn}
+          onUpgrade={onUpgrade}
           recentSessions={recentSessions}
           onSearchClick={onSearchClick}
           onDeleteSession={onDeleteSession}
@@ -834,6 +836,7 @@ function ProjectsSection({
   onOpenProject,
   onStartProjectSearch,
   onSignIn,
+  onUpgrade,
   recentSessions,
   onSearchClick,
   onDeleteSession,
@@ -843,16 +846,17 @@ function ProjectsSection({
   onOpenProject: (projectId: string) => void;
   onStartProjectSearch?: (projectId: string) => void;
   onSignIn?: () => void;
+  onUpgrade?: () => void;
   recentSessions?: RecentSessionRecord[];
   onSearchClick?: (sessionId: string, fallbackQuery: string) => void;
   onDeleteSession?: (sessionId: string) => void;
   onRenameSession?: (sessionId: string, title: string) => void;
 }) {
-  const { projects, activeProjectId, setActiveProjectId, createNew, error, limits } = useProjects();
+  const { projects, activeProjectId, setActiveProjectId, createNew, limits } = useProjects();
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [submitting, setSubmitting] = useState(false);
-  const [inlineErr, setInlineErr] = useState<string | null>(null);
+  const [upgradeCta, setUpgradeCta] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -866,14 +870,8 @@ function ProjectsSection({
   const submit = async () => {
     const name = newName.trim();
     if (!name) return;
-    if (limits && !limits.can_create) {
-      setInlineErr(
-        `Free plan allows ${limits.max_active ?? 1} active project. Archive "${active[0]?.name || 'an existing project'}" (⋯ menu) or upgrade to Pro.`,
-      );
-      return;
-    }
     setSubmitting(true);
-    setInlineErr(null);
+    setUpgradeCta(null);
     try {
       const p = await createNew({ name });
       setActiveProjectId(p.id);
@@ -885,9 +883,14 @@ function ProjectsSection({
       setNewName('');
       setCreating(false);
     } catch (e) {
-      const msg = e instanceof Error ? e.message : 'Could not create project';
-      // Strip noisy prefix; show the server detail.
-      setInlineErr(msg.replace(/^Create project failed \(\d+\): /, ''));
+      if (e instanceof LenaUpgradeRequiredError) {
+        setUpgradeCta(e.message);
+        setCreating(false);
+        setNewName('');
+      } else {
+        setUpgradeCta(null);
+        defaultContactHandler();
+      }
     } finally {
       setSubmitting(false);
     }
@@ -904,7 +907,7 @@ function ProjectsSection({
         </div>
         {isAuthenticated && !creating && (
           <button
-            onClick={() => setCreating(true)}
+            onClick={() => { setUpgradeCta(null); setCreating(true); }}
             className="p-1 text-gray-400 hover:text-lena-500 rounded transition-colors"
             title="New project"
           >
@@ -922,10 +925,40 @@ function ProjectsSection({
         </button>
       )}
 
-      {isAuthenticated && limits && !limits.can_create && !creating && (
-        <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-100 rounded-md px-2 py-1.5 mb-2 leading-snug">
-          Free plan: {limits.max_active ?? 1} active project.
-          Archive <strong>{active[0]?.name}</strong> (⋯ menu) to create another, or upgrade to Pro.
+      {isAuthenticated && upgradeCta && (
+        <div className="mb-2 rounded-lg border border-lena-100 bg-lena-50/60 px-2.5 py-2 text-[11px] text-slate-700 leading-snug">
+          <p
+            className="mb-2"
+            dangerouslySetInnerHTML={{
+              __html: upgradeCta.replace(/\*\*(.*?)\*\*/g, '<strong>$1</strong>'),
+            }}
+          />
+          <div className="flex gap-1.5">
+            <button
+              type="button"
+              onClick={() => onUpgrade?.()}
+              className="flex-1 px-2 py-1.5 rounded-md bg-lena-600 text-white text-[10px] font-semibold hover:bg-lena-700"
+            >
+              Upgrade to Pro
+            </button>
+            <button
+              type="button"
+              onClick={defaultContactHandler}
+              className="flex-1 px-2 py-1.5 rounded-md bg-white border border-slate-200 text-[10px] font-semibold text-slate-700 hover:bg-slate-50"
+            >
+              Contact us
+            </button>
+          </div>
+        </div>
+      )}
+
+      {isAuthenticated && limits && !limits.can_create && !creating && !upgradeCta && (
+        <p className="text-[10px] text-slate-600 bg-slate-50 border border-slate-100 rounded-md px-2 py-1.5 mb-2 leading-snug">
+          Free plan includes one active folder ({active[0]?.name}).{' '}
+          <button type="button" onClick={() => onUpgrade?.()} className="text-lena-600 font-medium hover:underline">
+            Pro
+          </button>{' '}
+          unlocks unlimited projects.
         </p>
       )}
 
@@ -937,18 +970,13 @@ function ProjectsSection({
             onChange={e => setNewName(e.target.value)}
             onKeyDown={e => {
               if (e.key === 'Enter') submit();
-              if (e.key === 'Escape') { setCreating(false); setNewName(''); setInlineErr(null); }
+              if (e.key === 'Escape') { setCreating(false); setNewName(''); setUpgradeCta(null); }
             }}
             placeholder="e.g. SGLT2 in HFpEF"
             disabled={submitting}
             className="w-full input-touch border border-lena-300 rounded-md px-2 py-2 focus:outline-none focus:ring-2 focus:ring-lena-200 bg-white"
           />
-          <div className="mt-1.5 space-y-1">
-            <span className="text-[10px] text-gray-400 block">Enter to save · Esc to cancel</span>
-            {inlineErr && (
-              <p className="text-[11px] text-red-600 leading-snug">{inlineErr}</p>
-            )}
-          </div>
+          <span className="text-[10px] text-gray-400 block mt-1.5">Enter to save · Esc to cancel</span>
         </div>
       )}
 

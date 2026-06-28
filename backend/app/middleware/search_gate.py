@@ -175,7 +175,9 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
             jwt_payload = _try_decode_jwt(bearer)
             if jwt_payload and jwt_payload.get("user_id"):
                 user_id_str = str(jwt_payload["user_id"])
-                if _settings.is_bypass_user(user_id_str):
+                client = get_supabase_admin_client()
+                from app.core.entitlements import user_has_full_access
+                if await user_has_full_access(client, user_id_str):
                     request.state.user_id = user_id_str
                     request.state.tenant_id = jwt_payload.get("tenant_id")
                     request.state.bypass_all = True
@@ -200,6 +202,22 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
             request.state.user_id = user_id_str
             if jwt_payload.get("tenant_id"):
                 request.state.tenant_id = str(jwt_payload["tenant_id"])
+
+            # Full-access accounts (owner, QA) skip the 24h demo quota too.
+            client = get_supabase_admin_client()
+            from app.core.entitlements import user_has_full_access
+            if await user_has_full_access(client, user_id_str):
+                request.state.bypass_all = True
+                session_id = extract_session_id(request)
+                if session_id:
+                    try:
+                        session = await SessionRepository.get_by_id(UUID(session_id))
+                        request.state.session_id = session_id
+                        request.state.session = session
+                    except Exception:
+                        request.state.session_id = None
+                        request.state.session = None
+                return await call_next(request)
 
             # 24h rolling quota for registered (demo free tier).
             used = await _registered_search_count_last_24h(user_id_str)
