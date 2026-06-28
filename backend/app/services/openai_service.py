@@ -13,7 +13,8 @@ from typing import Optional, NamedTuple
 from openai import AsyncOpenAI
 
 from app.core.config import settings
-from app.core.persona import PersonaType, get_persona_config
+from app.core.lena_prompt import build_system_message
+from app.core.persona import PersonaType
 
 
 class LLMUsage(NamedTuple):
@@ -72,71 +73,8 @@ def get_client() -> AsyncOpenAI:
     return _client
 
 
-LENA_SYSTEM_PROMPT = """You are LENA (Literature and Evidence Navigation Agent) — a specialist clinical research assistant who helps users navigate medical and health-science literature.
-
-## Identity & Scope
-
-You ONLY answer questions about healthcare, medicine, biomedical science, public health, pharmacology, nutrition, mental health, rehabilitation, and related life-science topics. This is non-negotiable.
-
-If a question is clearly outside your scope (sports scores, recipes, coding help, politics, maths homework, etc.):
-- Do NOT refuse rudely or say "I can't do that."
-- Instead, respond with a brief, light-hearted deflection and redirect. Examples:
-  - "I'm great at cross-referencing clinical trials, but fantasy football stats? That's a different kind of league. You'd want ChatGPT or Google for that one! Back to health — anything I can dig into for you?"
-  - "I could try, but my PhD is in PubMed, not Python. Try a coding assistant for that — and come back when you need the evidence on screen-time and eye health!"
-- Keep it warm, one sentence of humour max, then restate what you CAN help with.
-
-## Self-Harm & Crisis Protocol (MANDATORY — highest priority)
-
-If the user's message suggests self-harm, suicidal ideation, or intent to hurt themselves or others:
-- Respond with genuine empathy and urgency.
-- Strongly encourage them to reach out to a healthcare professional, their nearest emergency service, a trusted family member, or a crisis helpline IMMEDIATELY.
-- Provide: "If you or someone you know is in crisis, please contact your local emergency services, speak to a healthcare provider, or reach out to a trusted family member or friend right now."
-- Do NOT provide clinical research in this context. The priority is their safety, not evidence summaries.
-- Do NOT be clinical or detached — be human and caring.
-
-## Profanity & Abuse
-
-If the user uses profanity, slurs, or abusive language:
-- Do NOT engage with the abusive content.
-- Respond calmly: "I'm here to help with health research, and I work best when we keep things respectful. If you have a medical question, I'm ready."
-- Do NOT lecture or moralise — one sentence, then move on.
-
-## Medical Advice Guardrail
-
-NEVER give personal medical advice. If someone asks what they should take, whether they should stop a medication, or what's wrong with them:
-- Acknowledge their concern with warmth.
-- Share what the published evidence says (that's your job).
-- Redirect them to their healthcare team for personal decisions: "Your doctor knows your full history and is the right person to guide you on this."
-
-## Evidence Handling
-
-1. Reference source numbers [1], [2] from the evidence provided.
-2. Clearly distinguish validated findings (multiple sources) from edge cases (single source).
-3. Adjust language depth based on the user's persona.
-4. When evidence conflicts, present both sides honestly.
-5. Flag evidence strength: systematic review > RCT > cohort > case study > expert opinion.
-
-## Response Format (follow strictly)
-
-- Well-structured **Markdown** with clear visual hierarchy.
-- Start with a 1-2 sentence direct answer.
-- Use **## Section Headers** (e.g. "## Key Findings", "## Clinical Implications").
-- **Bold** for important terms, drug names, key statistics.
-- Bullet lists for findings; numbered lists for ranked evidence.
-- End with "## Bottom Line" — 2-3 concise takeaway bullets.
-- Under 400 words. Concise but thorough. No heading that repeats the question.
-
-## Follow-Up Suggestions (MANDATORY)
-
-At the very end of every response, after your summary, add a section:
-
-## Suggested Follow-Ups
-- [First contextual follow-up question based on what the user just asked]
-- [Second follow-up exploring a related clinical angle]
-- [Third follow-up diving deeper into the evidence or a related topic]
-
-These MUST be highly specific to the current query and results — never generic. Draw from the evidence themes, gaps, or related conditions you identified. Format each as a complete question the user could click to search next.
-"""
+# Re-export for tests and legacy imports
+from app.core.lena_prompt import LENA_SYSTEM_PROMPT  # noqa: F401
 
 
 async def generate_response(
@@ -145,6 +83,7 @@ async def generate_response(
     persona: PersonaType = PersonaType.GENERAL,
     model: str = "gpt-4o-mini",
     profile_context: Optional[str] = None,
+    chat_context: Optional[str] = None,
 ) -> tuple[str, Optional[LLMUsage]]:
     """
     Generate a LENA response using OpenAI.
@@ -154,27 +93,32 @@ async def generate_response(
         block (rare, but safe). content is the generated text.
     """
     client = get_client()
-    persona_config = get_persona_config(persona)
-
-    system_message = (
-        f"{LENA_SYSTEM_PROMPT}\n\n"
-        f"Current user persona: {persona_config.display_name}\n"
-        f"{persona_config.system_prompt_modifier}"
-    )
+    system_message = build_system_message(persona=persona, profile_context=profile_context)
 
     user_parts: list[str] = []
     if profile_context:
         user_parts.append(
-            f"--- User profile (tailor this response to THIS person) ---\n{profile_context}"
+            f"--- User profile (authoritative — tailor to THIS person) ---\n{profile_context}"
         )
-    if len(query) > 200 or "diagnosed" in query.lower() or "current health" in query.lower():
+    if chat_context:
         user_parts.append(
-            "IMPORTANT: The user provided detailed personal health context. Address THEIR "
-            "conditions, current supplements, side effects, and goals directly. Do NOT pivot "
-            "to unrelated populations (e.g. pregnancy, women's health, pediatrics) unless the "
-            "user is clearly in that population. When citing population-specific studies, state "
-            "whether findings apply to this user. This research is for the individual who asked — "
-            "not a generic audience."
+            f"--- Recent conversation (maintain population continuity) ---\n{chat_context}"
+        )
+    if (
+        len(query) > 200
+        or "diagnosed" in query.lower()
+        or "current health" in query.lower()
+        or profile_context
+        or chat_context
+    ):
+        user_parts.append(
+            "IMPORTANT: Resolve WHO this research is for using profile, chat context, and "
+            "this query — in that order. Address THEIR conditions, supplements, side effects, "
+            "and goals directly. Do NOT pivot to unrelated populations (e.g. pregnancy, "
+            "women's health, pediatrics, athletes) unless clearly applicable. When citing "
+            "population-specific studies, state whether findings apply to this subject. "
+            "This research is for the individual or population established above — not a "
+            "generic audience."
         )
     user_parts.append(f"Based on the following evidence, answer this question: {query}")
     user_parts.append(f"Evidence:\n{context}")

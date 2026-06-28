@@ -26,7 +26,7 @@ import {
   hydrateDocumentsFromCloud,
   type SavedDocument,
 } from '@/lib/savedDocuments';
-import { configureProfileSync, buildProfileContextForSearch } from '@/lib/userProfile';
+import { configureProfileSync, buildProfileContextForSearch, buildChatContextForSearch } from '@/lib/userProfile';
 import {
   type RecentSessionRecord,
   normalizeRecentSession,
@@ -429,6 +429,8 @@ export default function Home() {
     setLoading(true);
     addRecentSearch(query);
 
+    const chatContext = buildChatContextForSearch(messages);
+
     try {
       const result = await searchLiterature(query, {
         sources: ['pubmed', 'clinical_trials', 'cochrane', 'who_iris', 'cdc', 'openalex'],
@@ -439,6 +441,7 @@ export default function Home() {
         tenantId: tenant.id,
         persona: session.persona,
         profileContext: buildProfileContextForSearch(user?.id),
+        chatContext,
         projectId: isAuthenticated && activeProjectId ? activeProjectId : undefined,
       });
 

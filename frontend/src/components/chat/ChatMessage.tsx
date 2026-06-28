@@ -291,15 +291,21 @@ function generateFollowUpsFallback(response: SearchResponse): string[] {
   const query = response.query;
   const suggestions: string[] = [];
 
-  if (keywords.length > 0) {
-    suggestions.push(`What are the latest RCTs on ${keywords[0]}?`);
+  // Theme follow-ups from PULSE keywords + the user's actual query — on-topic only.
+  const topic = keywords[0] || query.split(/\s+/).slice(0, 4).join(' ');
+  if (topic) {
+    suggestions.push(`What does recent evidence say about ${topic} in my population?`);
   }
   if (keywords.length > 1) {
-    suggestions.push(`Compare ${keywords[0]} vs ${keywords[1]} outcomes`);
+    suggestions.push(`How do ${keywords[0]} and ${keywords[1]} compare in clinical outcomes?`);
   }
-  suggestions.push(`Show systematic reviews related to "${query}"`);
+  if (keywords.length > 2) {
+    suggestions.push(`Are there systematic reviews on ${keywords[2]} relevant to this question?`);
+  } else if (query.length > 10) {
+    suggestions.push(`What gaps remain in the evidence on "${query.slice(0, 80)}"?`);
+  }
 
-  return suggestions.slice(0, 3);
+  return suggestions.filter((s) => s.length > 15).slice(0, 3);
 }
 
 function SourceCard({ result, isEdgeCase, index, query }: { result: ValidatedResult; isEdgeCase: boolean; index: number; query: string }) {
