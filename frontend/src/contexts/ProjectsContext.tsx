@@ -17,8 +17,10 @@ import {
   assignSearchToProject,
   createProject,
   deleteProject,
+  fetchProjectLimits,
   listProjects,
   type Project,
+  type ProjectLimits,
   updateProject,
 } from '@/lib/api';
 
@@ -30,6 +32,7 @@ interface ProjectsContextType {
   activeProjectId: string | null;
   loading: boolean;
   error: string | null;
+  limits: ProjectLimits | null;
   setActiveProjectId: (id: string | null) => void;
   refresh: () => Promise<void>;
   createNew: (body: { name: string; description?: string; color?: string; emoji?: string }) => Promise<Project>;
@@ -48,6 +51,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [limits, setLimits] = useState<ProjectLimits | null>(null);
 
   // Rehydrate active project id from localStorage on mount
   useEffect(() => {
@@ -69,13 +73,18 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
   const refresh = useCallback(async () => {
     if (!isAuthenticated || !token) {
       setProjects([]);
+      setLimits(null);
       return;
     }
     setLoading(true);
     setError(null);
     try {
-      const rows = await listProjects(token);
+      const [rows, quota] = await Promise.all([
+        listProjects(token),
+        fetchProjectLimits(token),
+      ]);
       setProjects(rows);
+      setLimits(quota);
       // If the saved active id no longer exists, clear it so the UI doesn't
       // appear to be "inside" a deleted project.
       if (activeProjectId && !rows.find(p => p.id === activeProjectId)) {
@@ -102,6 +111,11 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     if (!token) throw new Error('Sign in to create a project.');
     const p = await createProject(token, body);
     setProjects(prev => [p, ...prev]);
+    setLimits(prev => prev ? {
+      ...prev,
+      active_count: prev.active_count + 1,
+      can_create: prev.max_active == null || prev.active_count + 1 < prev.max_active,
+    } : prev);
     return p;
   }, [token]);
 
@@ -116,12 +130,22 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
     const updated = await updateProject(token, projectId, { archived: true });
     setProjects(prev => prev.map(p => (p.id === projectId ? updated : p)));
     if (activeProjectId === projectId) setActiveProjectId(null);
+    setLimits(prev => prev ? {
+      ...prev,
+      active_count: Math.max(0, prev.active_count - 1),
+      can_create: prev.max_active == null || prev.active_count - 1 < prev.max_active,
+    } : prev);
   }, [token, activeProjectId, setActiveProjectId]);
 
   const unarchive = useCallback(async (projectId: string) => {
     if (!token) throw new Error('Sign in to unarchive a project.');
     const updated = await updateProject(token, projectId, { archived: false });
     setProjects(prev => prev.map(p => (p.id === projectId ? updated : p)));
+    setLimits(prev => prev ? {
+      ...prev,
+      active_count: prev.active_count + 1,
+      can_create: prev.max_active == null || prev.active_count + 1 < prev.max_active,
+    } : prev);
   }, [token]);
 
   const remove = useCallback(async (projectId: string) => {
@@ -151,6 +175,7 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
         activeProjectId,
         loading,
         error,
+        limits,
         setActiveProjectId,
         refresh,
         createNew,

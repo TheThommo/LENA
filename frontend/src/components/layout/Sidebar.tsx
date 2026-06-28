@@ -848,7 +848,7 @@ function ProjectsSection({
   onDeleteSession?: (sessionId: string) => void;
   onRenameSession?: (sessionId: string, title: string) => void;
 }) {
-  const { projects, activeProjectId, setActiveProjectId, createNew, error } = useProjects();
+  const { projects, activeProjectId, setActiveProjectId, createNew, error, limits } = useProjects();
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -866,6 +866,12 @@ function ProjectsSection({
   const submit = async () => {
     const name = newName.trim();
     if (!name) return;
+    if (limits && !limits.can_create) {
+      setInlineErr(
+        `Free plan allows ${limits.max_active ?? 1} active project. Archive "${active[0]?.name || 'an existing project'}" (⋯ menu) or upgrade to Pro.`,
+      );
+      return;
+    }
     setSubmitting(true);
     setInlineErr(null);
     try {
@@ -879,7 +885,9 @@ function ProjectsSection({
       setNewName('');
       setCreating(false);
     } catch (e) {
-      setInlineErr(e instanceof Error ? e.message : 'Could not create project');
+      const msg = e instanceof Error ? e.message : 'Could not create project';
+      // Strip noisy prefix; show the server detail.
+      setInlineErr(msg.replace(/^Create project failed \(\d+\): /, ''));
     } finally {
       setSubmitting(false);
     }
@@ -914,6 +922,13 @@ function ProjectsSection({
         </button>
       )}
 
+      {isAuthenticated && limits && !limits.can_create && !creating && (
+        <p className="text-[10px] text-amber-700 bg-amber-50 border border-amber-100 rounded-md px-2 py-1.5 mb-2 leading-snug">
+          Free plan: {limits.max_active ?? 1} active project.
+          Archive <strong>{active[0]?.name}</strong> (⋯ menu) to create another, or upgrade to Pro.
+        </p>
+      )}
+
       {isAuthenticated && creating && (
         <div className="mb-2">
           <input
@@ -928,10 +943,10 @@ function ProjectsSection({
             disabled={submitting}
             className="w-full input-touch border border-lena-300 rounded-md px-2 py-2 focus:outline-none focus:ring-2 focus:ring-lena-200 bg-white"
           />
-          <div className="flex items-center justify-between mt-1.5">
-            <span className="text-[10px] text-gray-400">Enter to save · Esc to cancel</span>
+          <div className="mt-1.5 space-y-1">
+            <span className="text-[10px] text-gray-400 block">Enter to save · Esc to cancel</span>
             {inlineErr && (
-              <span className="text-[10px] text-red-500 truncate ml-2" title={inlineErr}>{inlineErr}</span>
+              <p className="text-[11px] text-red-600 leading-snug">{inlineErr}</p>
             )}
           </div>
         </div>

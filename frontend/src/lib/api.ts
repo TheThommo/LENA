@@ -471,9 +471,21 @@ async function readJsonOrThrow(response: Response, action: string) {
   return response.json();
 }
 
+export interface ProjectLimits {
+  plan: 'free' | 'pro';
+  max_active: number | null;
+  active_count: number;
+  can_create: boolean;
+}
+
 export async function listProjects(token: string): Promise<Project[]> {
   const r = await fetch(`${API_BASE}/projects`, { headers: authHeaders(token) });
   return (await readJsonOrThrow(r, 'List projects')) as Project[];
+}
+
+export async function fetchProjectLimits(token: string): Promise<ProjectLimits> {
+  const r = await fetch(`${API_BASE}/projects/limits`, { headers: authHeaders(token) });
+  return (await readJsonOrThrow(r, 'Fetch project limits')) as ProjectLimits;
 }
 
 export async function createProject(

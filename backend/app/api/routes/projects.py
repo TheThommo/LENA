@@ -53,6 +53,13 @@ class ProjectOut(BaseModel):
     search_count: int = 0
 
 
+class ProjectLimitsOut(BaseModel):
+    plan: str  # "free" | "pro"
+    max_active: Optional[int]  # None = unlimited
+    active_count: int
+    can_create: bool
+
+
 async def _user_plan_is_free(client, user_id: str) -> bool:
     """
     Quick check: is this user on the Free tier? We consult their tenant's
@@ -159,6 +166,36 @@ async def list_projects(user=Depends(require_auth)):
     return [_enrich(r, counts.get(r["id"], 0)) for r in rows]
 
 
+async def _project_limits_for_user(client, user_id: str) -> ProjectLimitsOut:
+    from app.core.config import settings as _settings
+
+    active = await _count_active_projects(client, user_id)
+    is_free = await _user_plan_is_free(client, user_id)
+    bypass = _settings.is_bypass_user(user_id)
+
+    if bypass or not is_free:
+        return ProjectLimitsOut(
+            plan="pro" if not is_free else "free",
+            max_active=None,
+            active_count=active,
+            can_create=True,
+        )
+
+    return ProjectLimitsOut(
+        plan="free",
+        max_active=FREE_TIER_PROJECT_LIMIT,
+        active_count=active,
+        can_create=active < FREE_TIER_PROJECT_LIMIT,
+    )
+
+
+@router.get("/limits", response_model=ProjectLimitsOut)
+async def project_limits(user=Depends(require_auth)):
+    """Return project quota for the caller's plan (Free = 1 active project)."""
+    client = get_supabase_admin_client()
+    return await _project_limits_for_user(client, user["user_id"])
+
+
 @router.post("", response_model=ProjectOut, status_code=status.HTTP_201_CREATED)
 async def create_project(body: ProjectCreate, user=Depends(require_auth)):
     """Create a new project. Free tier capped at FREE_TIER_PROJECT_LIMIT active projects."""
@@ -174,8 +211,8 @@ async def create_project(body: ProjectCreate, user=Depends(require_auth)):
             raise HTTPException(
                 status_code=status.HTTP_402_PAYMENT_REQUIRED,
                 detail=(
-                    f"Free plan allows {FREE_TIER_PROJECT_LIMIT} project. "
-                    "Upgrade to Pro for unlimited projects."
+                    f"Free plan allows {FREE_TIER_PROJECT_LIMIT} active project. "
+                    "Archive an existing project (⋯ menu) or upgrade to Pro for unlimited projects."
                 ),
             )
 
