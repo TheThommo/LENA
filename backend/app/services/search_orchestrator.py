@@ -555,6 +555,7 @@ _RELEVANCE_STOPWORDS: set[str] = {
     "work", "works", "working", "product", "products", "pill", "pills",
     "capsule", "capsules", "tablet", "tablets", "powder", "liquid",
     "take", "taking", "dose", "dosage", "daily", "compare", "comparison",
+    "powders", "powdered",
     "actually", "really", "truly", "still", "ever", "never", "always",
     "help", "helps", "helping", "cause", "causes", "prevent", "prevents",
     "know", "think", "believe", "guess", "wonder", "worry",
@@ -692,8 +693,42 @@ _MEDICAL_CONDITION_KEYWORDS: set[str] = {
 _MEDICAL_CONDITION_PHRASES: tuple[str, ...] = (
     "central serous retinopathy", "blood pressure", "high blood pressure",
     "loose stools", "eye strain", "eye health", "vitamin d", "vitamin k",
-    "magnesium supplementation",
+    "magnesium supplementation", "headache powder", "headache powders",
 )
+
+# Symptom terms that match too many unrelated papers when a product is attached.
+_GENERIC_SYMPTOM_TERMS: set[str] = {
+    "headache", "headaches", "pain", "ache", "aches", "fever", "nausea",
+    "fatigue", "symptom", "symptoms", "discomfort", "relief",
+}
+
+
+def _stem_variants(term: str) -> list[str]:
+    """Return term plus simple plural/singular variants for substring matching."""
+    t = term.lower()
+    variants = {t}
+    if t.endswith("s") and len(t) > 4:
+        variants.add(t[:-1])
+    elif not t.endswith("s"):
+        variants.add(t + "s")
+    return list(variants)
+
+
+def _blob_matches_any(blob: str, terms: list[str]) -> bool:
+    for term in terms:
+        for variant in _stem_variants(term):
+            if variant in blob:
+                return True
+    return False
+
+
+def _query_fit_score(blob: str, terms: list[str]) -> float:
+    """Fraction of subject terms found in title+summary (0..1)."""
+    if not terms:
+        return 1.0
+    hits = sum(1 for t in terms if _blob_matches_any(blob, [t]))
+    return hits / len(terms)
+
 
 
 def _subject_terms(query: str, max_terms: int | None = None, min_len: int = 3) -> list[str]:
@@ -757,33 +792,92 @@ def _build_source_query(query: str, subjects: list[str]) -> str:
 def _filter_relevant(
     results_by_source: dict[str, list[SourceResult]],
     subject_terms: list[str],
+    primary_terms: Optional[list[str]] = None,
 ) -> dict[str, list[SourceResult]]:
-    """Drop any result whose title+summary doesn't mention a subject term.
+    """Drop results whose title+summary don't match the query subject.
 
-    OR-logic across subject_terms so multi-subject queries ("magnesium AND
-    potassium") keep papers that mention either. When no subject terms
-    could be extracted we pass everything through unchanged.
+    When primary_terms are present (from attached product/URL context), require
+    at least one primary ingredient/product match — generic symptom terms like
+    'headache' alone are not enough.
     """
-    if not subject_terms:
+    if not subject_terms and not primary_terms:
         return results_by_source
 
-    needles = [t.lower() for t in subject_terms]
+    primary = [t.lower() for t in (primary_terms or [])]
+    secondary = [
+        t.lower() for t in subject_terms
+        if t.lower() not in _GENERIC_SYMPTOM_TERMS or not primary
+    ]
+    fallback = [t.lower() for t in subject_terms]
+
     filtered: dict[str, list[SourceResult]] = {}
     for src, results in results_by_source.items():
         kept: list[SourceResult] = []
         for r in results:
-            # Source-native rows (DSLD, openFDA) are categorical - they're
-            # supplement label / adverse event data, so we trust the source
-            # tag instead of demanding a token match in a 20-character label.
             if (r.source_name or "") in _SOURCE_DEFAULT_MODES:
                 kept.append(r)
                 continue
             blob = f"{r.title or ''} {r.summary or ''}".lower()
-            if any(n in blob for n in needles):
+
+            if primary:
+                if _blob_matches_any(blob, primary):
+                    kept.append(r)
+                    continue
+                # Without primary match, require 2+ non-generic secondary terms
+                sec_hits = sum(1 for t in secondary if _blob_matches_any(blob, [t]))
+                if sec_hits >= 2:
+                    kept.append(r)
+                continue
+
+            needles = fallback or secondary
+            if _blob_matches_any(blob, needles):
                 kept.append(r)
         if kept:
             filtered[src] = kept
     return filtered
+
+
+def _post_filter_by_query_fit(
+    pulse_report,
+    subject_terms: list[str],
+    primary_terms: Optional[list[str]] = None,
+    min_fit: float = 0.12,
+) -> None:
+    """Remove validated results with zero query overlap when product context exists."""
+    if not primary_terms:
+        return
+
+    all_terms = list(dict.fromkeys(primary_terms + subject_terms))
+    kept: list = []
+    dropped: list = []
+    for r in pulse_report.validated_results:
+        blob = f"{r.title or ''} {r.summary or ''}".lower()
+        fit = _query_fit_score(blob, all_terms)
+        primary_hit = _blob_matches_any(blob, primary_terms)
+        if primary_hit or fit >= min_fit:
+            kept.append(r)
+        else:
+            dropped.append(r)
+
+    pulse_report.validated_results = kept
+    pulse_report.edge_cases.extend(dropped)
+
+
+def _prioritize_display_keywords(result: SourceResult, subject_terms: list[str]) -> None:
+    """Reorder keywords so query-relevant terms appear first; trim off-topic noise."""
+    if not result.keywords or not subject_terms:
+        return
+    subject_set = set()
+    for t in subject_terms:
+        subject_set.update(_stem_variants(t))
+    matched = [k for k in result.keywords if k in subject_set or any(s in k for s in subject_set)]
+    rest = [k for k in result.keywords if k not in matched]
+    # Drop keywords that look like generic paper filler when we have matches
+    if matched:
+        result.keywords = (matched + rest)[:8]
+    else:
+        result.keywords = result.keywords[:6]
+
 
 
 def _normalise_modes(modes: Optional[list[str]]) -> list[str]:
@@ -926,6 +1020,7 @@ async def run_search(
 
     # Step 1b: Ingest URLs embedded in the query + any uploaded attachment text.
     from app.services.content_ingest import (
+        extract_search_terms_from_context,
         format_attached_context,
         ingest_attached_context_header,
         ingest_urls_from_query,
@@ -936,6 +1031,14 @@ async def run_search(
     attached_blocks = url_blocks + header_blocks
     attached_context_text = format_attached_context(attached_blocks)
     literature_query = strip_urls(query) or query
+
+    context_primary, context_secondary = extract_search_terms_from_context(attached_blocks)
+    subjects = _subject_terms(literature_query)
+    for term in context_primary + context_secondary:
+        if term not in subjects:
+            subjects.append(term)
+    primary_terms = context_primary or None
+    query_subjects = (context_primary + subjects) if context_primary else subjects
 
     # Step 2: Check cache
     cached = get_cached_result(query, sources, include_alt_medicine, modes)
@@ -954,8 +1057,7 @@ async def run_search(
     # so "Tell me about magnesium health benefits for males 50+" -> zero
     # hits on PubMed. Send the distinctive subject tokens instead so we
     # get broad recall; the relevance filter below then trims noise.
-    subjects = _subject_terms(literature_query)
-    source_query = _build_source_query(literature_query, subjects)
+    source_query = _build_source_query(literature_query, query_subjects)
     if source_query != query:
         logger.info("Source query rewritten: %r -> %r", query[:120], source_query)
     raw_results_by_source, errors = await search_all_sources(
@@ -972,12 +1074,14 @@ async def run_search(
     # surveillance" on a magnesium query (the exact bug Thommo hit in
     # demo).
     pre_relevance = sum(len(r) for r in raw_results_by_source.values())
-    raw_results_by_source = _filter_relevant(raw_results_by_source, subjects)
+    raw_results_by_source = _filter_relevant(
+        raw_results_by_source, subjects, primary_terms=primary_terms,
+    )
     post_relevance = sum(len(r) for r in raw_results_by_source.values())
-    if subjects:
+    if subjects or primary_terms:
         logger.info(
-            "Relevance filter on %s: %d -> %d results",
-            subjects, pre_relevance, post_relevance,
+            "Relevance filter on %s (primary=%s): %d -> %d results",
+            subjects, primary_terms, pre_relevance, post_relevance,
         )
 
     # Step 4+5: Tag results and scope corpus to active modes (pre-PULSE)
@@ -995,13 +1099,17 @@ async def run_search(
     pulse_report = await run_pulse_validation(
         query=query,
         results_by_source=scoped_results_by_source,
+        subject_terms=query_subjects,
     )
     # Inject the total-attempted count for confidence calculation
     pulse_report._sources_attempted = total_sources_attempted
 
+    _post_filter_by_query_fit(pulse_report, subjects, primary_terms=primary_terms)
+
     # PULSE re-extracts keywords; re-tag so matched_modes reflects the fresh keyword set
     for r in pulse_report.validated_results + pulse_report.edge_cases:
         _tag_result_modes(r)
+        _prioritize_display_keywords(r, query_subjects)
 
     # Step 7: Generate LLM summary (non-blocking, best-effort)
     # Pass source coverage so the LLM can acknowledge evidence gaps honestly

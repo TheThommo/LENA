@@ -521,6 +521,7 @@ async def run_pulse_validation(
     query: str,
     results_by_source: dict[str, list[SourceResult]],
     edge_case_threshold: float = 0.15,
+    subject_terms: Optional[list[str]] = None,
 ) -> PULSEReport:
     """
     Cross-reference results from multiple sources using BOTH keyword overlap
@@ -537,6 +538,7 @@ async def run_pulse_validation(
     """
     report = PULSEReport(query=query)
     report.source_count = len(results_by_source)
+    query_terms = [t.lower() for t in (subject_terms or []) if t]
 
     if report.source_count == 0:
         report.status = ValidationStatus.PENDING
@@ -659,19 +661,27 @@ async def run_pulse_validation(
                 logger.debug(f"Excluding retracted paper: {r.title[:50]}")
                 continue
 
-            # Dynamic relevance score: blend of keyword overlap + cross-validation
+            # Dynamic relevance score: consensus + cross-validation + query fit
             keyword_score = 0.0
             if consensus_keywords and r.keywords:
                 keyword_score = len(set(r.keywords) & consensus_keywords) / len(consensus_keywords)
 
-            # Cross-validation bonus: each corroboration adds to score
             xval_bonus = min(r.cross_validations * 0.15, 0.40)
 
-            # Evidence hierarchy weight
+            query_fit = 0.0
+            if query_terms:
+                blob = f"{r.title or ''} {r.summary or ''}".lower()
+                hits = sum(1 for t in query_terms if t in blob)
+                query_fit = hits / len(query_terms)
+
             evidence_weight = EVIDENCE_WEIGHTS.get(r.study_type, 0.7)
 
-            # Combined score
-            base_score = (keyword_score * 0.5 + xval_bonus * 0.5) * evidence_weight
+            if query_terms:
+                base_score = (
+                    keyword_score * 0.20 + xval_bonus * 0.20 + query_fit * 0.60
+                ) * evidence_weight
+            else:
+                base_score = (keyword_score * 0.5 + xval_bonus * 0.5) * evidence_weight
 
             # Single-source cap: without cross-validation, max 0.40
             if len(results_by_source) == 1:

@@ -218,3 +218,69 @@ async def ingest_attached_context_header(raw_header: Optional[str]) -> list[Inge
     if not raw_header or not raw_header.strip():
         return []
     return [IngestedContent("text", "upload", "Attached document", raw_header.strip()[:MAX_ATTACH_CHARS])]
+
+
+# Known active ingredients / drug names for product-context search steering.
+_KNOWN_INGREDIENTS: tuple[str, ...] = (
+    "paracetamol", "acetaminophen", "aspirin", "acetylsalicylic", "caffeine",
+    "ibuprofen", "naproxen", "codeine", "diphenhydramine", "phenylephrine",
+    "pseudoephedrine", "metformin", "omeprazole", "amoxicillin", "prednisone",
+    "warfarin", "heparin", "insulin", "morphine", "tramadol", "doxycycline",
+    "lisinopril", "atorvastatin", "levothyroxine", "amlodipine", "metoprolol",
+    "salicylate", "salicylates",
+)
+
+_INGREDIENT_LINE = re.compile(
+    r"(?:active\s+ingredient|composition|contains|ingredients?)\s*[:\-]\s*([^\n.]{3,120})",
+    re.IGNORECASE,
+)
+
+
+def extract_search_terms_from_context(blocks: list[IngestedContent]) -> tuple[list[str], list[str]]:
+    """Extract primary (ingredient/product) and secondary terms from attached content.
+
+    Returns (primary_terms, secondary_terms). Primary terms drive literature
+    queries and strict relevance filtering when a product URL/label is attached.
+    """
+    if not blocks:
+        return [], []
+
+    combined = " ".join(
+        f"{b.title} {b.text}" for b in blocks if b.text and not b.error
+    ).lower()
+    if not combined.strip():
+        return [], []
+
+    primary: list[str] = []
+    seen: set[str] = set()
+
+    def _add(term: str, bucket: list[str]) -> None:
+        t = term.strip().lower()
+        if len(t) < 3 or t in seen:
+            return
+        seen.add(t)
+        bucket.append(t)
+
+    for ing in _KNOWN_INGREDIENTS:
+        if ing in combined:
+            _add(ing, primary)
+
+    for match in _INGREDIENT_LINE.finditer(combined):
+        segment = match.group(1).lower()
+        for ing in _KNOWN_INGREDIENTS:
+            if ing in segment:
+                _add(ing, primary)
+        for token in re.findall(r"[a-z][a-z0-9-]{2,}", segment):
+            if token in _KNOWN_INGREDIENTS:
+                _add(token, primary)
+
+    secondary: list[str] = []
+    for block in blocks:
+        title = (block.title or "").strip()
+        if title and title.lower() not in ("web page", "attached document", "upload"):
+            for token in re.findall(r"[a-z][a-z0-9-]{2,}", title.lower()):
+                if token not in {"headache", "powder", "powders", "medicine", "tablet", "capsule"}:
+                    _add(token, secondary)
+
+    return primary, secondary
+
