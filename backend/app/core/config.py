@@ -65,7 +65,7 @@ class Settings(BaseSettings):
     bypass_user_ids: str = ""
 
     # Comma-separated emails with full access (owner + named QA testers only).
-    bypass_user_emails: str = "mark.e.s.thompson@gmail.com"
+    bypass_user_emails: str = "mark.e.s.thompson@gmail.com,lauren@capitalfive.co.za"
 
     # Email (Resend)
     resend_api_key: Optional[str] = None
