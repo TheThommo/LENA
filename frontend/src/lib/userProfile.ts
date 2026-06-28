@@ -95,3 +95,23 @@ export async function syncProfileToCloud(
     /* local copy is source of truth offline */
   }
 }
+
+/** Compact profile context for search personalisation (max ~2k chars). */
+export function buildProfileContextForSearch(userId?: string | null): string | undefined {
+  const p = loadLocalProfile(userId);
+  if (!p) return undefined;
+
+  const lines: string[] = [];
+  if (p.specialty) lines.push(`Specialty: ${p.specialty}`);
+  if (p.role) lines.push(`Role: ${p.role}`);
+  if (p.institution) lines.push(`Institution: ${p.institution}`);
+  if (p.focusAreas?.length) lines.push(`Focus areas: ${p.focusAreas.join(', ')}`);
+  if (p.researchInterests) lines.push(`Research interests: ${p.researchInterests}`);
+  if (p.notes?.trim()) lines.push(`Personal health / context notes: ${p.notes.trim()}`);
+  if (p.communicationStyle && p.communicationStyle !== 'default') {
+    lines.push(`Preferred response style: ${p.communicationStyle}`);
+  }
+
+  if (lines.length === 0) return undefined;
+  return lines.join('\n').slice(0, 2000);
+}

@@ -144,6 +144,7 @@ async def generate_response(
     context: str,
     persona: PersonaType = PersonaType.GENERAL,
     model: str = "gpt-4o-mini",
+    profile_context: Optional[str] = None,
 ) -> tuple[str, Optional[LLMUsage]]:
     """
     Generate a LENA response using OpenAI.
@@ -161,15 +162,26 @@ async def generate_response(
         f"{persona_config.system_prompt_modifier}"
     )
 
+    user_parts: list[str] = []
+    if profile_context:
+        user_parts.append(
+            f"--- User profile (tailor this response to THIS person) ---\n{profile_context}"
+        )
+    if len(query) > 200 or "diagnosed" in query.lower() or "current health" in query.lower():
+        user_parts.append(
+            "IMPORTANT: The user provided detailed personal health context. Address THEIR "
+            "conditions, current supplements, side effects, and goals directly. Do NOT pivot "
+            "to unrelated populations (e.g. pregnancy, women's health, pediatrics) unless the "
+            "user is clearly in that population. When citing population-specific studies, state "
+            "whether findings apply to this user. This research is for the individual who asked — "
+            "not a generic audience."
+        )
+    user_parts.append(f"Based on the following evidence, answer this question: {query}")
+    user_parts.append(f"Evidence:\n{context}")
+
     messages = [
         {"role": "system", "content": system_message},
-        {
-            "role": "user",
-            "content": (
-                f"Based on the following evidence, answer this question: {query}\n\n"
-                f"Evidence:\n{context}"
-            ),
-        },
+        {"role": "user", "content": "\n\n".join(user_parts)},
     ]
 
     response = await client.chat.completions.create(

@@ -26,7 +26,7 @@ import {
   hydrateDocumentsFromCloud,
   type SavedDocument,
 } from '@/lib/savedDocuments';
-import { configureProfileSync } from '@/lib/userProfile';
+import { configureProfileSync, buildProfileContextForSearch } from '@/lib/userProfile';
 import {
   type RecentSessionRecord,
   normalizeRecentSession,
@@ -438,11 +438,7 @@ export default function Home() {
         sessionToken: authToken || session.sessionToken || undefined,
         tenantId: tenant.id,
         persona: session.persona,
-        // File into active project only when the user has explicitly
-        // entered a project context (activeProjectId is set + the top-
-        // bar pill is visible). Clearing the pill returns to free
-        // search mode. Lauren's follow-up feedback: dropping filing
-        // entirely broke the "search within folder" flow.
+        profileContext: buildProfileContextForSearch(user?.id),
         projectId: isAuthenticated && activeProjectId ? activeProjectId : undefined,
       });
 

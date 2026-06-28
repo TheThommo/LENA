@@ -5,6 +5,7 @@ import { createPortal } from 'react-dom';
 import Image from 'next/image';
 import { branding } from '@/config/branding';
 import type { SearchResponse, ValidatedResult, ResultMode, SupplementVerification } from '@/lib/api';
+import { copyTextToClipboard } from '@/lib/clipboard';
 import { logShareEvent } from '@/lib/api';
 import SupplementVerificationCard from './SupplementVerificationCard';
 import ShareModal from './ShareModal';
@@ -516,6 +517,7 @@ export default function ChatMessage({
   const [pickerPos, setPickerPos] = useState<{ top: number; left: number } | null>(null);
   const [shareOpen, setShareOpen] = useState(false);
   const [shareCopied, setShareCopied] = useState(false);
+  const [shareCopyFailed, setShareCopyFailed] = useState(false);
   const [sharePos, setSharePos] = useState<{ top: number; left: number } | null>(null);
   const [shareModalOpen, setShareModalOpen] = useState(false);
   const pickerRef = useRef<HTMLDivElement>(null);
@@ -583,7 +585,11 @@ export default function ChatMessage({
       if (shareTriggerRef.current?.contains(target)) return;
       setShareOpen(false);
     };
-    const handleScroll = () => setShareOpen(false);
+    const handleScroll = (e: Event) => {
+      const target = e.target as Node | null;
+      if (target && shareMenuRef.current?.contains(target)) return;
+      setShareOpen(false);
+    };
     const timer = window.setTimeout(() => {
       document.addEventListener('mousedown', handleClick);
     }, 0);
@@ -602,6 +608,8 @@ export default function ChatMessage({
     if (shareOpen) { setShareOpen(false); return; }
     const rect = e.currentTarget.getBoundingClientRect();
     shareTriggerRef.current = e.currentTarget;
+    setShareCopyFailed(false);
+    setShareCopied(false);
     setSharePos({
       top: rect.bottom + 4,
       left: Math.max(8, Math.min(rect.left, window.innerWidth - 232)),
@@ -612,19 +620,25 @@ export default function ChatMessage({
   const renderShareMenu = () => {
     if (!shareOpen || !sharePos || !response || typeof document === 'undefined') return null;
 
-    const shareText = `LENA research: "${response.query}"`;
+    const rawQuery = response.query || '';
+    const shortQuery = rawQuery.length > 140 ? `${rawQuery.slice(0, 137)}…` : rawQuery;
+    const shareText = `LENA research: "${shortQuery}"`;
     const shareUrl = window.location.href;
     const encUrl = encodeURIComponent(shareUrl);
     const encText = encodeURIComponent(shareText);
+    const copyLabel = shareCopied
+      ? 'Link copied!'
+      : shareCopyFailed
+        ? 'Copy failed — tap to retry'
+        : 'Copy link';
     const channels = [
-      { key: 'copy', label: shareCopied ? 'Link copied' : 'Copy link',
+      { key: 'copy', label: copyLabel,
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13.828 10.172a4 4 0 00-5.656 0l-4 4a4 4 0 105.656 5.656l1.102-1.101m-.758-4.899a4 4 0 005.656 0l4-4a4 4 0 00-5.656-5.656l-1.1 1.1" />,
         action: async () => {
-          try {
-            await navigator.clipboard.writeText(`${shareText}\n${shareUrl}`);
-            setShareCopied(true);
-            window.setTimeout(() => setShareCopied(false), 2000);
-          } catch {}
+          const ok = await copyTextToClipboard(`${shareText}\n${shareUrl}`);
+          setShareCopied(ok);
+          setShareCopyFailed(!ok);
+          if (ok) window.setTimeout(() => setShareCopied(false), 2500);
         } },
       { key: 'x', label: 'X (Twitter)',
         icon: <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z" />,
@@ -646,6 +660,8 @@ export default function ChatMessage({
     return createPortal(
       <div
         ref={shareMenuRef}
+        role="menu"
+        onMouseDown={(e) => e.stopPropagation()}
         className="fixed w-56 bg-white border border-slate-200/80 rounded-lg shadow-xl shadow-slate-900/5 z-[9999] overflow-hidden"
         style={{ top: sharePos.top, left: sharePos.left }}
       >

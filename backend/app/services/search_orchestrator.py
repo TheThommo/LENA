@@ -220,6 +220,7 @@ async def _generate_llm_summary(
     persona_type: str = "general",
     sources_failed: Optional[dict[str, str]] = None,
     sources_queried: Optional[list[str]] = None,
+    profile_context: Optional[str] = None,
 ) -> tuple[Optional[str], Optional[dict]]:
     """
     Use OpenAI to generate an intelligent, persona-aware summary from the
@@ -314,6 +315,7 @@ async def _generate_llm_summary(
             context=context,
             persona=persona_enum,
             model="gpt-4o-mini",
+            profile_context=profile_context,
         )
         usage_dict = None
         if usage is not None:
@@ -490,6 +492,15 @@ _RELEVANCE_STOPWORDS: set[str] = {
     "actually", "really", "truly", "still", "ever", "never", "always",
     "help", "helps", "helping", "cause", "causes", "prevent", "prevents",
     "know", "think", "believe", "guess", "wonder", "worry",
+    # Personal context filler in long health-history prompts
+    "currently", "taking", "started", "improved", "previously", "averaged",
+    "around", "recent", "problems", "plan", "goals", "framing", "interested",
+    "prefers", "wants", "complete", "strategy", "approach", "rather", "broad",
+    "context", "diagnosed", "major", "concern", "listed", "depending",
+    "product", "listing", "recommended", "serving", "capsule", "capsules",
+    "tablet", "tablets", "foods", "nutrition", "gold", "california", "nutricost",
+    "elemental", "buffered", "effervescent", "laperva", "bisglycinate", "malate",
+    "taurate", "citrate", "oxide", "cholecalciferol",
     # Generic medical/research verbs & descriptors — match almost every paper
     "manage", "managing", "management", "option", "options", "approach",
     "approaches", "strategy", "strategies", "method", "methods",
@@ -602,25 +613,42 @@ def _extract_supplement_identity(
     return supp_name, supp_brand
 
 
-def _subject_terms(query: str, max_terms: int = 4, min_len: int = 3) -> list[str]:
+_MEDICAL_CONDITION_KEYWORDS: set[str] = {
+    "hypertension", "hypotension", "hypertensive", "retinopathy", "diabetes",
+    "diabetic", "heartburn", "gerd", "reflux", "diarrhea", "constipation",
+    "glaucoma", "macular", "stroke", "cardiovascular", "cholesterol",
+    "hyperlipidemia", "anemia", "migraine", "epilepsy", "asthma", "copd",
+    "arthritis", "osteoporosis", "neuropathy", "cancer", "oncology",
+    "arrhythmia", "atrial", "fibrillation", "heart", "cardiac", "ocular",
+    "vision", "csr",
+}
+
+_MEDICAL_CONDITION_PHRASES: tuple[str, ...] = (
+    "central serous retinopathy", "blood pressure", "high blood pressure",
+    "loose stools", "eye strain", "eye health", "vitamin d", "vitamin k",
+    "magnesium supplementation",
+)
+
+
+def _subject_terms(query: str, max_terms: int | None = None, min_len: int = 3) -> list[str]:
     """Pull distinctive subject tokens out of the user's query.
 
-    Known supplement/herbal/alternative keywords are prioritized so that
-    brand names ("Nutricost", "Solgar") don't crowd them out of the
-    max_terms window.  Within each tier, longer tokens win (length is a
-    cheap proxy for specificity).  min_len=3 keeps critical medical
-    acronyms (GBM, CKD, ALS, HIV, IBS, DVT, etc.) that would otherwise
-    be dropped.  Returns empty list when nothing distinctive exists so
-    the filter becomes a no-op rather than a hard block.
+    Medical conditions and supplement/herbal keywords are prioritised so
+    long personal-health prompts still retrieve relevant literature.
     """
     import re
+    if max_terms is None:
+        max_terms = min(10, 4 + len(query) // 250)
+
+    ql = query.lower()
+    phrase_hits = [p for p in _MEDICAL_CONDITION_PHRASES if p in ql]
+
     _academic = _SUPPLEMENTS_KEYWORDS | _HERBAL_KEYWORDS | _ALTERNATIVES_KEYWORDS
-    tokens = re.findall(r"[a-z][a-z0-9-]{2,}", query.lower())
+    tokens = re.findall(r"[a-z][a-z0-9-]{2,}", ql)
     candidates = [
         t for t in tokens
         if len(t) >= min_len and t not in _RELEVANCE_STOPWORDS
     ]
-    # Dedupe while preserving first-seen order
     seen: set[str] = set()
     ordered: list[str] = []
     for t in candidates:
@@ -628,9 +656,36 @@ def _subject_terms(query: str, max_terms: int = 4, min_len: int = 3) -> list[str
             continue
         seen.add(t)
         ordered.append(t)
-    # Sort: academic (supplement/herbal) terms first, then by length desc
-    ordered.sort(key=lambda t: (0 if t in _academic else 1, -len(t)))
-    return ordered[:max_terms]
+
+    def _tier(t: str) -> tuple[int, int]:
+        if t in _MEDICAL_CONDITION_KEYWORDS:
+            return (0, -len(t))
+        if t in _academic:
+            return (1, -len(t))
+        return (2, -len(t))
+
+    ordered.sort(key=_tier)
+    token_terms = ordered[:max_terms]
+    return list(dict.fromkeys(phrase_hits + token_terms))
+
+
+def _build_source_query(query: str, subjects: list[str]) -> str:
+    """Build a PubMed-friendly query from extracted subject terms."""
+    ql = query.lower()
+    phrase_hits = [p for p in _MEDICAL_CONDITION_PHRASES if p in ql][:2]
+    _academic_vocab = _SUPPLEMENTS_KEYWORDS | _HERBAL_KEYWORDS | _ALTERNATIVES_KEYWORDS
+    condition_terms = [t for t in subjects if t in _MEDICAL_CONDITION_KEYWORDS]
+    academic_terms = [t for t in subjects if t.lower() in _academic_vocab]
+
+    parts: list[str] = []
+    for item in phrase_hits + condition_terms + academic_terms:
+        if item not in parts:
+            parts.append(item)
+    if not parts:
+        parts = subjects[:8] if subjects else []
+    if not parts and len(query) > 400:
+        return query[:400]
+    return " ".join(parts[:8]) if parts else query
 
 
 def _filter_relevant(
@@ -746,6 +801,7 @@ async def run_search(
     persona: str = "general",
     modes: Optional[list[str]] = None,
     bypass_guardrails: bool = False,
+    profile_context: Optional[str] = None,
 ) -> dict:
     """
     Full LENA search pipeline:
@@ -819,19 +875,9 @@ async def run_search(
     # hits on PubMed. Send the distinctive subject tokens instead so we
     # get broad recall; the relevance filter below then trims noise.
     subjects = _subject_terms(query)
-
-    # Separate subject terms into "academic" (supplement/herbal keywords
-    # that PubMed would recognise) and "brand-like" (everything else —
-    # e.g. "nutricost"). Brand names AND-concat with academic terms and
-    # cause zero hits on academic databases. We keep them in `subjects`
-    # for the relevance filter (which uses OR logic), but exclude them
-    # from the source query.
-    _academic_vocab = _SUPPLEMENTS_KEYWORDS | _HERBAL_KEYWORDS | _ALTERNATIVES_KEYWORDS
-    academic_terms = [t for t in subjects if t.lower() in _academic_vocab]
-    brand_terms = [t for t in subjects if t.lower() not in _academic_vocab]
-    source_query = " ".join(academic_terms or subjects) if subjects else query
+    source_query = _build_source_query(query, subjects)
     if source_query != query:
-        logger.info("Source query rewritten: %r -> %r", query, source_query)
+        logger.info("Source query rewritten: %r -> %r", query[:120], source_query)
     raw_results_by_source, errors = await search_all_sources(
         query=source_query,
         max_results_per_source=max_results_per_source,
@@ -884,6 +930,7 @@ async def run_search(
         query, pulse_report, persona,
         sources_failed=errors,
         sources_queried=all_queried,
+        profile_context=profile_context,
     )
 
     # Step 7b: Auto-verify supplement if query touches supplement keywords.

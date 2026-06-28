@@ -285,6 +285,7 @@ export async function searchLiterature(
     sessionToken?: string;
     tenantId?: string;
     projectId?: string;
+    profileContext?: string;
   }
 ): Promise<SearchResponse> {
   const params = new URLSearchParams({ q: query });
@@ -301,6 +302,9 @@ export async function searchLiterature(
   if (options?.projectId) params.set('project_id', options.projectId);
 
   const headers: Record<string, string> = {};
+  if (options?.profileContext) {
+    headers['X-LENA-Profile-Context'] = options.profileContext.slice(0, 2000);
+  }
   if (options?.sessionToken) {
     headers['Authorization'] = `Bearer ${options.sessionToken}`;
   } else if (options?.sessionId) {
