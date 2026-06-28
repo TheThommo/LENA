@@ -4,7 +4,9 @@ import { useState, useEffect } from 'react';
 import Image from 'next/image';
 import { branding, product } from '@/config/branding';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
+import { resolveApiBase } from '@/lib/config';
+
+const API_BASE = resolveApiBase();
 
 interface WelcomeViewProps {
   persona: string;

@@ -5,7 +5,9 @@ import Link from 'next/link';
 import { Input } from '@/components/ui/Input';
 import { Button } from '@/components/ui/Button';
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
+import { resolveApiBase } from '@/lib/config';
+
+const API_BASE = resolveApiBase();
 
 export default function ForgotPasswordPage() {
   const [email, setEmail] = useState('');

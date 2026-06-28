@@ -1,10 +1,14 @@
 /** @type {import('next').NextConfig} */
+const backendUrl =
+  process.env.BACKEND_URL ||
+  process.env.NEXT_PUBLIC_BACKEND_URL ||
+  'https://lena-production-health.up.railway.app';
+
 const nextConfig = {
   // Required for Docker/Railway deployment
   output: 'standalone',
 
-  // Proxy API calls to FastAPI backend during development
-  // In production, NEXT_PUBLIC_API_URL points to the backend service
+  // Proxy API calls to FastAPI backend
   async rewrites() {
     if (process.env.NODE_ENV === 'development') {
       return [
@@ -14,7 +18,12 @@ const nextConfig = {
         },
       ];
     }
-    return [];
+    return [
+      {
+        source: '/api/:path*',
+        destination: `${backendUrl.replace(/\/$/, '')}/api/:path*`,
+      },
+    ];
   },
 };
 

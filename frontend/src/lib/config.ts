@@ -3,7 +3,38 @@
  * Reads from environment variables with sensible defaults
  */
 
-export const API_URL = process.env.NEXT_PUBLIC_API_URL || '/api';
+/** Production backend when NEXT_PUBLIC_API_URL is not baked into the build. */
+const PRODUCTION_API_DEFAULT = 'https://lena-production-health.up.railway.app/api';
+
+/**
+ * Resolve the API base URL.
+ * - NEXT_PUBLIC_API_URL at build time (preferred)
+ * - Production Railway host → backend service URL
+ * - Development → /api (Next.js rewrite to localhost:8000)
+ */
+export function resolveApiBase(): string {
+  const fromEnv = process.env.NEXT_PUBLIC_API_URL?.trim();
+  if (fromEnv) return fromEnv.replace(/\/$/, '');
+
+  if (typeof window !== 'undefined') {
+    const host = window.location.hostname;
+    if (
+      host === 'lena-app.up.railway.app'
+      || host.endsWith('.up.railway.app')
+      || host.includes('lena-app')
+    ) {
+      return PRODUCTION_API_DEFAULT;
+    }
+  }
+
+  if (process.env.NODE_ENV === 'production') {
+    return PRODUCTION_API_DEFAULT;
+  }
+
+  return '/api';
+}
+
+export const API_URL = resolveApiBase();
 
 export const APP_ENV = (process.env.NEXT_PUBLIC_APP_ENV || 'development') as
   | 'development'
@@ -31,9 +62,10 @@ export function isRunningOnRailway(): boolean {
  * Handles both absolute URLs and relative paths
  */
 export function getApiUrl(path: string): string {
+  const base = resolveApiBase();
   const normalizedPath = path.startsWith('/') ? path : `/${path}`;
-  if (API_URL.startsWith('http')) {
-    return `${API_URL}${normalizedPath}`;
+  if (base.startsWith('http')) {
+    return `${base}${normalizedPath}`;
   }
-  return `${API_URL}${normalizedPath}`;
+  return `${base}${normalizedPath}`;
 }

@@ -3,7 +3,11 @@
  * Handles communication with the FastAPI backend.
  */
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
+import { resolveApiBase } from '@/lib/config';
+
+function apiBase(): string {
+  return resolveApiBase();
+}
 
 // Session & Auth Types
 export interface SessionStartResponse {
@@ -185,13 +189,13 @@ export interface HealthStatus {
 
 // Session API Functions
 export async function startSession(): Promise<SessionStartResponse> {
-  const response = await fetch(`${API_BASE}/session/start`, { method: 'POST' });
+  const response = await fetch(`${apiBase()}/session/start`, { method: 'POST' });
   if (!response.ok) throw new Error(`Failed to start session: ${response.statusText}`);
   return response.json();
 }
 
 export async function captureName(sessionId: string, name: string): Promise<any> {
-  const response = await fetch(`${API_BASE}/session/${sessionId}/name`, {
+  const response = await fetch(`${apiBase()}/session/${sessionId}/name`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ name }),
@@ -201,7 +205,7 @@ export async function captureName(sessionId: string, name: string): Promise<any>
 }
 
 export async function acceptDisclaimer(sessionId: string): Promise<any> {
-  const response = await fetch(`${API_BASE}/session/${sessionId}/disclaimer`, {
+  const response = await fetch(`${apiBase()}/session/${sessionId}/disclaimer`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ accepted: true }),
@@ -211,7 +215,7 @@ export async function acceptDisclaimer(sessionId: string): Promise<any> {
 }
 
 export async function captureEmail(sessionId: string, email: string): Promise<any> {
-  const response = await fetch(`${API_BASE}/session/${sessionId}/email`, {
+  const response = await fetch(`${apiBase()}/session/${sessionId}/email`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),
@@ -221,7 +225,7 @@ export async function captureEmail(sessionId: string, email: string): Promise<an
 }
 
 export async function getSessionStatus(sessionId: string): Promise<any> {
-  const response = await fetch(`${API_BASE}/session/${sessionId}/status`);
+  const response = await fetch(`${apiBase()}/session/${sessionId}/status`);
   if (!response.ok) throw new Error(`Failed to get session status: ${response.statusText}`);
   return response.json();
 }
@@ -236,7 +240,7 @@ export async function registerUser(
   const body: any = { email, password, name };
   if (sessionId) body.session_id = sessionId;
 
-  const response = await fetch(`${API_BASE}/auth/register`, {
+  const response = await fetch(`${apiBase()}/auth/register`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
@@ -246,7 +250,7 @@ export async function registerUser(
 }
 
 export async function loginUser(email: string, password: string): Promise<AuthResponse> {
-  const response = await fetch(`${API_BASE}/auth/login`, {
+  const response = await fetch(`${apiBase()}/auth/login`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email, password }),
@@ -256,7 +260,7 @@ export async function loginUser(email: string, password: string): Promise<AuthRe
 }
 
 export async function getCurrentUser(token: string): Promise<UserResponse> {
-  const response = await fetch(`${API_BASE}/auth/me`, {
+  const response = await fetch(`${apiBase()}/auth/me`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) throw new Error(`Failed to get current user: ${response.statusText}`);
@@ -264,7 +268,7 @@ export async function getCurrentUser(token: string): Promise<UserResponse> {
 }
 
 export async function logoutUser(token: string): Promise<any> {
-  const response = await fetch(`${API_BASE}/auth/logout`, {
+  const response = await fetch(`${apiBase()}/auth/logout`, {
     method: 'POST',
     headers: { Authorization: `Bearer ${token}` },
   });
@@ -311,7 +315,7 @@ export async function searchLiterature(
     headers['X-Session-ID'] = options.sessionId;
   }
 
-  const url = `${API_BASE}/search?${params}`;
+  const url = `${apiBase()}/search?${params}`;
   let response: Response;
   try {
     response = await fetch(url, { headers });
@@ -332,6 +336,9 @@ export async function searchLiterature(
       detail = body?.detail || '';
     } catch {
       // response body may not be JSON
+    }
+    if (response.status === 404 || response.status >= 502) {
+      throw new LenaSystemError();
     }
     throwForFailedResponse(response.status, detail);
   }
@@ -354,7 +361,7 @@ export interface BillingStatus {
 }
 
 export async function getBillingStatus(): Promise<BillingStatus> {
-  const response = await fetch(`${API_BASE}/billing/status`);
+  const response = await fetch(`${apiBase()}/billing/status`);
   if (!response.ok) throw new Error(`Billing status failed: ${response.statusText}`);
   return response.json();
 }
@@ -363,7 +370,7 @@ export async function createCheckoutSession(
   token: string,
   plan: BillingPlan,
 ): Promise<{ url: string; session_id: string }> {
-  const response = await fetch(`${API_BASE}/billing/checkout`, {
+  const response = await fetch(`${apiBase()}/billing/checkout`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
@@ -379,7 +386,7 @@ export async function createCheckoutSession(
 }
 
 export async function openCustomerPortal(token: string): Promise<{ url: string }> {
-  const response = await fetch(`${API_BASE}/billing/portal`, {
+  const response = await fetch(`${apiBase()}/billing/portal`, {
     headers: { Authorization: `Bearer ${token}` },
   });
   if (!response.ok) {
@@ -390,7 +397,7 @@ export async function openCustomerPortal(token: string): Promise<{ url: string }
 }
 
 export async function checkHealth(): Promise<HealthStatus> {
-  const response = await fetch(`${API_BASE}/health/connections`);
+  const response = await fetch(`${apiBase()}/health/connections`);
   if (!response.ok) throw new Error(`Health check failed: ${response.statusText}`);
   return response.json();
 }
@@ -415,7 +422,7 @@ export interface AffiliationValidateResponse {
 export async function validateAffiliationCode(code: string): Promise<AffiliationValidateResponse> {
   const normalized = code.trim().toUpperCase().replace(/\s+/g, '-');
   const response = await fetch(
-    `${API_BASE}/affiliation/validate?code=${encodeURIComponent(normalized)}`
+    `${apiBase()}/affiliation/validate?code=${encodeURIComponent(normalized)}`
   );
   if (!response.ok) {
     const body = await response.json().catch(() => ({}));
@@ -510,12 +517,12 @@ export interface ProjectLimits {
 }
 
 export async function listProjects(token: string): Promise<Project[]> {
-  const r = await fetch(`${API_BASE}/projects`, { headers: authHeaders(token) });
+  const r = await fetch(`${apiBase()}/projects`, { headers: authHeaders(token) });
   return (await readJsonOrThrow(r, 'List projects')) as Project[];
 }
 
 export async function fetchProjectLimits(token: string): Promise<ProjectLimits> {
-  const r = await fetch(`${API_BASE}/projects/limits`, { headers: authHeaders(token) });
+  const r = await fetch(`${apiBase()}/projects/limits`, { headers: authHeaders(token) });
   return (await readJsonOrThrow(r, 'Fetch project limits')) as ProjectLimits;
 }
 
@@ -523,7 +530,7 @@ export async function createProject(
   token: string,
   body: { name: string; description?: string; color?: string; emoji?: string },
 ): Promise<CreateProjectResult> {
-  const r = await fetch(`${API_BASE}/projects`, {
+  const r = await fetch(`${apiBase()}/projects`, {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(body),
@@ -552,7 +559,7 @@ export async function updateProject(
   projectId: string,
   body: Partial<{ name: string; description: string; color: string; emoji: string; archived: boolean }>,
 ): Promise<Project | CreateProjectResult> {
-  const r = await fetch(`${API_BASE}/projects/${projectId}`, {
+  const r = await fetch(`${apiBase()}/projects/${projectId}`, {
     method: 'PATCH',
     headers: authHeaders(token),
     body: JSON.stringify(body),
@@ -577,7 +584,7 @@ export async function updateProject(
 }
 
 export async function deleteProject(token: string, projectId: string): Promise<void> {
-  const r = await fetch(`${API_BASE}/projects/${projectId}`, {
+  const r = await fetch(`${apiBase()}/projects/${projectId}`, {
     method: 'DELETE',
     headers: authHeaders(token),
   });
@@ -588,7 +595,7 @@ export async function listProjectSearches(
   token: string,
   projectId: string,
 ): Promise<{ project_id: string; searches: ProjectSearch[] }> {
-  const r = await fetch(`${API_BASE}/projects/${projectId}/searches`, {
+  const r = await fetch(`${apiBase()}/projects/${projectId}/searches`, {
     headers: authHeaders(token),
   });
   return (await readJsonOrThrow(r, 'List project searches')) as { project_id: string; searches: ProjectSearch[] };
@@ -599,7 +606,7 @@ export async function assignSearchToProject(
   searchId: string,
   projectId: string | null,
 ): Promise<void> {
-  const r = await fetch(`${API_BASE}/projects/searches/${searchId}/assign`, {
+  const r = await fetch(`${apiBase()}/projects/searches/${searchId}/assign`, {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify({ project_id: projectId }),
@@ -612,7 +619,7 @@ export async function assignSearchToProject(
  * Maps to POST /auth/forgot-password on the backend.
  */
 export async function requestPasswordReset(email: string): Promise<{ message: string }> {
-  const r = await fetch(`${API_BASE}/auth/forgot-password`, {
+  const r = await fetch(`${apiBase()}/auth/forgot-password`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify({ email }),
@@ -631,7 +638,7 @@ export async function verifySupplementStandalone(
 ): Promise<SupplementVerification> {
   const params = new URLSearchParams({ name });
   if (brand) params.set('brand', brand);
-  const r = await fetch(`${API_BASE}/supplements/verify?${params}`);
+  const r = await fetch(`${apiBase()}/supplements/verify?${params}`);
   return readJsonOrThrow(r, 'Verify supplement');
 }
 
@@ -641,7 +648,7 @@ export async function fetchProfilePreferences(token: string): Promise<{
   preferences: Record<string, unknown>;
   updated_at: string | null;
 }> {
-  const r = await fetch(`${API_BASE}/profile/preferences`, { headers: authHeaders(token) });
+  const r = await fetch(`${apiBase()}/profile/preferences`, { headers: authHeaders(token) });
   return readJsonOrThrow(r, 'Fetch profile') as Promise<{
     preferences: Record<string, unknown>;
     updated_at: string | null;
@@ -652,7 +659,7 @@ export async function saveProfilePreferences(
   token: string,
   preferences: Record<string, unknown>,
 ): Promise<void> {
-  const r = await fetch(`${API_BASE}/profile/preferences`, {
+  const r = await fetch(`${apiBase()}/profile/preferences`, {
     method: 'PUT',
     headers: authHeaders(token),
     body: JSON.stringify({ preferences }),
@@ -661,7 +668,7 @@ export async function saveProfilePreferences(
 }
 
 export async function fetchSavedDocuments(token: string): Promise<{ documents: Record<string, unknown>[] }> {
-  const r = await fetch(`${API_BASE}/documents`, { headers: authHeaders(token) });
+  const r = await fetch(`${apiBase()}/documents`, { headers: authHeaders(token) });
   return readJsonOrThrow(r, 'Fetch documents') as Promise<{ documents: Record<string, unknown>[] }>;
 }
 
@@ -670,7 +677,7 @@ export async function upsertSavedDocumentApi(
   docKey: string,
   payload: Record<string, unknown>,
 ): Promise<void> {
-  const r = await fetch(`${API_BASE}/documents`, {
+  const r = await fetch(`${apiBase()}/documents`, {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify({ doc_key: docKey, payload }),
@@ -679,7 +686,7 @@ export async function upsertSavedDocumentApi(
 }
 
 export async function deleteSavedDocumentApi(token: string, docKey: string): Promise<void> {
-  const r = await fetch(`${API_BASE}/documents/${encodeURIComponent(docKey)}`, {
+  const r = await fetch(`${apiBase()}/documents/${encodeURIComponent(docKey)}`, {
     method: 'DELETE',
     headers: authHeaders(token),
   });
@@ -693,7 +700,7 @@ export async function registerFeatureInterest(
 ): Promise<{ ok: boolean; message: string }> {
   const headers: Record<string, string> = { 'Content-Type': 'application/json' };
   if (token) headers.Authorization = `Bearer ${token}`;
-  const r = await fetch(`${API_BASE}/interest`, {
+  const r = await fetch(`${apiBase()}/interest`, {
     method: 'POST',
     headers,
     body: JSON.stringify({ email, feature }),
@@ -711,7 +718,7 @@ export async function logShareEvent(
     result_title?: string;
   },
 ): Promise<void> {
-  const r = await fetch(`${API_BASE}/share`, {
+  const r = await fetch(`${apiBase()}/share`, {
     method: 'POST',
     headers: authHeaders(token),
     body: JSON.stringify(body),

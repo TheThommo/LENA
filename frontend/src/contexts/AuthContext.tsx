@@ -31,7 +31,9 @@ interface AuthContextType {
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
+import { resolveApiBase } from '@/lib/config';
+
+const API_BASE = resolveApiBase();
 
 function readStoredUser(): User | null {
   if (typeof window === 'undefined') return null;

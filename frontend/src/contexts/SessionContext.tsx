@@ -97,7 +97,9 @@ interface SessionContextType {
 
 const SessionContext = createContext<SessionContextType | undefined>(undefined);
 
-const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
+import { resolveApiBase } from '@/lib/config';
+
+const API_BASE = resolveApiBase();
 
 export function SessionProvider({ children }: { children: React.ReactNode }) {
   const [session, setSession] = useState<SessionState>(() => {
