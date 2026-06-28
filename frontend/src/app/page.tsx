@@ -21,7 +21,7 @@ import { useSession } from '@/contexts/SessionContext';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { useAuth } from '@/contexts/AuthContext';
 import { useTenant } from '@/contexts/TenantContext';
-import { searchLiterature, SearchResponse, ResultMode, listProjectSearches, type ProjectSearch, getBillingStatus, createCheckoutSession, type BillingPlan, fetchSavedDocuments, upsertSavedDocumentApi, deleteSavedDocumentApi, LenaSystemError, LenaUpgradeRequiredError } from '@/lib/api';
+import { searchLiterature, SearchResponse, ResultMode, listProjectSearches, type ProjectSearch, getBillingStatus, createCheckoutSession, type BillingPlan, fetchSavedDocuments, upsertSavedDocumentApi, deleteSavedDocumentApi, LenaSystemError, LenaUpgradeRequiredError, ingestDocument } from '@/lib/api';
 import {
   configureDocumentsSync,
   hydrateDocumentsFromCloud,
@@ -70,6 +70,8 @@ export default function Home() {
   // Chat state
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState('');
+  const [pendingAttachment, setPendingAttachment] = useState<{ name: string; text: string } | null>(null);
+  const [attaching, setAttaching] = useState(false);
   const [loading, setLoading] = useState(false);
   type ClientNotice = { kind: 'support' } | { kind: 'upgrade'; message: string };
   const [clientNotice, setClientNotice] = useState<ClientNotice | null>(null);
@@ -119,6 +121,7 @@ export default function Home() {
   // Refs
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const inputRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const currentSessionIdRef = useRef<string>(Date.now().toString());
 
   // ── Recent sessions: per-user, auth-gated, zero-leak ──────────────
@@ -416,6 +419,8 @@ export default function Home() {
 
     setInput('');
     setClientNotice(null);
+    const attachmentText = pendingAttachment?.text;
+    setPendingAttachment(null);
     if (inputRef.current) {
       inputRef.current.style.height = 'auto';
     }
@@ -441,6 +446,7 @@ export default function Home() {
         tenantId: tenant.id,
         persona: session.persona,
         profileContext: buildProfileContextForSearch(user?.id),
+        attachedContext: attachmentText,
         projectId: isAuthenticated && activeProjectId ? activeProjectId : undefined,
       });
 
@@ -1037,13 +1043,62 @@ export default function Home() {
                 </button>
               </div>
             )}
+            {pendingAttachment && (
+              <div className="mb-2 flex items-center gap-2 px-3 py-2 bg-slate-50 border border-slate-200 rounded-lg text-[11px] text-slate-700">
+                <span className="font-medium">📎 {pendingAttachment.name}</span>
+                <span className="text-slate-500 truncate flex-1">Label / document attached — LENA will read it with your question</span>
+                <button
+                  type="button"
+                  onClick={() => setPendingAttachment(null)}
+                  className="text-slate-400 hover:text-slate-700"
+                  aria-label="Remove attachment"
+                >
+                  ✕
+                </button>
+              </div>
+            )}
             <div className="flex items-end gap-2.5 bg-white border border-slate-200/80 rounded-2xl px-3.5 py-2.5 focus-within:border-lena-400/70 focus-within:ring-2 focus-within:ring-lena-100/80 transition-all shadow-soft">
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept="image/*,.pdf,.txt,.csv,.md"
+                className="hidden"
+                onChange={async (e) => {
+                  const file = e.target.files?.[0];
+                  e.target.value = '';
+                  if (!file) return;
+                  setAttaching(true);
+                  try {
+                    const ingested = await ingestDocument(file);
+                    setPendingAttachment({ name: ingested.title || file.name, text: ingested.text });
+                  } catch (err) {
+                    setClientNotice({ kind: 'support' });
+                  } finally {
+                    setAttaching(false);
+                  }
+                }}
+              />
+              <button
+                type="button"
+                onClick={() => fileInputRef.current?.click()}
+                disabled={attaching || loading}
+                title="Attach label, PDF, or image"
+                className="w-10 h-10 flex items-center justify-center rounded-xl text-slate-500 hover:bg-slate-100 hover:text-lena-700 disabled:opacity-40 flex-shrink-0"
+              >
+                {attaching ? (
+                  <span className="text-[10px] font-medium">…</span>
+                ) : (
+                  <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                    <path strokeLinecap="round" strokeLinejoin="round" d="M15.172 7l-6.586 6.586a2 2 0 102.828 2.828l6.414-6.586a4 4 0 00-5.656-5.656l-6.415 6.585a6 6 0 108.486 8.486L20.5 13" />
+                  </svg>
+                )}
+              </button>
               <textarea
                 ref={inputRef}
                 value={input}
                 onChange={handleInputChange}
                 onKeyDown={handleKeyDown}
-                placeholder="Ask LENA a research question"
+                placeholder="Ask LENA a research question — paste a product link or attach a label"
                 rows={1}
                 className="flex-1 bg-transparent border-none outline-none resize-none input-touch text-slate-800 placeholder-slate-400 max-h-[130px] py-0.5"
               />
@@ -1058,7 +1113,7 @@ export default function Home() {
               </button>
             </div>
             <div className="flex items-center justify-between mt-1.5 px-1">
-              <span className="text-[11px] text-slate-400 hidden sm:inline">Shift + Enter for new line</span>
+              <span className="text-[11px] text-slate-400 hidden sm:inline">Paste URLs · attach labels · Shift+Enter new line</span>
               <span className="text-[11px] text-slate-400">{product.tagline}</span>
             </div>
           </div>

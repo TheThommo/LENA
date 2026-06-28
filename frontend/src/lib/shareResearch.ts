@@ -129,6 +129,14 @@ export function buildResearchSharePayload(options: {
     sections.push('Summary', summary, '');
   }
 
+  if (response.attached_content?.length) {
+    sections.push('Sources reviewed', '');
+    response.attached_content.forEach(a => {
+      sections.push(`• ${a.title || a.source}${a.error ? ` (unreadable: ${a.error})` : ''}`);
+    });
+    sections.push('');
+  }
+
   const evidence = buildEvidenceSection(response);
   if (evidence.length > 0) {
     sections.push(...evidence, '');

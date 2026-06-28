@@ -1,6 +1,7 @@
 # Core
 fastapi==0.115.6
 uvicorn[standard]==0.34.0
+python-multipart==0.0.20
 python-dotenv==1.0.1
 pydantic==2.10.4
 pydantic-settings==2.7.1
@@ -16,8 +17,9 @@ supabase==2.11.0
 # OpenAI
 openai==1.58.1
 
-# XML parsing (for PubMed responses)
+# XML / HTML parsing (PubMed responses, web page ingest)
 lxml==5.3.0
+pypdf==5.1.0
 
 # Authentication
 PyJWT==2.9.0

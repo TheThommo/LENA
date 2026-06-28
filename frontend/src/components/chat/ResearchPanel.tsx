@@ -3,6 +3,9 @@
 import { useMemo, useState, useCallback, useEffect, type ReactNode } from 'react';
 import type { SearchResponse, ValidatedResult, SourceAgreement, ResultMode } from '@/lib/api';
 import { makeDocumentId, saveDocument, listDocuments } from '@/lib/savedDocuments';
+import { buildSessionEvidenceDocument, type SessionEvidenceInput } from '@/lib/evidenceDocument';
+import { downloadEvidencePdf } from '@/lib/evidencePdf';
+import { copyTextToClipboard } from '@/lib/clipboard';
 import PulseExplainer from '@/components/pulse/PulseExplainer';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 
@@ -480,6 +483,49 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
     };
   }, [messages, resultMatchesModes, modeFilter]);
 
+  const buildEvidenceInput = useCallback((): SessionEvidenceInput => {
+    const now = new Date();
+    const dateLabel = now.toLocaleDateString('en-AU', {
+      weekday: 'long', year: 'numeric', month: 'long', day: 'numeric',
+    });
+    const modes = activeModes?.length ? activeModes.join(', ') : 'all';
+    return {
+      personaLabel: formatPersona(persona),
+      dateLabel,
+      userQueries: analysis.userQueries,
+      summaries: analysis.responses.map(r => ({
+        query: r.query,
+        summary: r.llm_summary || '',
+        attached: r.attached_content,
+        pulseConfidence: Math.round((r.pulse_report?.confidence_ratio || 0) * 100),
+        consensus: r.pulse_report?.status?.replace(/_/g, ' '),
+        keyFinding: r.pulse_report?.consensus_summary,
+        evidenceLevel: analysis.bestEvidence ? `Level ${analysis.bestEvidence}` : 'N/A',
+      })),
+      databases: analysis.uniqueSourcesList,
+      resultModes: modes,
+      totalResults: analysis.totalResults,
+      databaseCount: analysis.uniqueSources,
+      avgConfidence: analysis.avgConfidence,
+      bestEvidenceLabel: analysis.bestEvidence
+        ? `Level ${analysis.bestEvidence} (${EVIDENCE_LEVEL_SHORT[analysis.bestEvidence]})`
+        : 'N/A',
+      gaps: analysis.gaps,
+      citations: analysis.citations.map(c => ({
+        index: c.index,
+        source: c.source,
+        title: c.title,
+        url: c.url,
+        doi: c.doi,
+        year: c.year,
+        query: c.query,
+        evidenceLevel: c.evidenceLevel,
+        note: citationNotes[citationKey(c)],
+        starred: starredKeys.has(citationKey(c)),
+      })),
+    };
+  }, [analysis, persona, activeModes, citationNotes, starredKeys]);
+
   // ---------------------------------------------------------------------------
   // Filtered & sorted citations
   // ---------------------------------------------------------------------------
@@ -518,162 +564,28 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
 
 
   // ---------------------------------------------------------------------------
-  // Report generation
+  // Export / copy actions
   // ---------------------------------------------------------------------------
 
-  const generateReport = useCallback(() => {
-    const now = new Date();
-    const personaLabel = formatPersona(persona);
-    const { responses, userQueries, citations, avgConfidence, bestEvidence, gaps, contradictions, uniqueSourcesList, yearRange } = analysis;
-
-    const line = (char: string, len: number) => char.repeat(len);
-    const W = 55;
-    let r = '';
-
-    r += `LENA EVIDENCE SUMMARY\n`;
-    r += `${line('=', W)}\n\n`;
-    r += `PREPARED FOR: ${personaLabel} | DATE: ${now.toLocaleDateString('en-AU', { weekday: 'long', year: 'numeric', month: 'long', day: 'numeric' })}\n`;
-    r += `EVIDENCE LEVEL: ${bestEvidence ? `Level ${bestEvidence} (${EVIDENCE_LEVEL_SHORT[bestEvidence]})` : 'N/A'} | PULSE: ${avgConfidence}%\n\n`;
-
-    // 1. Research Questions
-    r += `${line('-', W)}\n`;
-    r += `1. RESEARCH QUESTION(S)\n`;
-    r += `${line('-', W)}\n\n`;
-    userQueries.forEach((q, i) => {
-      r += `  ${i + 1}. ${q}\n`;
-    });
-    r += '\n';
-
-    // 2. Search Strategy
-    r += `${line('-', W)}\n`;
-    r += `2. SEARCH STRATEGY\n`;
-    r += `${line('-', W)}\n\n`;
-    r += `  Databases: ${uniqueSourcesList.map(getSourceLabel).join(', ')}\n`;
-    if (yearRange) {
-      r += `  Date range: ${yearRange.min} - ${yearRange.max}\n`;
-    }
-    const activeModes = Array.from(
-      new Set(responses.flatMap(resp => resp.modes || ['all']))
-    ).join(', ');
-    r += `  Result modes: ${activeModes || 'all'}\n`;
-    r += `  Total results: ${analysis.totalResults} across ${analysis.uniqueSources} databases\n`;
-    r += '\n';
-
-    // 3. Evidence Summary
-    r += `${line('-', W)}\n`;
-    r += `3. EVIDENCE SUMMARY\n`;
-    r += `${line('-', W)}\n\n`;
-
-    responses.forEach(resp => {
-      const pr = resp.pulse_report;
-      const qLevel = highestEvidenceLevel(pr.validated_results.map(vr => inferEvidenceLevel(vr.source)));
-      r += `  Question: "${resp.query}"\n`;
-      r += `  Evidence Level: ${qLevel} (${EVIDENCE_LEVEL_SHORT[qLevel]})\n`;
-      r += `  Consensus: ${pr.status.replace(/_/g, ' ')} -- ${Math.round(pr.confidence_ratio * 100)}%\n`;
-      if (pr.consensus_summary) {
-        r += `  Key Finding: ${pr.consensus_summary}\n`;
-      }
-      r += `  Source Agreement: ${pr.agreement_count} of ${pr.source_count} sources agree\n`;
-
-      // Contradictions for this query
-      const queryCont = contradictions.filter(c => c.query === resp.query);
-      if (queryCont.length > 0) {
-        r += `\n  Contradictions/Divergences:\n`;
-        queryCont.forEach(c => {
-          r += `  - ${getSourceLabel(c.source)} (overlap: ${Math.round(c.overlap_score * 100)}%) -- unique keywords: ${c.unique_keywords.join(', ')}\n`;
-        });
-      }
-      r += '\n';
-    });
-
-    // 4. Gaps & Limitations
-    r += `${line('-', W)}\n`;
-    r += `4. GAPS & LIMITATIONS\n`;
-    r += `${line('-', W)}\n\n`;
-    if (gaps.length > 0) {
-      gaps.forEach(g => { r += `  - ${g}\n`; });
-    } else {
-      r += `  No significant gaps identified.\n`;
-    }
-    r += '\n';
-
-    // 5. References
-    r += `${line('-', W)}\n`;
-    r += `5. REFERENCES\n`;
-    r += `${line('-', W)}\n\n`;
-    citations.forEach((c, i) => {
-      r += `  [${i + 1}] ${c.title}. ${getSourceLabel(c.source)}`;
-      if (c.year > 0) r += ` (${c.year})`;
-      r += '.';
-      if (c.doi) r += ` DOI: ${c.doi}.`;
-      r += ` URL: ${c.url}`;
-      r += '\n';
-    });
-    r += '\n';
-
-    // 6. Starred References & Notes
-    const starredCitations = citations.filter(c => starredKeys.has(citationKey(c)));
-    if (starredCitations.length > 0 || Object.keys(citationNotes).length > 0) {
-      r += `${line('-', W)}\n`;
-      r += `6. STARRED REFERENCES & NOTES\n`;
-      r += `${line('-', W)}\n\n`;
-      starredCitations.forEach(c => {
-        const key = citationKey(c);
-        r += `  * [${c.index}] ${c.title}\n`;
-        if (citationNotes[key]) {
-          r += `    Note: ${citationNotes[key]}\n`;
-        }
-        r += '\n';
-      });
-    }
-
-    // Methodology
-    r += `${line('-', W)}\n`;
-    r += `METHODOLOGY\n`;
-    r += `${line('-', W)}\n\n`;
-    r += `  Cross-referenced via PULSE engine across ${analysis.uniqueSources} databases.\n`;
-    r += `  Databases: ${uniqueSourcesList.map(getSourceLabel).join(', ')}\n\n`;
-    r += `  DISCLAIMER: This is a research aggregation tool, not medical\n`;
-    r += `  advice. Always consult a qualified healthcare provider for\n`;
-    r += `  clinical decisions.\n\n`;
-    r += `${line('=', W)}\n`;
-    r += `Generated by LENA | lena.health\n`;
-    r += `${line('=', W)}\n`;
-
-    return r;
-  }, [analysis, persona, starredKeys, citationNotes]);
-
-  // ---------------------------------------------------------------------------
-  // Actions
-  // ---------------------------------------------------------------------------
-
-  const handleExport = useCallback(() => {
+  const handleExport = useCallback(async () => {
     setExporting(true);
     try {
-      const report = generateReport();
-      const blob = new Blob([report], { type: 'text/plain;charset=utf-8' });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = `LENA-Evidence-Brief-${new Date().toISOString().slice(0, 10)}.txt`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      await downloadEvidencePdf(buildEvidenceInput());
       setExportSuccess(true);
       setTimeout(() => setExportSuccess(false), 3000);
     } finally {
       setExporting(false);
     }
-  }, [generateReport]);
+  }, [buildEvidenceInput]);
 
-  const handleCopy = useCallback(() => {
-    const report = generateReport();
-    navigator.clipboard.writeText(report).then(() => {
+  const handleCopy = useCallback(async () => {
+    const doc = buildSessionEvidenceDocument(buildEvidenceInput());
+    const ok = await copyTextToClipboard(doc.markdown);
+    if (ok) {
       setCopySuccess(true);
       setTimeout(() => setCopySuccess(false), 3000);
-    });
-  }, [generateReport]);
+    }
+  }, [buildEvidenceInput]);
 
   // ---------------------------------------------------------------------------
   // Render helpers
@@ -1143,7 +1055,7 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
     return (
       <div className="space-y-4">
         <p className="text-[11px] text-slate-500 leading-relaxed">
-          Generate a structured evidence brief suitable for clinical review, grant applications, or literature review documentation.
+          Download a polished PDF brief or copy a friendly summary — ready to share with patients, students, or colleagues.
         </p>
 
         {/* Preview outline */}
@@ -1152,7 +1064,7 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
           {[
             `1. Research Questions (${analysis.userQueries.length})`,
             `2. Search Strategy (${analysis.uniqueSources} databases)`,
-            `3. Evidence Summary (Level ${analysis.bestEvidence || '--'}, ${analysis.avgConfidence}% PULSE)`,
+            `3. LENA findings & evidence snapshot (${analysis.avgConfidence}% PULSE)`,
             `4. Gaps & Limitations (${analysis.gaps.length} identified)`,
             `5. References (${analysis.citations.length} citations, Vancouver format)`,
             `6. Starred References & Notes (${analysis.citations.filter(c => starredKeys.has(citationKey(c))).length} starred)`,
@@ -1295,14 +1207,14 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
                 </svg>
-                Brief Downloaded
+                Brief Downloaded (PDF)
               </>
             ) : (
               <>
                 <svg className="w-4 h-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                   <path strokeLinecap="round" strokeLinejoin="round" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                 </svg>
-                {exporting ? 'Generating...' : 'Export Evidence Brief'}
+                {exporting ? 'Generating PDF…' : 'Export PDF Brief'}
               </>
             )}
           </button>
@@ -1318,7 +1230,7 @@ export default function ResearchPanel({ messages, persona, activeModes, onClose 
               <svg className="w-3.5 h-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                 <path strokeLinecap="round" strokeLinejoin="round" d="M8 5H6a2 2 0 00-2 2v12a2 2 0 002 2h10a2 2 0 002-2v-1M8 5a2 2 0 002 2h2a2 2 0 002-2M8 5a2 2 0 012-2h2a2 2 0 012 2m0 0h2a2 2 0 012 2v3m2 4H10m0 0l3-3m-3 3l3 3" />
               </svg>
-              {copySuccess ? 'Copied' : 'Copy to Clipboard'}
+              {copySuccess ? 'Copied' : 'Copy friendly brief'}
             </button>
           </div>
           <p className="text-[10px] text-slate-400 leading-relaxed mt-2 px-0.5">

@@ -221,6 +221,7 @@ async def _generate_llm_summary(
     sources_failed: Optional[dict[str, str]] = None,
     sources_queried: Optional[list[str]] = None,
     profile_context: Optional[str] = None,
+    attached_context: Optional[str] = None,
 ) -> tuple[Optional[str], Optional[dict]]:
     """
     Use OpenAI to generate an intelligent, persona-aware summary from the
@@ -303,6 +304,8 @@ async def _generate_llm_summary(
         coverage_context = "\n".join(coverage_lines)
         evidence_context = "\n\n".join(evidence_lines)
         context = f"--- Source Coverage ---\n{coverage_context}\n\n--- Evidence ---\n{evidence_context}"
+        if attached_context:
+            context = f"{context}\n\n{attached_context}"
 
         # Map string to PersonaType enum
         try:
@@ -802,6 +805,7 @@ async def run_search(
     modes: Optional[list[str]] = None,
     bypass_guardrails: bool = False,
     profile_context: Optional[str] = None,
+    attached_context: Optional[str] = None,
 ) -> dict:
     """
     Full LENA search pipeline:
@@ -857,6 +861,19 @@ async def run_search(
     # prepended to the LLM summary so the user sees the redirect context.
     advice_preamble = guardrail_msg if guardrail_type == "medical_advice" else None
 
+    # Step 1b: Ingest URLs embedded in the query + any uploaded attachment text.
+    from app.services.content_ingest import (
+        format_attached_context,
+        ingest_attached_context_header,
+        ingest_urls_from_query,
+        strip_urls,
+    )
+    url_blocks = await ingest_urls_from_query(query)
+    header_blocks = await ingest_attached_context_header(attached_context)
+    attached_blocks = url_blocks + header_blocks
+    attached_context_text = format_attached_context(attached_blocks)
+    literature_query = strip_urls(query) or query
+
     # Step 2: Check cache
     cached = get_cached_result(query, sources, include_alt_medicine, modes)
     if cached:
@@ -874,8 +891,8 @@ async def run_search(
     # so "Tell me about magnesium health benefits for males 50+" -> zero
     # hits on PubMed. Send the distinctive subject tokens instead so we
     # get broad recall; the relevance filter below then trims noise.
-    subjects = _subject_terms(query)
-    source_query = _build_source_query(query, subjects)
+    subjects = _subject_terms(literature_query)
+    source_query = _build_source_query(literature_query, subjects)
     if source_query != query:
         logger.info("Source query rewritten: %r -> %r", query[:120], source_query)
     raw_results_by_source, errors = await search_all_sources(
@@ -931,6 +948,7 @@ async def run_search(
         sources_failed=errors,
         sources_queried=all_queried,
         profile_context=profile_context,
+        attached_context=attached_context_text or None,
     )
 
     # Step 7b: Auto-verify supplement if query touches supplement keywords.
@@ -980,6 +998,7 @@ async def run_search(
         "supplement_verification": supplement_verification,
         "llm_summary": (advice_preamble + "\n\n" + llm_summary) if advice_preamble and llm_summary else llm_summary,
         "llm_usage": llm_usage,  # {model, prompt_tokens, completion_tokens, cost_micros} | None
+        "attached_content": [b.to_dict() for b in attached_blocks if b.text or b.error],
         "response_time_ms": response_time_ms,
     }
 

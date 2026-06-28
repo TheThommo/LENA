@@ -179,6 +179,16 @@ export interface SearchResponse {
   pulse_report: PulseReport;
   supplement_verification?: SupplementVerification | null;
   llm_summary?: string | null;
+  attached_content?: AttachedContent[];
+}
+
+export interface AttachedContent {
+  kind: string;
+  source: string;
+  title: string;
+  text: string;
+  chars: number;
+  error?: string | null;
 }
 
 export interface HealthStatus {
@@ -290,6 +300,7 @@ export async function searchLiterature(
     tenantId?: string;
     projectId?: string;
     profileContext?: string;
+    attachedContext?: string;
   }
 ): Promise<SearchResponse> {
   const params = new URLSearchParams({ q: query });
@@ -311,6 +322,11 @@ export async function searchLiterature(
     // URI-encode so personalised search works for any profile notes.
     headers['X-LENA-Profile-Context'] = encodeURIComponent(
       options.profileContext.slice(0, 2000),
+    );
+  }
+  if (options?.attachedContext) {
+    headers['X-LENA-Attached-Context'] = encodeURIComponent(
+      options.attachedContext.slice(0, 16000),
     );
   }
   if (options?.sessionToken) {
@@ -710,6 +726,25 @@ export async function registerFeatureInterest(
     body: JSON.stringify({ email, feature }),
   });
   return readJsonOrThrow(r, 'Register interest') as Promise<{ ok: boolean; message: string }>;
+}
+
+export async function ingestDocument(file: File): Promise<{
+  kind: string;
+  filename: string;
+  title: string;
+  text: string;
+  chars: number;
+}> {
+  const form = new FormData();
+  form.append('file', file);
+  const r = await fetch(`${apiBase()}/ingest`, { method: 'POST', body: form });
+  return readJsonOrThrow(r, 'Read document') as Promise<{
+    kind: string;
+    filename: string;
+    title: string;
+    text: string;
+    chars: number;
+  }>;
 }
 
 export async function logShareEvent(
