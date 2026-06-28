@@ -50,6 +50,11 @@ const SOURCE_META: Record<string, { color: string; label: string }> = {
   who_iris:        { color: '#0891B2', label: 'WHO IRIS' },
   cdc:             { color: '#059669', label: 'CDC' },
   openalex:        { color: '#DC2626', label: 'OpenAlex' },
+  semantic_scholar:{ color: '#4F46E5', label: 'Semantic Scholar' },
+  europe_pmc:      { color: '#0284C7', label: 'Europe PMC' },
+  dailymed:        { color: '#DB2777', label: 'FDA DailyMed' },
+  ods_dsld:        { color: '#0D9488', label: 'NIH DSLD' },
+  openfda:         { color: '#B91C1C', label: 'openFDA' },
 };
 
 const EVIDENCE_LEVEL_MAP: Record<string, EvidenceLevel> = {

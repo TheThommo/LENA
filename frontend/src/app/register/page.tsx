@@ -58,7 +58,7 @@ function RegisterForm() {
 
     try {
       await register(email, password, name, sessionId || undefined);
-      router.push('/');
+      router.push('/chat');
     } catch (err) {
       setError(
         err instanceof Error

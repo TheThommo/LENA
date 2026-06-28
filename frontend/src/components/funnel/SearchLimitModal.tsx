@@ -53,7 +53,7 @@ export default function SearchLimitModal({
           Sign up to keep researching
         </h1>
         <p className="text-slate-500 mb-6 text-center text-sm leading-relaxed">
-          30 seconds. 5 free searches a day, saved history, project folders.
+          30 seconds. {product.freeSearchLimit} free searches per month, saved history, project folders.
         </p>
 
         <button

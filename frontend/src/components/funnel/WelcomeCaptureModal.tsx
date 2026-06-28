@@ -69,7 +69,7 @@ export default function WelcomeCaptureModal({
           </div>
           <div>
             <h1 className="text-xl font-bold text-slate-800">Welcome to {brandName}</h1>
-            <p className="text-xs text-slate-500">{product.freeSearchLimit} free searches a day - no credit card</p>
+            <p className="text-xs text-slate-500">{product.freeSearchLimit} free searches per month — no credit card</p>
           </div>
         </div>
 

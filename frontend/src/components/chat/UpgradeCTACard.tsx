@@ -2,7 +2,7 @@
 
 import React from 'react';
 import Image from 'next/image';
-import { branding } from '@/config/branding';
+import { branding, product } from '@/config/branding';
 
 const SUPPORT_MAIL = 'mailto:hello@lena-app.com?subject=LENA%20Support%20request';
 
@@ -73,7 +73,7 @@ export default function UpgradeCTACard({
         </div>
 
         <p className="mt-2 text-[11px] text-slate-400">
-          $30/mo or $300/yr. Founding 10: $50/yr (first 10 members only).
+          ${product.proMonthlyUsd}/mo or ${product.proAnnualUsd}/yr. Founding 10: $50/yr (first 10 members only).
         </p>
       </div>
     </div>

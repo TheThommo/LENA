@@ -49,12 +49,10 @@ class Settings(BaseSettings):
     jwt_expiration_minutes: int = 10080  # 7 days — stay signed in until logout or expiry
 
     # Freemium
-    # Anonymous visitors get 1 free search before signup CTA (demo mode).
-    # Registered users get 5 per rolling 24h before Pro gate (demo mode).
-    # Tighten both when billing goes live.
-    free_search_limit: int = 5  # legacy alias; kept for backward-compat readers
+    # Anonymous: 1 free search (no signup). Registered free: 10 searches per calendar month.
+    free_search_limit: int = 10  # legacy alias
     free_search_limit_anon: int = 1
-    free_search_limit_registered: int = 5
+    free_search_limit_registered: int = 10
     anon_fingerprint_salt: str = "lena-fp-demo-salt-rotate-before-prod"
 
     # Per-user bypass allowlist. Comma-separated user UUIDs. These users
@@ -85,8 +83,8 @@ class Settings(BaseSettings):
     stripe_price_pro_annual: Optional[str] = None
     stripe_price_pro_founding: Optional[str] = None
     stripe_founding_max_redemptions: int = 10
-    billing_success_url: str = "https://lena-app.up.railway.app/?billing=success"
-    billing_cancel_url: str = "https://lena-app.up.railway.app/?billing=cancelled"
+    billing_success_url: str = "https://lena-app.up.railway.app/chat?billing=success"
+    billing_cancel_url: str = "https://lena-app.up.railway.app/chat?billing=cancelled"
 
     # RapidAPI (iHerb product data, etc.)
     rapidapi_key: Optional[str] = None

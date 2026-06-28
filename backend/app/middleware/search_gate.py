@@ -51,22 +51,22 @@ def _client_ip(request: Request) -> str:
     return ""
 
 
-async def _registered_search_count_last_24h(user_id: str) -> int:
-    """Count registered user's searches in the last 24h window via
-    search_logs. Cheap: indexed on (user_id, created_at)."""
+async def _registered_search_count_current_month(user_id: str) -> int:
+    """Count registered user's chargeable searches in the current UTC calendar month."""
     client = get_supabase_admin_client()
-    cutoff = (datetime.now(timezone.utc) - timedelta(hours=24)).isoformat()
+    now = datetime.now(timezone.utc)
+    month_start = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0).isoformat()
     try:
         resp = (
             client.table("search_logs")
             .select("id", count="exact")
             .eq("user_id", user_id)
-            .gte("created_at", cutoff)
+            .gte("created_at", month_start)
             .execute()
         )
         return resp.count or 0
     except Exception as e:
-        logger.warning(f"registered 24h count failed (non-blocking): {e}")
+        logger.warning(f"registered monthly count failed (non-blocking): {e}")
         return 0
 
 
@@ -219,15 +219,15 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
                         request.state.session = None
                 return await call_next(request)
 
-            # 24h rolling quota for registered (demo free tier).
-            used = await _registered_search_count_last_24h(user_id_str)
+            # Monthly quota for registered free tier.
+            used = await _registered_search_count_current_month(user_id_str)
             reg_limit = _settings.free_search_limit_registered
             if used >= reg_limit:
                 return _guardrail_response(
                     "registered_limit",
-                    f"You've used your **{reg_limit} free searches** in the last 24 hours.\n\n"
-                    "Upgrade to **Pro** for unlimited searches, saved results, project folders, "
-                    "and export. Your free tier resets daily - come back tomorrow if you'd like.",
+                    f"You've used your **{reg_limit} free searches** this month.\n\n"
+                    "Upgrade to **Pro** ($19/mo) for unlimited searches, projects, PDF exports, "
+                    "and voice (coming soon). Your free tier resets on the 1st.",
                     query_param,
                 )
 
@@ -312,7 +312,7 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
                 "signup_required",
                 "That was your free preview - hope it was useful!\n\n"
                 "**Create a free account** (takes 30 seconds) to keep searching. "
-                "You'll get 5 searches a day, saved history, and project folders.",
+                f"You'll get {_settings.free_search_limit_registered} searches per month, saved history, and project folders.",
                 query_param,
             )
 

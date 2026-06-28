@@ -41,42 +41,53 @@ export const branding = {
   primaryDark: '#0D4854',
 } as const;
 
-
 /**
- * Product constants - single source of truth.
+ * Product constants - single source of truth for GTM.
  *
- * These numbers appear across the frontend (welcome page, search bar,
- * thinking indicator, funnel modals, How It Works). Changing them here
- * updates everywhere. NO hardcoded "250M+" or "6 databases" anywhere else.
+ * These numbers appear across the frontend (landing page, welcome view,
+ * search bar, funnel modals, How It Works). Changing them here updates
+ * everywhere.
  */
 export const product = {
   /** Total papers indexed across all sources */
   paperCount: '250M+',
 
-  /** Number of data sources queried */
-  sourceCount: 8,
+  /** Number of live data sources queried in parallel */
+  sourceCount: 11,
 
   /** Source names for display */
-  sourceNames: ['PubMed', 'ClinicalTrials.gov', 'Cochrane', 'WHO IRIS', 'CDC', 'OpenAlex', 'NIH DSLD', 'openFDA CAERS'],
+  sourceNames: [
+    'PubMed',
+    'Cochrane',
+    'OpenAlex',
+    'Semantic Scholar',
+    'Europe PMC',
+    'ClinicalTrials.gov',
+    'WHO IRIS',
+    'CDC',
+    'FDA DailyMed',
+    'NIH DSLD',
+    'openFDA',
+  ],
 
-  /** Source names as a readable string */
   get sourceList() {
     return this.sourceNames.join(', ');
   },
 
-  /** Short source list for compact UI */
-  sourceListShort: 'PubMed, Cochrane, OpenAlex & more',
+  sourceListShort: 'PubMed, Cochrane, OpenAlex, Semantic Scholar & more',
 
-  /** Free tier search limit per session */
-  freeSearchLimit: 5,
+  /** Free tier: 10 searches per calendar month (registered) */
+  freeSearchLimit: 10,
 
-  /** Tagline used in search bar, welcome page, etc. */
+  /** Pro individual price (USD) — must match Stripe */
+  proMonthlyUsd: 19,
+  proAnnualUsd: 190,
+
   get tagline() {
-    return `LENA searches ${this.paperCount} papers across ${this.sourceCount} databases`;
+    return `LENA cross-validates ${this.paperCount} papers across ${this.sourceCount} databases`;
   },
 
-  /** Longer description for welcome/marketing */
   get description() {
-    return `Search ${this.paperCount} medical papers across ${this.sourceCount} databases in seconds, cross-referenced by AI for accuracy.`;
+    return `Ask a health research question. LENA queries ${this.sourceCount} sources in parallel, validates evidence with PULSE, and returns a shareable brief — in seconds.`;
   },
 } as const;
