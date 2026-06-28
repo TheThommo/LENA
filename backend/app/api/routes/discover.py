@@ -82,10 +82,50 @@ _FALLBACK_TRENDING = [
     {"topic": "AI in diagnostic imaging", "count": 0, "is_fallback": True},
 ]
 
+# Welcome-screen chips must be short, clickable questions — never personal dumps.
+_MAX_SUGGESTION_LEN = 120
+_MAX_SUGGESTION_WORDS = 18
+_PERSONAL_DUMP_MARKERS = (
+    "current health context",
+    "diagnosed with",
+    "personal health",
+    "context notes",
+    "my supplements",
+    "i take ",
+    "i am currently",
+    "i've been",
+    "tell me if we are on",
+)
+
+
+def _is_suggestible_query(text: str) -> bool:
+    """Reject long personal narratives unsuitable as welcome prompt chips."""
+    q = text.strip()
+    if len(q) < 15 or len(q) > _MAX_SUGGESTION_LEN:
+        return False
+    if len(q.split()) > _MAX_SUGGESTION_WORDS:
+        return False
+    ql = q.lower()
+    if any(m in ql for m in _PERSONAL_DUMP_MARKERS):
+        return False
+    return True
+
+
+def _project_prompts(project_name: str, persona: str) -> list[str]:
+    """Short, project-themed starters for a fresh project chat."""
+    topic = project_name.strip()
+    fallbacks = _FALLBACK_PROMPTS.get(persona, _FALLBACK_PROMPTS["general"])
+    return [
+        f"What does recent evidence say about {topic}?",
+        f"Key RCTs and reviews relevant to {topic}",
+        fallbacks[0] if fallbacks else f"Compare evidence-based options for {topic}",
+    ][:3]
+
 
 @router.get("/suggestions")
 async def get_suggestions(
     persona: Optional[str] = Query("general", description="User persona for tailored suggestions"),
+    project: Optional[str] = Query(None, description="Active project name — project-themed starters"),
 ):
     """
     Suggested search prompts for the welcome page.
@@ -97,6 +137,14 @@ async def get_suggestions(
 
     No auth required — this is public.
     """
+    persona_key = persona or "general"
+
+    if project and project.strip():
+        return {
+            "suggestions": _project_prompts(project.strip(), persona_key),
+            "source": "project",
+        }
+
     try:
         client = get_supabase_admin_client()
         seven_days_ago = (date.today() - timedelta(days=7)).isoformat()
@@ -133,26 +181,26 @@ async def get_suggestions(
                 "source": "curated",
             }
 
-        # Count and return top 3 unique queries
+        # Count short, suggestible queries only
         query_counts = Counter()
         for r in rows:
             q_text = (r.get("query") or "").strip()
-            if q_text and len(q_text) > 10:
+            if _is_suggestible_query(q_text):
                 query_counts[q_text] += 1
 
         top = [q for q, _ in query_counts.most_common(5)]
+        fallbacks = _FALLBACK_PROMPTS.get(persona_key, _FALLBACK_PROMPTS["general"])
+
         if len(top) < 3:
-            # Supplement with fallbacks
-            fallbacks = _FALLBACK_PROMPTS.get(persona or "general", _FALLBACK_PROMPTS["general"])
-            for fb in fallbacks:
-                if fb not in top:
-                    top.append(fb)
-                if len(top) >= 3:
-                    break
+            # Not enough quality search data — persona curated prompts only
+            return {
+                "suggestions": fallbacks[:3],
+                "source": "curated",
+            }
 
         return {
             "suggestions": top[:3],
-            "source": "search_data" if query_counts else "curated",
+            "source": "search_data",
         }
 
     except Exception as e:

@@ -930,7 +930,11 @@ export default function Home() {
         {/* Messages area */}
         <div className="flex-1 overflow-y-auto">
           {showWelcome ? (
-            <WelcomeView persona={session.persona} onPromptClick={(q) => handleSend(q)} />
+            <WelcomeView
+              persona={session.persona}
+              projectName={activeProject?.name}
+              onPromptClick={(q) => handleSend(q)}
+            />
           ) : (
             <div className="max-w-3xl mx-auto px-3 sm:px-4 py-4 sm:py-6 space-y-1">
               {visibleMessages.map((msg) => {

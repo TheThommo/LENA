@@ -8,6 +8,7 @@ const API_BASE = process.env.NEXT_PUBLIC_API_URL || '/api';
 
 interface WelcomeViewProps {
   persona: string;
+  projectName?: string | null;
   onPromptClick: (query: string) => void;
 }
 
@@ -24,22 +25,45 @@ function formatPersonaLabel(persona: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
-export default function WelcomeView({ persona, onPromptClick }: WelcomeViewProps) {
+function personaRoleLabel(persona: string): string {
+  const labels: Record<string, string> = {
+    medical_student: 'Medical Student',
+    clinician: 'Clinician',
+    pharmacist: 'Pharmacist',
+    researcher: 'Researcher',
+    lecturer: 'Lecturer',
+    physiotherapist: 'Physiotherapist',
+    neuroscientist: 'Neuroscientist',
+    alternative_practitioner: 'Alternative & Integrative Practitioner',
+    patient: 'Patient / Public',
+    general: 'General',
+  };
+  return labels[persona] || formatPersonaLabel(persona);
+}
+
+export default function WelcomeView({ persona, projectName, onPromptClick }: WelcomeViewProps) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [trending, setTrending] = useState<TrendingTopic[]>([]);
   const [suggestionsSource, setSuggestionsSource] = useState<string>('loading');
   const [trendingSource, setTrendingSource] = useState<string>('loading');
 
-  // Fetch suggestions based on persona
+  // Fetch suggestions: project-themed when in a project, else persona curated
   useEffect(() => {
     let cancelled = false;
     (async () => {
       try {
-        const res = await fetch(`${API_BASE}/discover/suggestions?persona=${encodeURIComponent(persona)}`);
+        const params = new URLSearchParams({ persona });
+        if (projectName?.trim()) {
+          params.set('project', projectName.trim());
+        }
+        const res = await fetch(`${API_BASE}/discover/suggestions?${params}`);
         if (!res.ok) throw new Error(`HTTP ${res.status}`);
         const data = await res.json();
         if (!cancelled) {
-          setSuggestions(data.suggestions || []);
+          const raw: string[] = data.suggestions || [];
+          // Safety net: never show long chips on welcome
+          const filtered = raw.filter((p) => p.length <= 120 && p.split(/\s+/).length <= 18);
+          setSuggestions(filtered.length >= 2 ? filtered.slice(0, 3) : raw.slice(0, 3));
           setSuggestionsSource(data.source || 'curated');
         }
       } catch {
@@ -50,7 +74,7 @@ export default function WelcomeView({ persona, onPromptClick }: WelcomeViewProps
       }
     })();
     return () => { cancelled = true; };
-  }, [persona]);
+  }, [persona, projectName]);
 
   // Fetch trending topics
   useEffect(() => {
@@ -107,9 +131,11 @@ export default function WelcomeView({ persona, onPromptClick }: WelcomeViewProps
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
             </svg>
             <span className="text-[11px] font-medium text-slate-500 tracking-wide">
-              {suggestionsSource === 'search_data'
-                ? `Popular with ${formatPersonaLabel(persona)}s`
-                : `Suggested for ${formatPersonaLabel(persona)}`}
+              {suggestionsSource === 'project' && projectName
+                ? `Ideas for ${projectName}`
+                : suggestionsSource === 'search_data'
+                  ? `Popular with ${personaRoleLabel(persona)}s`
+                  : `I am a ${personaRoleLabel(persona)} — try asking`}
             </span>
           </div>
 
