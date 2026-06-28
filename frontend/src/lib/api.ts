@@ -286,6 +286,7 @@ export async function searchLiterature(
     tenantId?: string;
     projectId?: string;
     profileContext?: string;
+    chatContext?: string;
   }
 ): Promise<SearchResponse> {
   const params = new URLSearchParams({ q: query });
@@ -304,6 +305,9 @@ export async function searchLiterature(
   const headers: Record<string, string> = {};
   if (options?.profileContext) {
     headers['X-LENA-Profile-Context'] = options.profileContext.slice(0, 2000);
+  }
+  if (options?.chatContext) {
+    headers['X-LENA-Chat-Context'] = options.chatContext.slice(0, 3000);
   }
   if (options?.sessionToken) {
     headers['Authorization'] = `Bearer ${options.sessionToken}`;

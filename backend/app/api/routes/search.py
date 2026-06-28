@@ -89,6 +89,7 @@ async def search_literature(
 
     # Step 4: Run the full search pipeline (guardrail + parallel queries + PULSE + caching)
     profile_context = request.headers.get("X-LENA-Profile-Context") or None
+    chat_context = request.headers.get("X-LENA-Chat-Context") or None
     search_result = await run_search(
         query=q,
         max_results_per_source=max_results,
@@ -98,6 +99,7 @@ async def search_literature(
         modes=mode_list,
         bypass_guardrails=bypass_all,
         profile_context=profile_context,
+        chat_context=chat_context,
     )
 
     # A "chargeable" search is one that was NOT guardrail-blocked AND

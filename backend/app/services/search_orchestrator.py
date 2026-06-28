@@ -221,6 +221,7 @@ async def _generate_llm_summary(
     sources_failed: Optional[dict[str, str]] = None,
     sources_queried: Optional[list[str]] = None,
     profile_context: Optional[str] = None,
+    chat_context: Optional[str] = None,
 ) -> tuple[Optional[str], Optional[dict]]:
     """
     Use OpenAI to generate an intelligent, persona-aware summary from the
@@ -316,6 +317,7 @@ async def _generate_llm_summary(
             persona=persona_enum,
             model="gpt-4o-mini",
             profile_context=profile_context,
+            chat_context=chat_context,
         )
         usage_dict = None
         if usage is not None:
@@ -802,6 +804,7 @@ async def run_search(
     modes: Optional[list[str]] = None,
     bypass_guardrails: bool = False,
     profile_context: Optional[str] = None,
+    chat_context: Optional[str] = None,
 ) -> dict:
     """
     Full LENA search pipeline:
@@ -856,6 +859,29 @@ async def run_search(
     # Medical-advice guardrail: search still runs, but the message is
     # prepended to the LLM summary so the user sees the redirect context.
     advice_preamble = guardrail_msg if guardrail_type == "medical_advice" else None
+
+    # Step 1b: Subject resolution — ask "Who is this for?" before expensive
+    # search when personal health context is ambiguous (AGENT.md Tier 0).
+    if not bypass_guardrails:
+        from app.core.subject_resolution import (
+            get_subject_clarification_message,
+            needs_subject_clarification,
+        )
+        if needs_subject_clarification(
+            query,
+            persona=persona,
+            profile_context=profile_context,
+            chat_context=chat_context,
+        ):
+            logger.info("Subject clarification required: '%s'", query[:80])
+            return {
+                "guardrail_triggered": True,
+                "guardrail_type": "subject_clarification",
+                "guardrail_message": get_subject_clarification_message(),
+                "query": query,
+                "pulse_report": None,
+                "response_time_ms": (time.time() - start_time) * 1000,
+            }
 
     # Step 2: Check cache
     cached = get_cached_result(query, sources, include_alt_medicine, modes)
@@ -931,6 +957,7 @@ async def run_search(
         sources_failed=errors,
         sources_queried=all_queried,
         profile_context=profile_context,
+        chat_context=chat_context,
     )
 
     # Step 7b: Auto-verify supplement if query touches supplement keywords.

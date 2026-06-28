@@ -24,6 +24,23 @@ function formatPersonaLabel(persona: string): string {
     .replace(/\b\w/g, (c) => c.toUpperCase());
 }
 
+/** Persona labels aligned with the "I am a…" selector */
+function personaRoleLabel(persona: string): string {
+  const labels: Record<string, string> = {
+    medical_student: 'Medical Student',
+    clinician: 'Clinician',
+    pharmacist: 'Pharmacist',
+    researcher: 'Researcher',
+    lecturer: 'Lecturer',
+    physiotherapist: 'Physiotherapist',
+    neuroscientist: 'Neuroscientist',
+    alternative_practitioner: 'Alternative & Integrative Practitioner',
+    patient: 'Patient / Public',
+    general: 'General',
+  };
+  return labels[persona] || formatPersonaLabel(persona);
+}
+
 export default function WelcomeView({ persona, onPromptClick }: WelcomeViewProps) {
   const [suggestions, setSuggestions] = useState<string[]>([]);
   const [trending, setTrending] = useState<TrendingTopic[]>([]);
@@ -108,8 +125,8 @@ export default function WelcomeView({ persona, onPromptClick }: WelcomeViewProps
             </svg>
             <span className="text-[11px] font-medium text-slate-500 tracking-wide">
               {suggestionsSource === 'search_data'
-                ? `Popular with ${formatPersonaLabel(persona)}s`
-                : `Suggested for ${formatPersonaLabel(persona)}`}
+                ? `Popular with ${personaRoleLabel(persona)}s`
+                : `I am a ${personaRoleLabel(persona)} — try asking`}
             </span>
           </div>
 

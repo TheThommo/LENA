@@ -115,3 +115,21 @@ export function buildProfileContextForSearch(userId?: string | null): string | u
   if (lines.length === 0) return undefined;
   return lines.join('\n').slice(0, 2000);
 }
+
+/** Recent chat turns for population continuity across follow-ups (max ~3k chars). */
+export function buildChatContextForSearch(
+  messages: { type: string; content: string }[],
+  maxTurns = 4,
+): string | undefined {
+  if (!messages.length) return undefined;
+
+  const recent = messages.slice(-maxTurns * 2);
+  const lines = recent.map((m) => {
+    const role = m.type === 'user' ? 'User' : 'LENA';
+    const text = (m.content || '').replace(/\s+/g, ' ').trim().slice(0, 600);
+    return text ? `${role}: ${text}` : '';
+  }).filter(Boolean);
+
+  if (!lines.length) return undefined;
+  return lines.join('\n').slice(0, 3000);
+}
