@@ -997,7 +997,6 @@ export default function ChatMessage({
                 const name = newProjectName.trim();
                 if (!name || creatingBusy) return;
                 setCreatingBusy(true);
-                setCreateError(null);
                 setCreateUpgradeCta(null);
                 try {
                   const created = await onCreateProject(name);
@@ -1010,7 +1009,6 @@ export default function ChatMessage({
                     setCreatingProject(false);
                     setNewProjectName('');
                   } else {
-                    setCreateError(null);
                     window.location.href = 'mailto:hello@lena-app.com?subject=LENA%20Support%20request';
                   }
                 } finally {
