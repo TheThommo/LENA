@@ -36,12 +36,12 @@ check "Register page returns 200" "curl -sf -o /dev/null -w '%{http_code}' '$FRO
 
 echo
 echo "[2] Backend health"
-check "Backend /api/health returns 200" "curl -sf -o /dev/null '$BACKEND/api/health'"
+check "Backend /api/health returns 200" "curl -sf -o /dev/null '$BACKEND/api/health/'"
 check "Backend /api/discover/suggestions returns 200" "curl -sf -o /dev/null '$BACKEND/api/discover/suggestions?persona=general'"
 
 echo
 echo "[3] API proxy (same-origin /api via frontend)"
-check "Frontend /api/health proxy" "curl -sf -o /dev/null '$FRONTEND/api/health'"
+check "Frontend /api/health proxy" "curl -sf -o /dev/null '$FRONTEND/api/health/'"
 
 echo
 echo "[4] Static assets"
