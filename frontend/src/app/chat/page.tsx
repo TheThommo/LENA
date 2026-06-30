@@ -34,6 +34,7 @@ import {
   sessionNeedsTimestampMigration,
 } from '@/lib/sessionTime';
 import { resolvePulseConfidencePercent } from '@/lib/pulseLabels';
+import { copyTextToClipboard } from '@/lib/clipboard';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { BrandMark } from '@/components/brand/BrandMark';
 import { useMediaQuery, useVisualViewportBottomInset } from '@/hooks/useMediaQuery';
@@ -554,6 +555,13 @@ export default function Home() {
       if (chargeable) {
         incrementSearch();
       }
+      if (isAuthenticated && activeProjectId && result.search_id) {
+        try {
+          await assignSearch(result.search_id, activeProjectId);
+        } catch {
+          /* sidebar still updates via setSessionProject */
+        }
+      }
       // Update the project's search_count badge in the sidebar
       if (isAuthenticated && activeProjectId) {
         setSessionProject(currentSessionIdRef.current, activeProjectId);
@@ -656,10 +664,10 @@ export default function Home() {
     void handleSend(search.query);
   }, [activeProjectId, threadsKey, recentSessions, handleRecentSessionClick]);
 
-  const handleShareReferral = useCallback(() => {
-    if (typeof window === 'undefined') return;
+  const handleShareReferral = useCallback(async (): Promise<boolean> => {
+    if (typeof window === 'undefined') return false;
     const ref = user?.id ? `?ref=${user.id}` : '';
-    void navigator.clipboard.writeText(`${window.location.origin}${ref}`);
+    return copyTextToClipboard(`${window.location.origin}${ref}`);
   }, [user?.id]);
 
   // Handle keyboard
@@ -1253,7 +1261,7 @@ export default function Home() {
       {/* Main Content */}
       <div className="flex-1 flex flex-col min-w-0">
         {/* Top Bar — two rows on mobile so filters don't crush action buttons */}
-        <header className="border-b border-slate-200/80 bg-white/95 backdrop-blur-xl flex-shrink-0 shadow-[0_1px_0_rgba(15,23,42,0.04)] safe-top">
+        <header className="relative z-30 border-b border-slate-200/80 bg-white/95 backdrop-blur-xl flex-shrink-0 shadow-[0_1px_0_rgba(15,23,42,0.04)] safe-top">
           <div className="flex items-center justify-between px-3 sm:px-4 min-h-[52px] gap-2">
             <div className="flex items-center gap-2 flex-shrink-0">
               <button

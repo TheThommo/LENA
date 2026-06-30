@@ -6,6 +6,7 @@ import Image from 'next/image';
 import { branding } from '@/config/branding';
 import type { SearchResponse, ValidatedResult, ResultMode, SupplementVerification } from '@/lib/api';
 import { copyTextToClipboard } from '@/lib/clipboard';
+import { formatVancouverCitation } from '@/lib/citations';
 import { logShareEvent, LenaUpgradeRequiredError } from '@/lib/api';
 import { buildResearchSharePayload } from '@/lib/shareResearch';
 import SupplementVerificationCard from './SupplementVerificationCard';
@@ -318,12 +319,20 @@ function generateFollowUpsFallback(response: SearchResponse): string[] {
 function SourceCard({ result, isEdgeCase, index, query }: { result: ValidatedResult; isEdgeCase: boolean; index: number; query: string }) {
   const [expanded, setExpanded] = useState(false);
   const [saved, setSaved] = useState(false);
+  const [citeCopied, setCiteCopied] = useState(false);
 
   useEffect(() => {
     import('@/lib/savedDocuments').then((m) => {
       setSaved(m.isDocumentSaved(result.source, result.title));
     }).catch(() => {});
   }, [result.source, result.title]);
+
+  const handleCite = async (e: React.MouseEvent) => {
+    e.stopPropagation();
+    const ok = await copyTextToClipboard(formatVancouverCitation(result));
+    setCiteCopied(ok);
+    if (ok) window.setTimeout(() => setCiteCopied(false), 2000);
+  };
 
   const handleSave = async () => {
     const m = await import('@/lib/savedDocuments');
@@ -442,8 +451,12 @@ function SourceCard({ result, isEdgeCase, index, query }: { result: ValidatedRes
             >
               View Full
             </a>
-            <button className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 transition-colors">
-              Cite
+            <button
+              type="button"
+              onClick={handleCite}
+              className="inline-flex items-center gap-1 px-2.5 py-1 text-[10px] font-medium text-slate-700 bg-slate-100 rounded-md hover:bg-slate-200 transition-colors"
+            >
+              {citeCopied ? 'Copied!' : 'Cite'}
             </button>
             <button
               onClick={handleSave}
@@ -915,17 +928,18 @@ export default function ChatMessage({
         {response && response.sources_queried && response.sources_queried.length > 0 && (
           <div className="flex items-center gap-1 flex-wrap">
             {response.sources_queried.map((src) => {
+              const failedMsg = response.sources_failed?.[src];
               const style = getSourceStyle(src);
               return (
-                <span key={src} className={`px-1.5 py-0.5 text-[9px] font-semibold rounded ${style.bg} ${style.text}`}>
-                  {style.label}
-                </span>
-              );
-            })}
-            {Object.keys(response.sources_failed || {}).map((src) => {
-              const style = getSourceStyle(src);
-              return (
-                <span key={src} className="px-1.5 py-0.5 text-[9px] font-semibold rounded bg-slate-50 text-slate-400 line-through">
+                <span
+                  key={src}
+                  className={`px-1.5 py-0.5 text-[9px] font-semibold rounded ${
+                    failedMsg
+                      ? 'bg-slate-50 text-slate-400 line-through'
+                      : `${style.bg} ${style.text}`
+                  }`}
+                  title={failedMsg}
+                >
                   {style.label}
                 </span>
               );
