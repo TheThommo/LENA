@@ -87,6 +87,8 @@ async def register(request: Request, body: RegisterRequest) -> RegisterResponse:
     Assigns "free" plan by default.
     Tracks "registered" funnel stage.
     """
+    check_rate_limit(request, bucket="register", max_hits=5, window_seconds=600)
+
     # Detect tenant
     tenant_slug = detect_tenant(request)
 

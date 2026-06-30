@@ -1,10 +1,11 @@
 'use client';
 
-import React, { useState, useRef, useEffect } from 'react';
+import React, { useState, useRef, useEffect, useMemo } from 'react';
 import { BrandMark } from '@/components/brand/BrandMark';
 import { branding } from '@/config/branding';
 import { useProjects } from '@/contexts/ProjectsContext';
-import { LenaUpgradeRequiredError, type Project } from '@/lib/api';
+import { useAuth } from '@/contexts/AuthContext';
+import { LenaUpgradeRequiredError, listProjectSearches, type Project } from '@/lib/api';
 import { defaultContactHandler } from '@/components/chat/UpgradeCTACard';
 import { type RecentSessionRecord, formatSessionSubtitle, getSessionDisplayTitle } from '@/lib/sessionTime';
 
@@ -24,8 +25,8 @@ interface SidebarProps {
   onSignIn?: () => void;
   onRegister?: () => void;
   onLogout?: () => void;
-  onUpgrade?: () => void;
-  onShareReferral?: () => void;
+  onUpgrade?: () => void | Promise<void>;
+  onShareReferral?: () => boolean | Promise<boolean>;
   /** Start a blank chat scoped to a project (fresh session, autosave enabled). */
   onStartProjectSearch?: (projectId: string) => void;
 }
@@ -57,8 +58,13 @@ export function Sidebar({
   onStartProjectSearch,
 }: SidebarProps) {
   const [menuOpen, setMenuOpen] = useState(false);
-  const [referralCopied, setReferralCopied] = useState(false);
+  const [actionToast, setActionToast] = useState<string | null>(null);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const showToast = (message: string) => {
+    setActionToast(message);
+    window.setTimeout(() => setActionToast(null), 2800);
+  };
 
   // Close menu on outside click
   useEffect(() => {
@@ -73,7 +79,7 @@ export function Sidebar({
   }, [menuOpen]);
 
   return (
-    <aside className="flex flex-col w-full h-full bg-white/95 backdrop-blur-xl border-r border-slate-200/80 shrink-0 shadow-[1px_0_0_rgba(15,23,42,0.04)] safe-top">
+    <aside className="relative flex flex-col w-full h-full bg-white/95 backdrop-blur-xl border-r border-slate-200/80 shrink-0 shadow-[1px_0_0_rgba(15,23,42,0.04)] safe-top">
       {/* Logo — cropped wordmark; sized to leave room for partner co-brand */}
       <div className="px-3 pt-4 pb-3 flex justify-center min-w-0">
         <BrandMark
@@ -212,25 +218,27 @@ export function Sidebar({
 
                   {/* Share with Colleagues */}
                   <button
-                    onClick={() => {
+                    onClick={async () => {
+                      const ok = (await onShareReferral?.()) ?? false;
                       setMenuOpen(false);
-                      onShareReferral?.();
-                      setReferralCopied(true);
-                      setTimeout(() => setReferralCopied(false), 2500);
+                      showToast(ok ? 'Referral link copied!' : 'Could not copy link — try again');
                     }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors group"
                   >
                     <ShareIcon className="w-4 h-4 text-gray-400 group-hover:text-lena-500" />
-                    <span className="text-sm text-gray-700 group-hover:text-gray-900">
-                      {referralCopied ? 'Referral link copied!' : 'Share with Colleagues'}
-                    </span>
+                    <span className="text-sm text-gray-700 group-hover:text-gray-900">Share with Colleagues</span>
                   </button>
 
                   {/* Get 1 Month Free */}
                   <button
-                    onClick={() => {
+                    onClick={async () => {
+                      const ok = (await onShareReferral?.()) ?? false;
                       setMenuOpen(false);
-                      onShareReferral?.();
+                      showToast(
+                        ok
+                          ? 'Referral link copied — share it to earn a free month!'
+                          : 'Could not copy link — try again',
+                      );
                     }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors group"
                   >
@@ -240,7 +248,14 @@ export function Sidebar({
 
                   {/* Upgrade Plan */}
                   <button
-                    onClick={() => { setMenuOpen(false); onUpgrade?.(); }}
+                    onClick={async () => {
+                      setMenuOpen(false);
+                      try {
+                        await onUpgrade?.();
+                      } catch {
+                        showToast('Upgrade unavailable — try again or contact support');
+                      }
+                    }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors group"
                   >
                     <SparkleIcon className="w-4 h-4 text-gray-400 group-hover:text-lena-500" />
@@ -250,14 +265,17 @@ export function Sidebar({
                   <div className="border-t border-gray-100 my-1.5" />
 
                   {/* Contact Us */}
-                  <a
-                    href="mailto:hello@lena-research.com"
-                    onClick={() => setMenuOpen(false)}
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setMenuOpen(false);
+                      window.location.href = 'mailto:hello@lena-app.com?subject=LENA%20Support%20request';
+                    }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors group"
                   >
                     <MailIcon className="w-4 h-4 text-gray-400 group-hover:text-lena-500" />
                     <span className="text-sm text-gray-700 group-hover:text-gray-900">Contact Us</span>
-                  </a>
+                  </button>
 
                   <div className="border-t border-gray-100 my-1.5" />
 
@@ -300,6 +318,11 @@ export function Sidebar({
           </div>
         )}
       </div>
+      {actionToast && (
+        <div className="absolute bottom-24 left-3 right-3 z-[60] px-3 py-2.5 rounded-xl bg-slate-900 text-white text-xs text-center shadow-lg">
+          {actionToast}
+        </div>
+      )}
     </aside>
   );
 }
@@ -676,11 +699,51 @@ function ProjectRow({
   onRenameSession?: (sessionId: string, title: string) => void;
 }) {
   const { setActiveProjectId, rename, archive, unarchive, remove } = useProjects();
+  const { token } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
+  const [remoteFiled, setRemoteFiled] = useState<RecentSessionRecord[]>([]);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(project.name);
   const [busy, setBusy] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+
+  const displayFiled = useMemo(() => {
+    const byId = new Map<string, RecentSessionRecord>();
+    for (const s of [...filed, ...remoteFiled]) {
+      if (!byId.has(s.id)) byId.set(s.id, s);
+    }
+    return Array.from(byId.values()).sort(
+      (a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime(),
+    );
+  }, [filed, remoteFiled]);
+
+  useEffect(() => {
+    if (!token || isArchived) return;
+    const expected = Math.max(project.search_count, filed.length);
+    if (expected === 0 || filed.length >= expected) {
+      setRemoteFiled([]);
+      return;
+    }
+    let cancelled = false;
+    (async () => {
+      try {
+        const data = await listProjectSearches(token, project.id);
+        if (cancelled) return;
+        const mapped: RecentSessionRecord[] = data.searches.map((s) => ({
+          id: s.session_id || s.id,
+          firstQuery: s.query,
+          queries: [s.query],
+          createdAt: s.created_at,
+          lastActivityAt: s.created_at,
+          projectId: project.id,
+        }));
+        setRemoteFiled(mapped);
+      } catch {
+        if (!cancelled) setRemoteFiled([]);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [token, project.id, project.search_count, filed.length, isArchived]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -740,9 +803,9 @@ function ProjectRow({
         >
           <span className="text-[13px] flex-shrink-0">{project.emoji || '📁'}</span>
           <span className="truncate flex-1 text-left">{project.name}</span>
-          {(project.search_count > 0 || filed.length > 0) && (
+          {(project.search_count > 0 || displayFiled.length > 0) && (
             <span className="text-[10px] text-gray-400 flex-shrink-0">
-              {Math.max(project.search_count, filed.length)}
+              {Math.max(project.search_count, displayFiled.length)}
             </span>
           )}
         </button>
@@ -797,9 +860,9 @@ function ProjectRow({
           )}
         </div>
       </div>
-      {!isArchived && filed.length > 0 && onSearchClick && (
+      {!isArchived && displayFiled.length > 0 && onSearchClick && (
         <ul className="ml-6 mt-0.5 mb-1 space-y-0.5 border-l border-gray-100 pl-2">
-          {filed.slice(0, 12).map(sess => (
+          {displayFiled.slice(0, 12).map(sess => (
             <SessionRow
               key={sess.id}
               session={sess}

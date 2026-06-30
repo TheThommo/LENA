@@ -964,6 +964,44 @@ def _scope_corpus_by_modes(
     return scoped
 
 
+PULSE_MAX_PER_SOURCE = 8
+PULSE_MAX_TOTAL = 64
+
+
+def _cap_corpus_for_pulse(
+    results_by_source: dict[str, list[SourceResult]],
+) -> dict[str, list[SourceResult]]:
+    """Trim the corpus before PULSE so cross-validation stays bounded.
+
+    Category modes already shrink via _scope_corpus_by_modes; "all" mode can
+    still pass hundreds of papers and time out. Cap per source, then globally.
+    """
+    trimmed: dict[str, list[SourceResult]] = {}
+    for src, results in results_by_source.items():
+        if not results:
+            continue
+        ranked = sorted(results, key=lambda r: r.relevance_score, reverse=True)
+        trimmed[src] = ranked[:PULSE_MAX_PER_SOURCE]
+
+    total = sum(len(v) for v in trimmed.values())
+    if total <= PULSE_MAX_TOTAL:
+        return trimmed
+
+    keep_one: dict[str, SourceResult] = {src: rs[0] for src, rs in trimmed.items() if rs}
+    pool: list[SourceResult] = []
+    for src, results in trimmed.items():
+        pool.extend(results[1:])
+
+    pool.sort(key=lambda r: r.relevance_score, reverse=True)
+    slots = max(0, PULSE_MAX_TOTAL - len(keep_one))
+    selected = list(keep_one.values()) + pool[:slots]
+
+    capped: dict[str, list[SourceResult]] = {}
+    for paper in selected:
+        capped.setdefault(paper.source_name, []).append(paper)
+    return capped
+
+
 async def run_search(
     query: str,
     max_results_per_source: int = 10,
@@ -1103,6 +1141,7 @@ async def run_search(
 
     # Step 4+5: Tag results and scope corpus to active modes (pre-PULSE)
     scoped_results_by_source = _scope_corpus_by_modes(raw_results_by_source, modes)
+    scoped_results_by_source = _cap_corpus_for_pulse(scoped_results_by_source)
 
     pre_scope = sum(len(r) for r in raw_results_by_source.values())
     post_scope = sum(len(r) for r in scoped_results_by_source.values())

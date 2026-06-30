@@ -12,7 +12,8 @@ WORKDIR /app
 COPY --from=deps /app/node_modules ./node_modules
 COPY . .
 ENV NEXT_TELEMETRY_DISABLED 1
-ARG NEXT_PUBLIC_API_URL=https://lena-production-health.up.railway.app/api
+# Same-origin /api (middleware + rewrites proxy to BACKEND_URL at runtime)
+ARG NEXT_PUBLIC_API_URL=/api
 ENV NEXT_PUBLIC_API_URL=$NEXT_PUBLIC_API_URL
 RUN npm run build
 

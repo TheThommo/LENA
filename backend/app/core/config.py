@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_debug: bool = True
     app_port: int = int(os.getenv("PORT", 8000))
-    cors_origins: str = "http://localhost:3000,https://lena-app.up.railway.app"
+    cors_origins: str = "http://localhost:3000,https://lena-app.up.railway.app,https://www.lenamd.com,https://lenamd.com"
     railway_environment: Optional[str] = None
 
     # OpenAI
@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     # Freemium
     # Anonymous: 1 free search (no signup). Registered free: 10 searches per calendar month.
     free_search_limit: int = 10  # legacy alias
-    free_search_limit_anon: int = 1
+    free_search_limit_anon: int = 3
     free_search_limit_registered: int = 10
     anon_fingerprint_salt: str = "lena-fp-demo-salt-rotate-before-prod"
 
@@ -69,7 +69,7 @@ class Settings(BaseSettings):
     resend_api_key: Optional[str] = None
     admin_email: str = "mark.e.s.thompson@gmail.com"
     support_email: str = "hello@lena-app.com"
-    app_url: str = "https://lena-app.up.railway.app"
+    app_url: str = "https://www.lenamd.com"
 
     # Stripe (billing).
     # Set STRIPE_SECRET_KEY + STRIPE_WEBHOOK_SECRET in Railway prod env.
@@ -83,8 +83,8 @@ class Settings(BaseSettings):
     stripe_price_pro_annual: Optional[str] = None
     stripe_price_pro_founding: Optional[str] = None
     stripe_founding_max_redemptions: int = 10
-    billing_success_url: str = "https://lena-app.up.railway.app/chat?billing=success"
-    billing_cancel_url: str = "https://lena-app.up.railway.app/chat?billing=cancelled"
+    billing_success_url: str = "https://www.lenamd.com/chat?billing=success"
+    billing_cancel_url: str = "https://www.lenamd.com/chat?billing=cancelled"
 
     # RapidAPI (iHerb product data, etc.)
     rapidapi_key: Optional[str] = None

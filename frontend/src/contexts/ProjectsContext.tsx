@@ -25,7 +25,11 @@ import {
   updateProject,
 } from '@/lib/api';
 
-const ACTIVE_PROJECT_KEY = 'lena_active_project_id';
+const ACTIVE_PROJECT_KEY_PREFIX = 'lena_active_project_id';
+
+function activeProjectStorageKey(userId: string | null | undefined): string {
+  return userId ? `${ACTIVE_PROJECT_KEY_PREFIX}_${userId}` : ACTIVE_PROJECT_KEY_PREFIX;
+}
 
 interface ProjectsContextType {
   projects: Project[];
@@ -47,29 +51,32 @@ interface ProjectsContextType {
 const ProjectsContext = createContext<ProjectsContextType | undefined>(undefined);
 
 export function ProjectsProvider({ children }: { children: React.ReactNode }) {
-  const { token, isAuthenticated } = useAuth();
+  const { token, isAuthenticated, user } = useAuth();
   const [projects, setProjects] = useState<Project[]>([]);
   const [activeProjectId, setActiveProjectIdState] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [limits, setLimits] = useState<ProjectLimits | null>(null);
 
-  // Rehydrate active project id from localStorage on mount
+  // Rehydrate active project id from localStorage (scoped per user)
   useEffect(() => {
     if (typeof window === 'undefined') return;
     try {
-      const saved = localStorage.getItem(ACTIVE_PROJECT_KEY);
+      const key = activeProjectStorageKey(user?.id);
+      const saved = localStorage.getItem(key);
       if (saved) setActiveProjectIdState(saved);
+      else setActiveProjectIdState(null);
     } catch {}
-  }, []);
+  }, [user?.id]);
 
   const setActiveProjectId = useCallback((id: string | null) => {
     setActiveProjectIdState(id);
     try {
-      if (id) localStorage.setItem(ACTIVE_PROJECT_KEY, id);
-      else localStorage.removeItem(ACTIVE_PROJECT_KEY);
+      const key = activeProjectStorageKey(user?.id);
+      if (id) localStorage.setItem(key, id);
+      else localStorage.removeItem(key);
     } catch {}
-  }, []);
+  }, [user?.id]);
 
   const refresh = useCallback(async () => {
     if (!isAuthenticated || !token) {
@@ -84,7 +91,15 @@ export function ProjectsProvider({ children }: { children: React.ReactNode }) {
         listProjects(token),
         fetchProjectLimits(token),
       ]);
-      setProjects(rows);
+      setProjects(prev => {
+        const byId = new Map(rows.map(p => [p.id, p]));
+        for (const p of prev) {
+          if (!byId.has(p.id)) byId.set(p.id, p);
+        }
+        return Array.from(byId.values()).sort(
+          (a, b) => new Date(b.created_at).getTime() - new Date(a.created_at).getTime(),
+        );
+      });
       setLimits(quota);
       // If the saved active id no longer exists, clear it so the UI doesn't
       // appear to be "inside" a deleted project.

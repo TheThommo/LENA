@@ -3,7 +3,7 @@ Health check and connection test routes.
 """
 
 import asyncio
-from fastapi import APIRouter
+from fastapi import APIRouter, HTTPException
 
 from app.core.config import settings
 from app.services import pubmed, clinical_trials, cochrane, who_iris, cdc, openalex, openai_service
@@ -12,6 +12,7 @@ from app.db.supabase import test_connection as test_supabase
 router = APIRouter(prefix="/health", tags=["health"])
 
 
+@router.get("")
 @router.get("/")
 async def health_check():
     """Basic health check."""
@@ -29,6 +30,8 @@ async def test_all_connections():
     Test all external API connections in parallel.
     Returns status for each data source.
     """
+    if settings.is_production:
+        raise HTTPException(status_code=404, detail="Not Found")
     # Run all 6 connection tests in parallel
     test_results = await asyncio.gather(
         pubmed.test_connection(),
@@ -62,10 +65,14 @@ async def test_all_connections():
 @router.get("/connections/openai")
 async def test_openai():
     """Test OpenAI connection (separate since it requires API key)."""
+    if settings.is_production:
+        raise HTTPException(status_code=404, detail="Not Found")
     return await openai_service.test_connection()
 
 
 @router.get("/connections/supabase")
 async def test_supabase_connection():
     """Test Supabase connection (separate since it requires credentials)."""
+    if settings.is_production:
+        raise HTTPException(status_code=404, detail="Not Found")
     return await test_supabase()
