@@ -453,9 +453,9 @@ export default function Home() {
     const query = (text || input).trim();
     if (!query || loading) return;
 
-    // Gate the 2nd anon attempt here so the signup modal only fires when
-    // the visitor tries to SEARCH AGAIN - never right after the first
-    // result lands. This lets them read the 1st result in peace.
+    // Gate the next anon attempt after the free preview quota so the signup
+    // modal only fires when the visitor tries to SEARCH AGAIN — never right
+    // after a result lands. This lets them read each result in peace.
     // Dev bypass: URL ?bypass=1 or localStorage.lena_bypass_gate === '1'.
     const bypass = (() => {
       if (typeof window === 'undefined') return false;
@@ -466,7 +466,7 @@ export default function Home() {
         return false;
       }
     })();
-    if (!isAuthenticated && session.searchCount >= 1 && !bypass) {
+    if (!isAuthenticated && session.searchCount >= product.freeAnonSearchLimit && !bypass) {
       setSignupModalOpen(true);
       return;
     }
@@ -771,10 +771,10 @@ export default function Home() {
     }
   }, [realResponseCount, isTabletUp]);
 
-  // Funnel overlay: only renders when the user tries a SECOND search as
-  // anon. Never fires automatically on searchCount>=1 (that was dismissing
-  // the 1st result page). handleSend sets signupModalOpen when it catches
-  // the second-attempt intent.
+  // Funnel overlay: only renders when the user tries another search after
+  // the anon preview quota. Never fires automatically on searchCount alone
+  // (that was dismissing the result page). handleSend sets signupModalOpen
+  // when it catches the over-limit attempt.
   const funnelOverlay = authLoading || isAuthenticated ? null : (
     <SearchLimitModal
       isOpen={signupModalOpen}

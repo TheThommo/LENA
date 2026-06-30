@@ -32,7 +32,7 @@ const PRICING = [
     period: 'forever',
     highlight: false,
     features: [
-      '1 search — no signup required',
+      '3 searches — no signup required',
       `${product.freeSearchLimit} searches/month with free account`,
       'PULSE validation & evidence briefs',
       'Saved history & project folders',
@@ -76,14 +76,15 @@ export default function LandingPage() {
     <div className="min-h-screen bg-gradient-to-b from-slate-50 via-white to-teal-50/30 text-slate-900">
       {/* Nav */}
       <header className="sticky top-0 z-50 backdrop-blur-md bg-white/80 border-b border-slate-200/60">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 h-16 flex items-center justify-between">
-          <Link href="/" className="flex items-center gap-2.5">
+        <div className="max-w-6xl mx-auto px-4 sm:px-6 min-h-[5.5rem] sm:min-h-[6.5rem] flex items-center justify-between py-3">
+          <Link href="/" className="flex items-center shrink-0">
             <Image
               src={branding.logoSrc}
               alt={branding.name}
-              width={120}
-              height={Math.round(120 / branding.logoAspect)}
-              className="h-9 w-auto"
+              width={Math.round(branding.logoSizes.landing * branding.logoAspect)}
+              height={branding.logoSizes.landing}
+              style={{ height: branding.logoSizes.landing, width: 'auto', maxWidth: 'min(52vw, 280px)' }}
+              className="w-auto"
               priority
             />
           </Link>
@@ -140,7 +141,7 @@ export default function LandingPage() {
               </Link>
             </div>
             <p className="mt-4 text-sm text-slate-500">
-              No credit card · 1 search without signup · {product.freeSearchLimit}/month when registered
+              No credit card · {product.freeAnonSearchLimit} searches without signup · {product.freeSearchLimit}/month when registered
             </p>
           </div>
 
@@ -246,7 +247,7 @@ export default function LandingPage() {
         <div className="max-w-6xl mx-auto px-4 sm:px-6 text-center">
           <h2 className="text-2xl sm:text-3xl font-bold">Ready to validate your next question?</h2>
           <p className="mt-3 text-lena-100 max-w-xl mx-auto">
-            Your first search is on us. No signup, no credit card — just evidence.
+            Your first {product.freeAnonSearchLimit} searches are on us. No signup, no credit card — just evidence.
           </p>
           <Link
             href="/chat"

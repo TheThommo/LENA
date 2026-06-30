@@ -5,23 +5,47 @@ const BACKEND_ORIGIN =
   || process.env.NEXT_PUBLIC_BACKEND_URL?.replace(/\/$/, '')
   || 'https://lena-production-health.up.railway.app';
 
+function withSecurityHeaders(response: NextResponse): NextResponse {
+  response.headers.set(
+    'Strict-Transport-Security',
+    'max-age=63072000; includeSubDomains; preload',
+  );
+  response.headers.set('X-Content-Type-Options', 'nosniff');
+  response.headers.set('Referrer-Policy', 'strict-origin-when-cross-origin');
+  response.headers.set('Content-Security-Policy', 'upgrade-insecure-requests');
+  return response;
+}
+
 /**
- * Proxy /api/* to the FastAPI backend in production.
- * next.config rewrites are unreliable in standalone Docker deploys; middleware
- * ensures same-origin /api calls still reach the backend as a fallback.
+ * - Force HTTPS on custom domains (Railway sets x-forwarded-proto)
+ * - Proxy /api/* to FastAPI backend
+ * - Security headers on all responses
  */
 export function middleware(request: NextRequest) {
+  const proto = request.headers.get('x-forwarded-proto');
+  if (proto === 'http') {
+    const httpsUrl = request.nextUrl.clone();
+    httpsUrl.protocol = 'https:';
+    return NextResponse.redirect(httpsUrl, 308);
+  }
+
   const { pathname, search } = request.nextUrl;
-  const target = `${BACKEND_ORIGIN}${pathname}${search}`;
 
-  const headers = new Headers(request.headers);
-  headers.delete('host');
+  if (pathname.startsWith('/api')) {
+    const target = `${BACKEND_ORIGIN}${pathname}${search}`;
+    const headers = new Headers(request.headers);
+    headers.delete('host');
 
-  return NextResponse.rewrite(new URL(target), {
-    request: { headers },
-  });
+    return withSecurityHeaders(
+      NextResponse.rewrite(new URL(target), { request: { headers } }),
+    );
+  }
+
+  return withSecurityHeaders(NextResponse.next());
 }
 
 export const config = {
-  matcher: '/api/:path*',
+  matcher: [
+    '/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico)$).*)',
+  ],
 };

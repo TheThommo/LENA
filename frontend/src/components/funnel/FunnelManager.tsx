@@ -2,6 +2,7 @@
 
 import React from 'react';
 import SearchLimitModal from './SearchLimitModal';
+import { product } from '@/config/branding';
 
 interface SessionState {
   name?: string;
@@ -25,7 +26,7 @@ export type FunnelStage = 'search-limit' | 'none';
  * Demo-mode funnel (2026-04-18):
  *  - Anon visitors are NOT blocked on landing. They type a query,
  *    LENA asks for a one-click disclaimer inline, then runs the search.
- *  - After exactly 1 anon search completes, the SearchLimitModal pushes
+ *  - After the anon preview quota is used, the SearchLimitModal pushes
  *    signup (backed by the server-side IP+UA fingerprint so a refresh
  *    cannot bypass the cap).
  *  - Registered users skip the modal; their 5-per-day limit is enforced
@@ -38,7 +39,7 @@ export default function FunnelManager({
 }: FunnelManagerProps) {
   const getCurrentStage = (): FunnelStage => {
     if (sessionState.isRegistered) return 'none';
-    if (sessionState.searchCount >= 1) return 'search-limit';
+    if (sessionState.searchCount >= product.freeAnonSearchLimit) return 'search-limit';
     return 'none';
   };
 
