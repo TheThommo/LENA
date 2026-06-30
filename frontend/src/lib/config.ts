@@ -15,16 +15,8 @@ const PRODUCTION_API_DEFAULT = 'https://lena-production-health.up.railway.app/ap
 export function resolveApiBase(): string {
   if (typeof window !== 'undefined') {
     const host = window.location.hostname;
-    // Same-origin /api proxy (middleware) for all deployed frontends.
-    if (
-      host === 'localhost'
-      || host === '127.0.0.1'
-      || host.endsWith('.up.railway.app')
-      || host.includes('lena-app')
-      || host === 'lenamd.com'
-      || host === 'www.lenamd.com'
-      || host.endsWith('.lenamd.com')
-    ) {
+    // Browser always uses same-origin /api (middleware + rewrites proxy to backend).
+    if (host !== 'localhost' && host !== '127.0.0.1') {
       return '/api';
     }
   }
