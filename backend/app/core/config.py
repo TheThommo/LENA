@@ -51,7 +51,7 @@ class Settings(BaseSettings):
     # Freemium
     # Anonymous: 1 free search (no signup). Registered free: 10 searches per calendar month.
     free_search_limit: int = 10  # legacy alias
-    free_search_limit_anon: int = 1
+    free_search_limit_anon: int = 3
     free_search_limit_registered: int = 10
     anon_fingerprint_salt: str = "lena-fp-demo-salt-rotate-before-prod"
 

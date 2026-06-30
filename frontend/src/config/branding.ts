@@ -26,6 +26,8 @@ export const branding = {
     sidebar: 151,
     auth: 126,
     mobileHeader: 72,
+    /** Landing page header wordmark */
+    landing: 160,
   },
 
   /** Max rendered width for sidebar wordmark (room for co-brand partner) */
@@ -75,6 +77,9 @@ export const product = {
   },
 
   sourceListShort: 'PubMed, Cochrane, OpenAlex, Semantic Scholar & more',
+
+  /** Anonymous visitors: free searches without signup */
+  freeAnonSearchLimit: 3,
 
   /** Free tier: 10 searches per calendar month (registered) */
   freeSearchLimit: 10,
