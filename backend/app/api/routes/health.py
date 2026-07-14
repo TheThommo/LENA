@@ -3,6 +3,9 @@ Health check and connection test routes.
 """
 
 import asyncio
+from typing import Any, Dict, List, Optional
+
+import httpx
 from fastapi import APIRouter, HTTPException
 
 from app.core.config import settings
@@ -11,16 +14,65 @@ from app.db.supabase import test_connection as test_supabase
 
 router = APIRouter(prefix="/health", tags=["health"])
 
+_SITE_PROBE_TIMEOUT = 6.0
+
+
+def _production_sites() -> List[Dict[str, str]]:
+    """Canonical production surfaces — always include lenamd.com."""
+    app_url = (settings.app_url or "https://www.lenamd.com").rstrip("/")
+    return [
+        {"name": "www.lenamd.com", "url": app_url, "path": "/", "role": "production_app"},
+        {"name": "www.lenamd.com /chat", "url": app_url, "path": "/chat", "role": "production_chat"},
+        {"name": "www.lenamd.com /admin", "url": app_url, "path": "/admin.html", "role": "production_admin"},
+        {"name": "lenamd.com", "url": "https://lenamd.com", "path": "/", "role": "apex_domain"},
+    ]
+
+
+async def _probe_site(site: Dict[str, str]) -> Dict[str, Any]:
+    """HEAD/GET a public production URL and return a compact status dict."""
+    base = site["url"].rstrip("/")
+    path = site.get("path") or "/"
+    target = f"{base}{path}"
+    try:
+        async with httpx.AsyncClient(
+            follow_redirects=True,
+            timeout=_SITE_PROBE_TIMEOUT,
+        ) as client:
+            response = await client.get(target)
+            ok = response.status_code < 400
+            return {
+                "name": site["name"],
+                "url": target,
+                "role": site.get("role"),
+                "status": "healthy" if ok else "degraded",
+                "status_code": response.status_code,
+            }
+    except Exception as exc:
+        return {
+            "name": site["name"],
+            "url": target,
+            "role": site.get("role"),
+            "status": "unreachable",
+            "status_code": None,
+            "error": str(exc),
+        }
+
 
 @router.get("")
 @router.get("/")
 async def health_check():
-    """Basic health check."""
+    """Basic health check plus production site probes (lenamd.com)."""
+    sites = await asyncio.gather(*[_probe_site(s) for s in _production_sites()])
+    site_list = list(sites)
+    sites_healthy = all(s.get("status") == "healthy" for s in site_list)
     return {
-        "status": "healthy",
+        "status": "healthy" if sites_healthy else "degraded",
         "service": "LENA API",
         "environment": settings.app_env,
         "railway": settings.on_railway,
+        "app_url": settings.app_url,
+        "sites": site_list,
+        "sites_healthy": sites_healthy,
     }
 
 

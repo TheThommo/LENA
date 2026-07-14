@@ -38,10 +38,25 @@ class TestHealthEndpoint:
 
     def test_health_check_structure(self, client):
         """Health check response should have required fields."""
-        response = client.get("/api/health")
+        from unittest.mock import AsyncMock, patch
+
+        async def _mock_probe(site):
+            return {
+                "name": site["name"],
+                "url": site["url"],
+                "role": site.get("role"),
+                "status": "healthy",
+                "status_code": 200,
+            }
+
+        with patch("app.api.routes.health._probe_site", new=AsyncMock(side_effect=_mock_probe)):
+            response = client.get("/api/health")
         data = response.json()
         assert "status" in data
-        assert data["status"] == "healthy"
+        assert data["status"] in ("healthy", "degraded")
+        assert "sites" in data
+        assert any("lenamd.com" in (s.get("name") or "") for s in data["sites"])
+        assert data.get("app_url")
 
     def test_root_endpoint(self, client):
         """GET / should return app info."""

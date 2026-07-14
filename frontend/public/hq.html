@@ -2243,6 +2243,33 @@ button, input, select {
             <p>Awaiting current platform health response.</p>
           </div>
         </div>
+
+        <div class="panel" style="margin-top:24px">
+          <div class="panel-header">
+            <div>
+              <div class="panel-title">Production Sites</div>
+              <div class="panel-subtitle">Live probes for www.lenamd.com and related launch surfaces</div>
+            </div>
+            <div class="toolbar-actions">
+              <button class="btn-sm primary" type="button" onclick="loadSystemHealth()">Refresh</button>
+            </div>
+          </div>
+          <div class="panel-body no-pad">
+            <table class="data-table" id="productionSitesTable">
+              <thead>
+                <tr>
+                  <th>Site</th>
+                  <th>URL</th>
+                  <th>Role</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr><td colspan="4" class="empty-state"><strong>Loading</strong>Checking lenamd.com…</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
       </section>
 
       <section class="section" id="growth">
@@ -3760,6 +3787,15 @@ function renderSystemHealth(health, overview) {
 
     <div class="health-card">
       <div class="health-header">
+        <span class="health-name">Production App</span>
+        <span class="health-indicator ${health?.sites_healthy ? 'health-good' : (health?.sites ? 'health-warn' : 'health-bad')}">${health?.sites_healthy ? 'Healthy' : (health?.sites ? 'Check sites' : 'Unknown')}</span>
+      </div>
+      <strong>${escHtml((health?.app_url || 'https://www.lenamd.com').toString())}</strong>
+      <p>Canonical launch domain — admin, chat, and marketing run here.</p>
+    </div>
+
+    <div class="health-card">
+      <div class="health-header">
         <span class="health-name">Environment</span>
         <span class="health-indicator ${health ? 'health-good' : 'health-bad'}">${health ? 'Live' : 'Unknown'}</span>
       </div>
@@ -3785,6 +3821,32 @@ function renderSystemHealth(health, overview) {
       <p>${overview ? `${fmtNumber(overview.total_users)} users · ${fmtNumber(overview.total_searches)} searches in the selected window.` : 'Overview stats will appear after the next successful data sync.'}</p>
     </div>
   `;
+
+  renderProductionSitesTable(health);
+}
+
+function renderProductionSitesTable(health) {
+  const tbody = document.querySelector('#productionSitesTable tbody');
+  if (!tbody) return;
+  const sites = (health && health.sites) || [];
+  if (!sites.length) {
+    tbody.innerHTML = '<tr><td colspan="4" class="empty-state"><strong>No site probes</strong>Health API did not return lenamd.com probes.</td></tr>';
+    return;
+  }
+  tbody.innerHTML = sites.map(site => {
+    const ok = site.status === 'healthy';
+    const warn = site.status === 'degraded';
+    const label = site.status_code ? `${site.status} (${site.status_code})` : (site.status || 'unknown');
+    const color = ok ? 'var(--accent-green)' : (warn ? 'var(--accent-amber)' : 'var(--accent-red)');
+    return `
+      <tr>
+        <td class="table-primary">${escHtml(site.name || '—')}</td>
+        <td class="mono" style="max-width:280px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(site.url || '—')}</td>
+        <td>${escHtml((site.role || '—').replace(/_/g, ' '))}</td>
+        <td><span style="color:${color};font-size:11px;text-transform:uppercase;letter-spacing:0.04em">${escHtml(label)}</span></td>
+      </tr>
+    `;
+  }).join('');
 }
 
 async function loadMonthSoFar() {
