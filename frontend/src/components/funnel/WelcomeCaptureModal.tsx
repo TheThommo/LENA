@@ -130,8 +130,17 @@ export default function WelcomeCaptureModal({
               className="mt-0.5 w-4 h-4 text-lena-600 rounded border-slate-300 focus:ring-lena-400"
             />
             <span>
-              I consent to LENA processing my email and usage data to deliver the service and send a
-              confirmation email. I can revoke consent at any time.
+              I consent to LENA processing my email and usage data (including search queries and
+              persona, captured anonymously for research) to deliver the service, improve the
+              product, and send a confirmation email. See our{' '}
+              <a href="/privacy" className="text-lena-600 underline underline-offset-2" target="_blank" rel="noreferrer">
+                Privacy Policy
+              </a>{' '}
+              and{' '}
+              <a href="/terms" className="text-lena-600 underline underline-offset-2" target="_blank" rel="noreferrer">
+                Terms
+              </a>
+              . I can revoke consent at any time.
             </span>
           </label>
         </div>

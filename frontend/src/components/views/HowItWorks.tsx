@@ -68,7 +68,7 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: 'Is my data private?',
     answer:
-      'Yes. LENA is GDPR and CCPA compliant. Search queries are never sold to third parties. When signed in, your profile and saved documents sync to your account in the cloud. Research session history stays on your device for now. You control what you save and share.',
+      'Yes. LENA is GDPR and CCPA compliant. Search queries and persona selections are captured anonymously for research purposes only — to understand users and fine-tune the product. They are never sold. When signed in, your profile and saved documents sync to your account in the cloud. See Privacy Policy and Terms for full detail, including beta operator review.',
   },
   {
     question: 'Is this medical advice?',

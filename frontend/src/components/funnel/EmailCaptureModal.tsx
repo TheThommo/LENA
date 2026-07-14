@@ -198,11 +198,21 @@ export default function EmailCaptureModal({
               className="mt-0.5 w-4 h-4 rounded border-slate-300 text-lena-500 focus:ring-lena-500"
             />
             <span className="text-xs text-slate-600 leading-relaxed">
-              I consent to LENA processing my personal data to provide research services
-              and improve the platform. My data will be handled in accordance with applicable
-              data protection laws (GDPR, CCPA, PDPA, and regional equivalents).
-              I can withdraw consent or request data deletion at any time by contacting{' '}
+              I consent to LENA processing my personal data and anonymised search/persona data
+              for research purposes only — to provide services and improve the platform.
+              My data will be handled in accordance with applicable data protection laws
+              (GDPR, CCPA, PDPA, and regional equivalents). Withdraw consent or request deletion
+              via{' '}
               <span className="text-lena-500 font-medium">privacy@lena-research.com</span>.
+              {' '}
+              <a href="/privacy" className="text-lena-600 underline underline-offset-2" target="_blank" rel="noreferrer">
+                Privacy Policy
+              </a>
+              {' · '}
+              <a href="/terms" className="text-lena-600 underline underline-offset-2" target="_blank" rel="noreferrer">
+                Terms
+              </a>
+              .
             </span>
           </label>
         </div>
@@ -225,8 +235,11 @@ export default function EmailCaptureModal({
         </button>
 
         <p className="text-[10px] text-slate-400 text-center mt-3 leading-relaxed">
-          Your data is stored securely. We do not sell or share personal information with third parties.
-          See our Privacy Policy for full details.
+          Your data is stored securely. Queries and personas are captured anonymously for research.
+          We do not sell personal information.{' '}
+          <a href="/privacy" className="underline underline-offset-2 hover:text-slate-600">Privacy Policy</a>
+          {' · '}
+          <a href="/terms" className="underline underline-offset-2 hover:text-slate-600">Terms</a>
         </p>
       </div>
     </ModalOverlay>

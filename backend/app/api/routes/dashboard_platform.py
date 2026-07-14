@@ -306,6 +306,7 @@ async def get_platform_visitors(
 async def get_platform_questions(
     start_date: Optional[date] = Query(None),
     end_date: Optional[date] = Query(None),
+    persona: Optional[str] = Query(None, description="Filter by persona id, e.g. clinician"),
     limit: int = Query(200, ge=1, le=1000),
     offset: int = Query(0, ge=0),
     user=Depends(require_auth),
@@ -323,4 +324,5 @@ async def get_platform_questions(
         end_date=end_date,
         limit=limit,
         offset=offset,
+        persona=persona,
     )

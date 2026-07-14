@@ -25,6 +25,12 @@ Emails captured from sessions + all registered users, with:
 - Location, source (UTM/referrer), searches
 - Plan column: **Anon 3 free** | **Free 10/mo** | **Pro**
 
+### Search queries & personas (`Admin → Personas` / `Searches`)
+Every chargeable search is logged with **query text** + **persona** (for product research / trend tuning):
+- **Personas** — distribution by search, plus top queries per persona
+- **Every Question Asked** — filter by persona and cohort (anon vs registered); geo + who (visible to platform admins during beta)
+- Public T&Cs/Privacy disclose research capture; disclaimers say **anonymous** / aggregate research use
+
 ### Subscriptions (`HQ → Subscriptions`)
 Paid Stripe Pro clients (status, price, billing email, period).
 

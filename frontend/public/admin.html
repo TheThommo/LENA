@@ -551,16 +551,25 @@ body {
 <section id="personas" class="section">
   <div class="section-header">
     <div class="section-title">User Personas</div>
-    <div class="section-subtitle">Distribution of user types across the platform</div>
+    <div class="section-subtitle">Who is searching, and what each persona asks — for product research &amp; trend tuning</div>
   </div>
   <div class="grid grid-2">
     <div class="panel">
-      <div class="panel-header"><span class="panel-title">Persona Distribution</span></div>
+      <div class="panel-header"><span class="panel-title">Persona Distribution (by search)</span></div>
       <div class="panel-body"><div class="chart-container"><canvas id="personaBarChart"></canvas></div></div>
     </div>
     <div class="panel">
       <div class="panel-header"><span class="panel-title">Persona Breakdown</span></div>
       <div class="panel-body"><div class="chart-container"><canvas id="personaDoughnut"></canvas></div></div>
+    </div>
+  </div>
+  <div class="panel" style="margin-top:24px">
+    <div class="panel-header">
+      <span class="panel-title">Top Queries by Persona</span>
+      <span id="persona-query-meta" style="font-size:11px;color:var(--text-muted)">--</span>
+    </div>
+    <div class="panel-body" id="personaQueriesPanel">
+      <p style="font-size:12px;color:var(--text-muted)">Load personas to see query themes per role.</p>
     </div>
   </div>
 </section>
@@ -628,9 +637,27 @@ body {
   <div class="panel">
     <div class="panel-header">
       <span class="panel-title">Every Question Asked</span>
-      <div style="display:flex;gap:8px;align-items:center">
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
         <span id="questions-count" style="font-size:11px;color:var(--text-muted)">--</span>
-        <input id="questionsFilter" placeholder="Filter..." oninput="renderQuestions()"
+        <select id="questionsPersonaFilter" onchange="loadQuestionsFeed()"
+          style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--text-primary)">
+          <option value="all">All personas</option>
+          <option value="general">general</option>
+          <option value="clinician">clinician</option>
+          <option value="researcher">researcher</option>
+          <option value="medical_student">medical_student</option>
+          <option value="pharmacist">pharmacist</option>
+          <option value="patient">patient</option>
+          <option value="lecturer">lecturer</option>
+          <option value="physiotherapist">physiotherapist</option>
+        </select>
+        <select id="questionsCohortFilter" onchange="renderQuestions()"
+          style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--text-primary)">
+          <option value="all">All cohorts</option>
+          <option value="anon_free">Anon free</option>
+          <option value="free_registered">Free registered</option>
+        </select>
+        <input id="questionsFilter" placeholder="Filter query / who / place..." oninput="renderQuestions()"
           style="background:var(--bg-elevated);border:1px solid var(--border);border-radius:6px;padding:5px 10px;font-size:11px;color:var(--text-primary);min-width:160px">
         <button class="btn-sm" onclick="loadQuestionsFeed()" style="background:var(--lena-500)">Refresh</button>
       </div>
@@ -641,6 +668,7 @@ body {
           <tr>
             <th>When</th>
             <th>Who</th>
+            <th>Cohort</th>
             <th>Location</th>
             <th>Persona</th>
             <th style="min-width:240px">Question</th>
@@ -648,7 +676,7 @@ body {
             <th>PULSE</th>
           </tr>
         </thead>
-        <tbody><tr><td colspan="7" class="empty-state"><p>Loading...</p></td></tr></tbody>
+        <tbody><tr><td colspan="8" class="empty-state"><p>Loading...</p></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -1290,7 +1318,15 @@ async function loadPersonas() {
   try {
     const data = await apiFetch('/dashboard/platform/personas');
     const personas = data.personas || [];
-    if (!personas.length) return;
+    const meta = document.getElementById('persona-query-meta');
+    if (meta) {
+      meta.textContent = `${fmt(data.total_users || 0)} searches across ${(personas || []).length} personas`;
+    }
+    const panel = document.getElementById('personaQueriesPanel');
+    if (!personas.length) {
+      if (panel) panel.innerHTML = '<p style="font-size:12px;color:var(--text-muted)">No persona search data yet.</p>';
+      return;
+    }
 
     const labels = personas.map(p => p.persona);
     const counts = personas.map(p => p.count);
@@ -1312,6 +1348,23 @@ async function loadPersonas() {
         plugins: { legend: { position: 'right', labels: { color: 'rgba(255,255,255,0.6)', font: { size: 11 }, boxWidth: 12, padding: 8 } } },
       },
     });
+
+    if (panel) {
+      panel.innerHTML = personas.map(p => {
+        const qs = p.top_queries || [];
+        const list = qs.length
+          ? qs.map(q => `<li style="margin-bottom:4px"><span style="color:var(--text-primary)">${escHtml(q.query)}</span> <span style="color:var(--text-muted);font-family:'DM Mono',monospace;font-size:11px">×${q.count}</span></li>`).join('')
+          : '<li style="color:var(--text-muted)">No queries yet</li>';
+        return `
+          <div style="margin-bottom:18px">
+            <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+              <span style="font-weight:600;color:var(--text-primary);text-transform:capitalize">${escHtml(p.persona)}</span>
+              <span style="font-size:11px;color:var(--text-muted)">${fmt(p.count)} searches · ${(p.percentage || 0).toFixed(1)}%</span>
+            </div>
+            <ol style="margin:0;padding-left:18px;font-size:12px;color:var(--text-secondary)">${list}</ol>
+          </div>`;
+      }).join('');
+    }
   } catch(e) { console.error('Personas error:', e); }
 }
 
@@ -1517,6 +1570,8 @@ async function loadQuestionsFeed() {
     const e = document.getElementById('endDate').value;
     if (s) params.set('start_date', s);
     if (e) params.set('end_date', e);
+    const persona = document.getElementById('questionsPersonaFilter')?.value;
+    if (persona && persona !== 'all') params.set('persona', persona);
     params.set('limit', '500');
     const data = await apiFetch(`/dashboard/platform/questions?${params.toString()}`);
     _questionsCache = data.questions || [];
@@ -1532,18 +1587,23 @@ async function loadQuestionsFeed() {
 function renderQuestions() {
   const tbody = document.querySelector('#questionsTable tbody');
   const filter = (document.getElementById('questionsFilter')?.value || '').toLowerCase();
+  const cohort = document.getElementById('questionsCohortFilter')?.value || 'all';
   let rows = _questionsCache;
+  if (cohort !== 'all') {
+    rows = rows.filter(q => (q.cohort || (q.registered ? 'free_registered' : 'anon_free')) === cohort);
+  }
   if (filter) {
     rows = rows.filter(q =>
       (q.query || '').toLowerCase().includes(filter) ||
       (q.user_email || '').toLowerCase().includes(filter) ||
       (q.user_name || '').toLowerCase().includes(filter) ||
+      (q.persona || '').toLowerCase().includes(filter) ||
       (q.geo_country || '').toLowerCase().includes(filter) ||
       (q.geo_city || '').toLowerCase().includes(filter)
     );
   }
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><p>No questions yet — this populates on every search.</p></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><p>No questions yet — this populates on every search.</p></td></tr>';
     return;
   }
   const pulseColor = { validated: 'var(--accent-green)', edge_case: '#FFB400', insufficient_validation: 'var(--accent-red)', pending: 'var(--text-muted)' };
@@ -1554,6 +1614,7 @@ function renderQuestions() {
       day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit',
     }) : '--';
     const status = q.pulse_status || 'pending';
+    const cohortLabel = (q.cohort === 'free_registered' || q.registered) ? 'Free 10/mo' : 'Anon 3 free';
     return `
       <tr>
         <td style="color:var(--text-muted);white-space:nowrap;font-size:11px">${escHtml(when)}</td>
@@ -1561,6 +1622,7 @@ function renderQuestions() {
           <div style="color:var(--text-primary)">${escHtml(who)}</div>
           ${q.user_email && q.user_email !== who ? `<div style="color:var(--text-muted);font-size:11px">${escHtml(q.user_email)}</div>` : ''}
         </td>
+        <td style="font-size:11px;color:var(--text-muted);white-space:nowrap">${cohortLabel}</td>
         <td style="color:var(--text-muted);font-size:12px;white-space:nowrap">${escHtml(loc)}</td>
         <td style="font-size:11px"><span style="background:var(--bg-elevated);padding:2px 8px;border-radius:10px">${escHtml(q.persona || '—')}</span></td>
         <td style="color:var(--text-primary);max-width:320px">${escHtml(q.query || '')}</td>

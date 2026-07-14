@@ -294,45 +294,51 @@ async def get_topic_trends(
         client = get_supabase_admin_client()
         start_date, end_date = _get_date_range(start_date, end_date)
 
-        # Try to fetch from usage_analytics where action contains 'topic'
-        analytics_query = client.table("event_log").select("metadata")
+        topic_counts: Counter = Counter()
+        query_counts: Counter = Counter()
+
+        # Primary: search_logs (every chargeable search with full query + topics)
+        logs_q = client.table("search_logs").select("query")
         if tenant_id:
-            analytics_query = analytics_query.eq("tenant_id", tenant_id)
-        analytics_query = analytics_query.gte("created_at", start_date.isoformat()).lte("created_at", end_date.isoformat())
-        analytics_response = analytics_query.execute()
+            logs_q = logs_q.eq("tenant_id", tenant_id)
+        logs_q = logs_q.gte("created_at", start_date.isoformat()).lte(
+            "created_at", end_date.isoformat()
+        )
+        for row in (logs_q.execute().data or []):
+            query = (row.get("query") or "").strip()
+            if not query:
+                continue
+            query_counts[query] += 1
+            words = query.split()[:3]
+            topic = " ".join(words) if words else "Other"
+            topic_counts[topic] += 1
 
-        topic_counts = Counter()
-        for event in analytics_response.data or []:
-            metadata = event.get("metadata") or {}
-            if isinstance(metadata, dict):
-                topic = metadata.get("topic")
-                if topic:
-                    topic_counts[topic] += 1
-
-        # If no topics found in analytics, get from searches (fallback)
+        # Secondary: topic metadata from event_log
         if not topic_counts:
-            searches_query = client.table("searches").select("query_text")
+            analytics_query = client.table("event_log").select("metadata")
             if tenant_id:
-                searches_query = searches_query.eq("tenant_id", tenant_id)
-            searches_query = searches_query.gte("created_at", start_date.isoformat()).lte("created_at", end_date.isoformat())
-            searches_response = searches_query.execute()
-
-            # Use first 2 words as topic proxy
-            for search in searches_response.data or []:
-                query = search.get("query_text", "")
-                if query:
-                    words = query.split()[:2]
-                    topic = " ".join(words) if words else "Other"
-                    topic_counts[topic] += 1
+                analytics_query = analytics_query.eq("tenant_id", tenant_id)
+            analytics_query = analytics_query.gte(
+                "created_at", start_date.isoformat()
+            ).lte("created_at", end_date.isoformat())
+            for event in (analytics_query.execute().data or []):
+                metadata = event.get("metadata") or {}
+                if isinstance(metadata, dict) and metadata.get("topic"):
+                    topic_counts[metadata["topic"]] += 1
 
         topics = [
             {"topic": topic, "count": count}
-            for topic, count in topic_counts.most_common(20)  # Top 20
+            for topic, count in topic_counts.most_common(20)
+        ]
+        top_queries = [
+            {"query": q, "count": c}
+            for q, c in query_counts.most_common(25)
         ]
 
         return {
             "total_unique_topics": len(topic_counts),
             "topics": topics,
+            "top_queries": top_queries,
             "period_start": start_date,
             "period_end": end_date,
         }
@@ -341,6 +347,7 @@ async def get_topic_trends(
         return {
             "total_unique_topics": 0,
             "topics": [],
+            "top_queries": [],
             "period_start": start_date or date.today(),
             "period_end": end_date or date.today(),
         }
@@ -742,50 +749,35 @@ async def get_popular_queries(
     limit: int = 20,
 ) -> Dict[str, Any]:
     """
-    Most frequently searched queries.
-
-    Returns:
-        {
-            'total_searches': int,
-            'queries': [{'query': str, 'count': int, 'avg_response_time_ms': float}, ...],
-        }
+    Most frequently searched queries from search_logs (authoritative).
     """
     try:
         client = get_supabase_admin_client()
         start_date, end_date = _get_date_range(start_date, end_date)
 
-        # Fetch searches
-        searches_query = client.table("searches").select("query_text, id")
+        logs_q = client.table("search_logs").select("query, response_time_ms")
         if tenant_id:
-            searches_query = searches_query.eq("tenant_id", tenant_id)
-        searches_query = searches_query.gte("created_at", start_date.isoformat()).lte("created_at", end_date.isoformat())
-        searches_response = searches_query.execute()
+            logs_q = logs_q.eq("tenant_id", tenant_id)
+        logs_q = logs_q.gte("created_at", start_date.isoformat()).lte(
+            "created_at", end_date.isoformat()
+        )
+        rows = logs_q.execute().data or []
 
-        query_counts = Counter()
-        search_ids = []
-        for search in searches_response.data or []:
-            query = search.get("query_text", "").strip()
-            if query:
-                query_counts[query] += 1
-            search_ids.append(search.get("id"))
+        query_counts: Counter = Counter()
+        query_times: Dict[str, List[float]] = {}
+        for row in rows:
+            query = (row.get("query") or "").strip()
+            if not query:
+                continue
+            query_counts[query] += 1
+            rt = row.get("response_time_ms")
+            if rt is not None:
+                query_times.setdefault(query, []).append(float(rt))
 
-        # Get response times for searches
-        response_times = {}
-        if search_ids:
-            logs_response = client.table("search_logs").select("search_id, response_time_ms").execute()
-            for log in logs_response.data or []:
-                search_id = log.get("search_id")
-                response_times[search_id] = log.get("response_time_ms", 0)
-
-        # Build queries list with avg response time
         queries = []
         for query, count in query_counts.most_common(limit):
-            # Calculate avg response time for this query (rough estimate)
-            avg_time = None
-            if response_times:
-                times = list(response_times.values())
-                avg_time = sum(times) / len(times) if times else None
-
+            times = query_times.get(query) or []
+            avg_time = (sum(times) / len(times)) if times else None
             queries.append({
                 "query": query,
                 "count": count,
@@ -814,42 +806,63 @@ async def get_persona_distribution(
     end_date: Optional[date] = None,
 ) -> Dict[str, Any]:
     """
-    User breakdown by persona type.
+    Search volume by persona, plus top queries per persona.
 
-    Returns:
-        {
-            'total_users': int,
-            'personas': [{'persona': str, 'count': int, 'percentage': float}, ...],
-        }
+    Prefer search_logs.persona (every search) over users.persona_type so
+    anon and free visitors are included when tuning product trends.
     """
     try:
         client = get_supabase_admin_client()
         start_date, end_date = _get_date_range(start_date, end_date)
 
-        # Fetch users with persona data
-        users_query = client.table("users").select("persona_type")
+        logs_q = client.table("search_logs").select("persona, query")
         if tenant_id:
-            users_query = users_query.eq("tenant_id", tenant_id)
-        users_query = users_query.gte("created_at", start_date.isoformat()).lte("created_at", end_date.isoformat())
-        users_response = users_query.execute()
+            logs_q = logs_q.eq("tenant_id", tenant_id)
+        logs_q = logs_q.gte("created_at", start_date.isoformat()).lte(
+            "created_at", end_date.isoformat()
+        )
+        rows = logs_q.execute().data or []
 
-        persona_counts = Counter()
-        for user in users_response.data or []:
-            persona = user.get("persona_type") or "General"
+        persona_counts: Counter = Counter()
+        persona_queries: Dict[str, Counter] = {}
+        for row in rows:
+            persona = (row.get("persona") or "general").strip().lower() or "general"
             persona_counts[persona] += 1
+            query = (row.get("query") or "").strip()
+            if query:
+                persona_queries.setdefault(persona, Counter())[query] += 1
 
-        total_users = sum(persona_counts.values())
-        personas = [
-            {
+        # Fallback: registered users.persona_type when no search logs yet
+        if not persona_counts:
+            users_query = client.table("users").select("persona_type")
+            if tenant_id:
+                users_query = users_query.eq("tenant_id", tenant_id)
+            users_query = users_query.gte(
+                "created_at", start_date.isoformat()
+            ).lte("created_at", end_date.isoformat())
+            for user in (users_query.execute().data or []):
+                persona = (user.get("persona_type") or "general").strip().lower()
+                persona_counts[persona] += 1
+
+        total = sum(persona_counts.values())
+        personas = []
+        for persona, count in persona_counts.most_common():
+            top_q = [
+                {"query": q, "count": c}
+                for q, c in (persona_queries.get(persona) or Counter()).most_common(8)
+            ]
+            personas.append({
                 "persona": persona,
                 "count": count,
-                "percentage": (count / total_users * 100) if total_users > 0 else 0.0,
-            }
-            for persona, count in persona_counts.most_common()
-        ]
+                "percentage": (count / total * 100) if total > 0 else 0.0,
+                "top_queries": top_q,
+            })
 
         return {
-            "total_users": total_users,
+            "total_users": total,  # search events (or users on fallback)
+            "total_searches": sum(
+                sum(c.values()) for c in persona_queries.values()
+            ) if persona_queries else total,
             "personas": personas,
             "period_start": start_date,
             "period_end": end_date,
@@ -858,6 +871,7 @@ async def get_persona_distribution(
         logger.error(f"Error getting persona distribution: {e}")
         return {
             "total_users": 0,
+            "total_searches": 0,
             "personas": [],
             "period_start": start_date or date.today(),
             "period_end": end_date or date.today(),
@@ -1589,6 +1603,7 @@ async def get_recent_questions(
     end_date: Optional[date] = None,
     limit: int = 200,
     offset: int = 0,
+    persona: Optional[str] = None,
 ) -> Dict[str, Any]:
     """
     Raw feed of what users actually asked.
@@ -1596,19 +1611,6 @@ async def get_recent_questions(
     One row per search, newest first, joined with session/user context so
     the admin can see WHO asked WHAT and WHEN. Only the question text is
     surfaced — no citations, no LLM responses (per product policy).
-
-    Returns:
-        {
-            'total': int,                 # total matching the filter
-            'questions': [{
-                'id', 'query', 'persona', 'created_at',
-                'session_id', 'user_id', 'user_email', 'user_name',
-                'geo_country', 'geo_city',
-                'response_time_ms', 'total_results', 'pulse_status',
-                'sources_succeeded', 'sources_queried',
-            }, ...],
-            'period_start', 'period_end',
-        }
     """
     try:
         client = get_supabase_admin_client()
@@ -1621,6 +1623,8 @@ async def get_recent_questions(
         )
         if tenant_id:
             q = q.eq("tenant_id", tenant_id)
+        if persona and persona.strip().lower() not in ("", "all"):
+            q = q.eq("persona", persona.strip().lower())
         q = (
             q.gte("created_at", start.isoformat())
              .lte("created_at", end.isoformat())
@@ -1659,6 +1663,7 @@ async def get_recent_questions(
         for r in rows:
             s = sessions_map.get(r.get("session_id") or "", {})
             u = users_map.get(r.get("user_id") or "", {})
+            registered = bool(r.get("user_id") or u.get("id"))
             questions.append({
                 "id": r.get("id"),
                 "query": r.get("query"),
@@ -1671,6 +1676,8 @@ async def get_recent_questions(
                 "user_name": u.get("name") or s.get("name"),
                 "geo_country": s.get("geo_country"),
                 "geo_city": s.get("geo_city"),
+                "registered": registered,
+                "cohort": "free_registered" if registered else "anon_free",
                 "response_time_ms": r.get("response_time_ms"),
                 "total_results": r.get("total_results"),
                 "pulse_status": r.get("pulse_status"),

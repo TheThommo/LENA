@@ -47,6 +47,7 @@ export default function DisclaimerCard({ onAccept }: DisclaimerCardProps) {
 
         <p className="text-[14px] text-slate-800 leading-relaxed">
           Before I dive in, a quick note: I share <strong>research evidence</strong>, not medical advice.
+          We also capture search queries and persona anonymously for research — to improve LENA.
           Accept the disclaimer and I&apos;ll run your first search on the house.
         </p>
 
@@ -58,8 +59,12 @@ export default function DisclaimerCard({ onAccept }: DisclaimerCardProps) {
               before making health decisions.
             </p>
             <p>
-              Acceptance is logged with a timestamp against your session and device for compliance.
-              You can review the full text at any time from the footer.
+              Search queries and persona selections are captured anonymously for research purposes only
+              (trends, product tuning). We do not sell this data. Acceptance is logged with a timestamp
+              against your session and device for compliance. Full details:{' '}
+              <a href="/privacy" className="text-lena-700 underline underline-offset-2">Privacy</a>
+              {' · '}
+              <a href="/terms" className="text-lena-700 underline underline-offset-2">Terms</a>.
             </p>
           </div>
         )}

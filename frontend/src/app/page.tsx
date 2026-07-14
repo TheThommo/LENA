@@ -262,12 +262,17 @@ export default function LandingPage() {
       <footer className="py-10 border-t border-slate-200 bg-white">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-4 text-sm text-slate-500">
           <p>© {new Date().getFullYear()} {branding.name} — {branding.subtitle}</p>
-          <div className="flex gap-6">
+          <div className="flex flex-wrap justify-center gap-6">
             <Link href="/chat" className="hover:text-lena-700">App</Link>
             <Link href="/login" className="hover:text-lena-700">Sign in</Link>
+            <Link href="/privacy" className="hover:text-lena-700">Privacy</Link>
+            <Link href="/terms" className="hover:text-lena-700">Terms</Link>
             <a href="mailto:hello@lena-app.com" className="hover:text-lena-700">Contact</a>
           </div>
         </div>
+        <p className="max-w-6xl mx-auto px-4 sm:px-6 mt-4 text-xs text-slate-400 text-center sm:text-left">
+          Search queries and personas are captured anonymously for research purposes only — to improve LENA.
+        </p>
       </footer>
     </div>
   );

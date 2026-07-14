@@ -127,6 +127,18 @@ function RegisterForm() {
 
             <AffiliateCodeInput initialCode={refCode || ''} />
 
+            <p className="text-xs text-slate-500 leading-relaxed">
+              By creating an account you agree to our{' '}
+              <Link href="/terms" className="text-lena-600 hover:text-lena-700 underline underline-offset-2">
+                Terms of Service
+              </Link>{' '}
+              and{' '}
+              <Link href="/privacy" className="text-lena-600 hover:text-lena-700 underline underline-offset-2">
+                Privacy Policy
+              </Link>
+              . Search queries and persona are captured anonymously for research purposes only.
+            </p>
+
             <Button
               type="submit"
               variant="primary"

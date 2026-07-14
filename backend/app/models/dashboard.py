@@ -42,6 +42,12 @@ class TopicTrend(BaseModel):
     count: int = Field(..., ge=0)
 
 
+class QueryFrequency(BaseModel):
+    """Exact query string with occurrence count."""
+    query: str
+    count: int = Field(..., ge=0)
+
+
 class FunnelStage(BaseModel):
     """Single funnel stage metrics."""
     stage_name: str
@@ -64,10 +70,11 @@ class SearchActivityPoint(BaseModel):
 
 
 class PersonaBreakdown(BaseModel):
-    """User breakdown by persona type."""
+    """Search / user breakdown by persona type."""
     persona: str
     count: int = Field(..., ge=0)
     percentage: float = Field(..., ge=0, le=100)
+    top_queries: List[QueryFrequency] = Field(default_factory=list)
 
 
 class PulseAccuracyMetric(BaseModel):
@@ -117,6 +124,7 @@ class TopicTrendsResponse(BaseModel):
     """Top trending search topics."""
     total_unique_topics: int = Field(..., ge=0)
     topics: List[TopicTrend]
+    top_queries: List[QueryFrequency] = Field(default_factory=list)
     period_start: date
     period_end: date
 
@@ -172,8 +180,9 @@ class PopularQueriesResponse(BaseModel):
 
 
 class PersonaDistributionResponse(BaseModel):
-    """User breakdown by persona type."""
+    """Search volume breakdown by persona type."""
     total_users: int = Field(..., ge=0)
+    total_searches: int = Field(0, ge=0)
     personas: List[PersonaBreakdown]
     period_start: date
     period_end: date
