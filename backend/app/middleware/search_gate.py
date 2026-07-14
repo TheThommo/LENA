@@ -203,9 +203,9 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
             if jwt_payload.get("tenant_id"):
                 request.state.tenant_id = str(jwt_payload["tenant_id"])
 
-            # Full-access accounts (owner, QA) skip the 24h demo quota too.
+            # Full-access accounts (owner, QA) skip quotas + content gates.
             client = get_supabase_admin_client()
-            from app.core.entitlements import user_has_full_access
+            from app.core.entitlements import user_has_full_access, user_has_active_pro
             if await user_has_full_access(client, user_id_str):
                 request.state.bypass_all = True
                 session_id = extract_session_id(request)
@@ -219,29 +219,33 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
                         request.state.session = None
                 return await call_next(request)
 
-            # Monthly quota for registered free tier.
-            used = await _registered_search_count_current_month(user_id_str)
-            reg_limit = _settings.free_search_limit_registered
-            if used >= reg_limit:
-                return _guardrail_response(
-                    "registered_limit",
-                    f"You've used your **{reg_limit} free searches** this month.\n\n"
-                    "Upgrade to **Pro** ($19/mo) for unlimited searches, projects, PDF exports, "
-                    "and voice (coming soon). Your free tier resets on the 1st.",
-                    query_param,
-                )
+            # Paid Pro: unlimited searches (still subject to content guardrails).
+            is_pro = await user_has_active_pro(client, user_id_str)
+            if not is_pro:
+                used = await _registered_search_count_current_month(user_id_str)
+                reg_limit = _settings.free_search_limit_registered
+                if used >= reg_limit:
+                    return _guardrail_response(
+                        "registered_limit",
+                        f"You've used your **{reg_limit} free searches** this month.\n\n"
+                        "Upgrade to **Pro** ($19/mo) for unlimited searches, projects, PDF exports, "
+                        "and voice (coming soon). Your free tier resets on the 1st.",
+                        query_param,
+                    )
 
-            # Link session if present (so admin funnel counts stay accurate).
+            # Attach session for analytics — do NOT bump search_count here.
+            # search.py increments once after a chargeable result lands.
             session_id = extract_session_id(request)
             if session_id:
                 try:
                     session = await SessionRepository.get_by_id(UUID(session_id))
                     if session:
-                        new_count = (session.search_count or 0) + 1
-                        await SessionRepository.update(
-                            UUID(session_id),
-                            SessionUpdate(search_count=new_count),
-                        )
+                        # Keep session ↔ user link for Funnel "registered" stage
+                        if not session.user_id:
+                            await SessionRepository.update(
+                                UUID(session_id),
+                                SessionUpdate(user_id=UUID(user_id_str)),
+                            )
                         request.state.session_id = session_id
                         request.state.session = session
                     else:
@@ -254,6 +258,7 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
                 request.state.session_id = None
                 request.state.session = None
 
+            request.state.is_pro = is_pro
             return await call_next(request)
 
         # ── Anonymous path ──

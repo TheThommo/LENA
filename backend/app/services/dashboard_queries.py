@@ -1123,6 +1123,38 @@ def _enrich_leads_with_search_activity(
         ]
 
 
+def _enrich_leads_with_plan_tier(client, leads: List[dict]) -> None:
+    """Mark Pro clients via tenant_subscriptions (user_id or billing_email)."""
+    if not leads:
+        return
+    try:
+        subs = (
+            client.table("tenant_subscriptions")
+            .select("user_id, billing_email, status")
+            .in_("status", ["active", "trialing"])
+            .execute()
+        )
+        pro_uids = set()
+        pro_emails = set()
+        for row in subs.data or []:
+            if row.get("user_id"):
+                pro_uids.add(str(row["user_id"]).lower())
+            if row.get("billing_email"):
+                pro_emails.add(str(row["billing_email"]).lower().strip())
+        for lead in leads:
+            uid = str(lead.get("user_id") or "").lower()
+            email = str(lead.get("email") or "").lower().strip()
+            if (uid and uid in pro_uids) or (email and email in pro_emails):
+                lead["plan_tier"] = "pro"
+                lead["registered"] = True
+            elif lead.get("registered") or lead.get("user_id"):
+                lead["plan_tier"] = lead.get("plan_tier") or "free_registered"
+            else:
+                lead["plan_tier"] = "anon_free"
+    except Exception:
+        logger.warning("plan_tier enrichment failed", exc_info=True)
+
+
 async def get_leads(
     tenant_id: Optional[str] = None,
     start_date: Optional[date] = None,
@@ -1135,6 +1167,7 @@ async def get_leads(
          straight to /register without the session email-capture step.
 
     Deduplicates by email (lowercase). Classifies as corporate vs generic.
+    Attaches plan_tier: anon_free | free_registered | pro.
     """
     try:
         client = get_supabase_admin_client()
@@ -1197,6 +1230,7 @@ async def get_leads(
                 "started_at": s.get("started_at"),
                 "disclaimer_accepted": s.get("disclaimer_accepted_at") is not None,
                 "data_consent": s.get("data_consent_accepted_at") is not None,
+                "plan_tier": "free_registered" if s.get("user_id") else "anon_free",
                 "recent_queries": [],
             })
 
@@ -1207,6 +1241,15 @@ async def get_leads(
                 continue
             key = email.lower()
             if key in seen_emails:
+                # Upgrade existing session lead to registered if needed
+                for lead in leads:
+                    if (lead.get("email") or "").lower() == key:
+                        lead["registered"] = True
+                        lead["user_id"] = lead.get("user_id") or u.get("id")
+                        lead["name"] = lead.get("name") or u.get("name")
+                        if lead.get("plan_tier") == "anon_free":
+                            lead["plan_tier"] = "free_registered"
+                        break
                 continue
             seen_emails.add(key)
             domain, is_corp = classify(email)
@@ -1229,10 +1272,12 @@ async def get_leads(
                 "started_at": u.get("created_at"),
                 "disclaimer_accepted": True,
                 "data_consent": False,
+                "plan_tier": "free_registered",
                 "recent_queries": [],
             })
 
         _enrich_leads_with_search_activity(client, leads, tenant_id=tenant_id)
+        _enrich_leads_with_plan_tier(client, leads)
 
         total = len(leads)
         return {
@@ -1502,6 +1547,7 @@ async def get_session_activity(
         for s in rows:
             sc = s.get("search_count") or 0
             total_searches_inferred += sc
+            registered = s.get("user_id") is not None
             sessions_out.append({
                 "session_id": s.get("id"),
                 "user_id": s.get("user_id"),
@@ -1513,7 +1559,9 @@ async def get_session_activity(
                 "search_count": sc,
                 "started_at": s.get("started_at"),
                 "disclaimer_accepted": s.get("disclaimer_accepted_at") is not None,
-                "registered": s.get("user_id") is not None,
+                "registered": registered,
+                # Anonymous free chats vs signed-in free (Pro marked in Leads)
+                "cohort": "free_registered" if registered else "anon_free",
                 "source": s.get("utm_source") or s.get("referrer") or "Direct",
             })
 

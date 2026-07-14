@@ -213,6 +213,8 @@ class LeadRecord(BaseModel):
     disclaimer_accepted: bool = False
     data_consent: bool = False
     registered: bool = False
+    # anon_free | free_registered | pro
+    plan_tier: str = "anon_free"
     recent_queries: List["LeadRecentQuery"] = Field(default_factory=list)
 
 

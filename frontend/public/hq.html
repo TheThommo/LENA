@@ -2547,7 +2547,11 @@ button, input, select {
 <div id="toastContainer"></div>
 
 <script>
-const API_BASE = window.LENA_API_BASE || 'https://lena-production-health.up.railway.app';
+// Same-origin /api on www.lenamd.com (Next middleware proxies to backend).
+// Override with window.LENA_API_BASE only for local/static debugging.
+const API_BASE = (typeof window !== 'undefined' && window.LENA_API_BASE)
+  ? String(window.LENA_API_BASE).replace(/\/$/, '')
+  : '';
 const THEME_STORAGE_KEY = 'lena.hq.theme';
 const DEFAULT_API_VERSION = '0.1.0';
 const FUNNEL_STAGE_LABELS = {
@@ -4161,7 +4165,7 @@ function renderSettings() {
 
   if (consoleRoleEl) consoleRoleEl.textContent = humanizeKey(consoleRole);
   if (lenaRoleEl) lenaRoleEl.textContent = humanizeKey(lenaRole);
-  if (apiBaseEl) apiBaseEl.textContent = API_BASE;
+  if (apiBaseEl) apiBaseEl.textContent = API_BASE || window.location.origin;
   if (versionEl) versionEl.textContent = apiVersionCache || DEFAULT_API_VERSION;
   if (themeEl) themeEl.textContent = humanizeKey(document.documentElement.getAttribute('data-theme') || 'dark');
 }

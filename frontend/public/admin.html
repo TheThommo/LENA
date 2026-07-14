@@ -614,11 +614,12 @@ body {
             <th>Email</th>
             <th>Location</th>
             <th style="text-align:right">Searches</th>
+            <th>Cohort</th>
             <th>Status</th>
             <th>Source</th>
           </tr>
         </thead>
-        <tbody><tr><td colspan="7" class="empty-state"><p>Loading...</p></td></tr></tbody>
+        <tbody><tr><td colspan="8" class="empty-state"><p>Loading...</p></td></tr></tbody>
       </table>
     </div>
   </div>
@@ -733,7 +734,7 @@ body {
     </div>
     <div class="panel-body no-pad">
       <table class="data-table" id="leadsTable">
-        <thead><tr><th>Name</th><th>Email</th><th>Institution</th><th>Domain</th><th>Type</th><th>Phone</th><th>Location</th><th>Source</th><th>Searches</th><th>3rd-party sharing</th><th>Date</th></tr></thead>
+        <thead><tr><th>Name</th><th>Email</th><th>Institution</th><th>Domain</th><th>Type</th><th>Plan</th><th>Phone</th><th>Location</th><th>Source</th><th>Searches</th><th>3rd-party sharing</th><th>Date</th></tr></thead>
         <tbody></tbody>
       </table>
     </div>
@@ -785,8 +786,11 @@ body {
    ═══════════════════════════════════════════════════════════════════ */
 
 // ── Configuration ────────────────────────────────────────────────
-// Set this to your Railway backend URL (no trailing slash)
-const API_BASE = window.LENA_API_BASE || 'https://lena-production-health.up.railway.app';
+// Same-origin /api on www.lenamd.com (Next middleware proxies to backend).
+// Override with window.LENA_API_BASE only for local/static debugging.
+const API_BASE = (typeof window !== 'undefined' && window.LENA_API_BASE)
+  ? String(window.LENA_API_BASE).replace(/\/$/, '')
+  : '';
 let authToken = null;
 let lastSyncTime = null;
 let chartInstances = {};
@@ -1467,7 +1471,7 @@ function renderVisitors() {
     );
   }
   if (!rows.length) {
-    tbody.innerHTML = '<tr><td colspan="7" class="empty-state"><p>No sessions yet.</p></td></tr>';
+    tbody.innerHTML = '<tr><td colspan="8" class="empty-state"><p>No sessions yet.</p></td></tr>';
     return;
   }
   tbody.innerHTML = rows.map(v => {
@@ -1482,6 +1486,9 @@ function renderVisitors() {
     if (v.registered) { status = 'Registered'; color = 'var(--accent-green)'; }
     else if (v.email) { status = 'Lead captured'; color = 'var(--lena-400)'; }
     else if (v.disclaimer_accepted) { status = 'Disclaimer OK'; color = '#FFB400'; }
+    const cohort = v.cohort === 'free_registered'
+      ? '<span class="badge badge-corporate">Free 10/mo</span>'
+      : '<span class="badge badge-generic">Anon 3 free</span>';
     const searchCell = v.search_count > 0
       ? `<span style="color:var(--text-primary);font-weight:600">${v.search_count}</span>`
       : '<span style="color:var(--text-muted)">0</span>';
@@ -1492,6 +1499,7 @@ function renderVisitors() {
         <td style="color:var(--text-muted);font-size:12px">${email}</td>
         <td style="color:var(--text-muted);font-size:12px;white-space:nowrap">${escHtml(loc)}</td>
         <td style="font-family:'DM Mono',monospace;text-align:right">${searchCell}</td>
+        <td>${cohort}</td>
         <td><span style="color:${color};font-size:11px;text-transform:uppercase;letter-spacing:0.04em">${status}</span></td>
         <td style="color:var(--text-muted);font-size:11px;max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${escHtml(v.source || 'Direct')}</td>
       </tr>
@@ -1611,7 +1619,7 @@ function filterLeads(type) {
 function renderLeadsTable(leads) {
   leadsDisplayCache = leads;
   const tbody = document.querySelector('#leadsTable tbody');
-  if (!leads.length) { tbody.innerHTML = '<tr><td colspan="11" class="empty-state"><p>No leads captured yet</p></td></tr>'; return; }
+  if (!leads.length) { tbody.innerHTML = '<tr><td colspan="12" class="empty-state"><p>No leads captured yet</p></td></tr>'; return; }
   tbody.innerHTML = leads.map((l, idx) => {
     const isHot = l.is_corporate && l.search_count >= 2;
     const typeBadge = isHot
@@ -1619,6 +1627,11 @@ function renderLeadsTable(leads) {
       : l.is_corporate
         ? '<span class="badge badge-corporate">Corporate</span>'
         : '<span class="badge badge-generic">Generic</span>';
+    const planBadge = l.plan_tier === 'pro'
+      ? '<span class="badge badge-hot">Pro</span>'
+      : l.plan_tier === 'free_registered' || l.registered
+        ? '<span class="badge badge-corporate">Free 10/mo</span>'
+        : '<span class="badge badge-generic">Anon 3 free</span>';
     const consentBadge = l.data_consent
       ? '<span class="badge badge-corporate">Yes</span>'
       : '<span class="badge badge-generic">No</span>';
@@ -1629,6 +1642,7 @@ function renderLeadsTable(leads) {
       <td>${escHtml(l.institution || '--')}</td>
       <td style="font-family:'DM Mono',monospace;font-size:12px;color:var(--text-muted)">${escHtml(l.domain)}</td>
       <td>${typeBadge}</td>
+      <td>${planBadge}</td>
       <td style="font-size:12px">${escHtml(l.phone || '--')}</td>
       <td>${escHtml((l.city || '') + (l.city && l.country ? ', ' : '') + (l.country || ''))}</td>
       <td>${escHtml(l.source)}</td>

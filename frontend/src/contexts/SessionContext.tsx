@@ -171,6 +171,12 @@ export function SessionProvider({ children }: { children: React.ReactNode }) {
     return sessionPromiseRef.current;
   }, []);
 
+  // Create analytics session as soon as the app loads so geo + visitor rows
+  // appear in Admin → Visitors before the first search/disclaimer.
+  useEffect(() => {
+    void ensureSession();
+  }, [ensureSession]);
+
   const startSession = async () => {
     await ensureSession();
   };

@@ -66,43 +66,10 @@ class ProjectLimitsOut(BaseModel):
 
 
 async def _user_plan_is_free(client, user_id: str) -> bool:
-    """
-    Quick check: is this user on the Free tier? We consult their tenant's
-    active subscription; absence of a paid sub == treat as Free. Done as
-    a helper so the logic lives in one place when Stripe lands.
-    """
+    """True when the user is NOT on an active/trialing Pro subscription."""
     try:
-        # Which tenant is this user a member of?
-        mem = (
-            client.table("user_tenants")
-            .select("tenant_id")
-            .eq("user_id", user_id)
-            .limit(1)
-            .execute()
-        )
-        if not mem.data:
-            return True
-        tenant_id = mem.data[0]["tenant_id"]
-        sub = (
-            client.table("tenant_subscriptions")
-            .select("plan_id, status")
-            .eq("tenant_id", tenant_id)
-            .eq("status", "active")
-            .limit(1)
-            .execute()
-        )
-        if not sub.data:
-            return True
-        plan_id = sub.data[0].get("plan_id")
-        if not plan_id:
-            return True
-        plan = (
-            client.table("plan_tiers").select("name").eq("id", plan_id).limit(1).execute()
-        )
-        if not plan.data:
-            return True
-        plan_name = (plan.data[0].get("name") or "").lower()
-        return plan_name in ("free", "")
+        from app.core.entitlements import user_has_active_pro
+        return not await user_has_active_pro(client, user_id)
     except Exception:
         logger.warning("Could not determine plan tier; defaulting to Free", exc_info=True)
         return True

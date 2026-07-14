@@ -58,6 +58,42 @@ async def user_has_full_access(client, user_id: Optional[str]) -> bool:
     return is_bypass_email(email)
 
 
+async def user_has_active_pro(client, user_id: Optional[str]) -> bool:
+    """
+    True when this user has an active/trialing Stripe Pro subscription.
+    Checks tenant_subscriptions.user_id first, then billing_email match.
+    Does NOT skip content guardrails — only search quota / project caps.
+    """
+    if not user_id:
+        return False
+    try:
+        by_user = (
+            client.table("tenant_subscriptions")
+            .select("id, status")
+            .eq("user_id", str(user_id))
+            .in_("status", ["active", "trialing"])
+            .limit(1)
+            .execute()
+        )
+        if by_user.data:
+            return True
+        email = await lookup_user_email(client, user_id)
+        if not email:
+            return False
+        by_email = (
+            client.table("tenant_subscriptions")
+            .select("id, status")
+            .ilike("billing_email", email)
+            .in_("status", ["active", "trialing"])
+            .limit(1)
+            .execute()
+        )
+        return bool(by_email.data)
+    except Exception:
+        logger.warning("Pro entitlement lookup failed for user %s", user_id, exc_info=True)
+        return False
+
+
 def project_limit_upgrade_message(active_project_name: Optional[str] = None) -> str:
     """Welcoming commercial copy — never an error tone."""
     if active_project_name:

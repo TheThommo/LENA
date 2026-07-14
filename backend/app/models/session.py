@@ -40,10 +40,12 @@ class SessionCreate(SessionBase):
 
 class SessionUpdate(BaseModel):
     """Partial session update (all fields optional)."""
+    user_id: Optional[UUID] = None
     geo_city: Optional[str] = Field(None, max_length=100)
     geo_country: Optional[str] = Field(None, max_length=100)
     geo_lat: Optional[float] = None
     geo_lon: Optional[float] = None
+    referrer: Optional[str] = Field(None, max_length=500)
     utm_source: Optional[str] = Field(None, max_length=100)
     utm_medium: Optional[str] = Field(None, max_length=100)
     utm_campaign: Optional[str] = Field(None, max_length=100)

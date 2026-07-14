@@ -303,6 +303,7 @@ def _plan_id_from_price(price_id: Optional[str]) -> Optional[str]:
 async def _upsert_subscription(
     tenant_id: str,
     *,
+    user_id: Optional[str] = None,
     stripe_customer_id: Optional[str] = None,
     stripe_subscription_id: Optional[str] = None,
     stripe_price_id: Optional[str] = None,
@@ -311,10 +312,11 @@ async def _upsert_subscription(
     current_period_end: Optional[str] = None,
     billing_email: Optional[str] = None,
 ):
-    """Upsert tenant_subscriptions row on tenant_id (UNIQUE in schema)."""
+    """Upsert subscription keyed by user_id when present (per-user Pro)."""
     client = get_supabase_admin_client()
     payload = {
         "tenant_id": tenant_id,
+        "user_id": user_id,
         "stripe_customer_id": stripe_customer_id,
         "stripe_subscription_id": stripe_subscription_id,
         "stripe_price_id": stripe_price_id,
@@ -330,7 +332,25 @@ async def _upsert_subscription(
         payload["plan_id"] = plan_id
 
     try:
-        client.table("tenant_subscriptions").upsert(payload, on_conflict="tenant_id").execute()
+        if user_id:
+            # Prefer update-by-user, then insert
+            existing = (
+                client.table("tenant_subscriptions")
+                .select("id")
+                .eq("user_id", user_id)
+                .limit(1)
+                .execute()
+            )
+            if existing.data:
+                client.table("tenant_subscriptions").update(payload).eq(
+                    "user_id", user_id
+                ).execute()
+            else:
+                client.table("tenant_subscriptions").insert(payload).execute()
+        else:
+            client.table("tenant_subscriptions").upsert(
+                payload, on_conflict="tenant_id"
+            ).execute()
     except Exception:
         logger.error("tenant_subscriptions upsert failed", exc_info=True)
 
@@ -366,7 +386,9 @@ async def stripe_webhook(request: Request):
     data = event["data"]["object"]
 
     if event_type == "checkout.session.completed":
-        tenant_id = (data.get("metadata") or {}).get("tenant_id")
+        meta = data.get("metadata") or {}
+        tenant_id = meta.get("tenant_id")
+        user_id = meta.get("user_id") or data.get("client_reference_id")
         customer_id = data.get("customer")
         subscription_id = data.get("subscription")
         email = (data.get("customer_details") or {}).get("email")
@@ -378,6 +400,7 @@ async def stripe_webhook(request: Request):
                 price_id = item["price"]["id"] if item else None
                 await _upsert_subscription(
                     tenant_id,
+                    user_id=user_id,
                     stripe_customer_id=customer_id,
                     stripe_subscription_id=subscription_id,
                     stripe_price_id=price_id,
@@ -390,7 +413,9 @@ async def stripe_webhook(request: Request):
                 logger.error("checkout.session.completed handler failed", exc_info=True)
 
     elif event_type in ("customer.subscription.updated", "customer.subscription.created"):
-        tenant_id = (data.get("metadata") or {}).get("tenant_id")
+        meta = data.get("metadata") or {}
+        tenant_id = meta.get("tenant_id")
+        user_id = meta.get("user_id")
         if not tenant_id:
             logger.warning("subscription.updated missing tenant_id metadata")
         else:
@@ -398,6 +423,7 @@ async def stripe_webhook(request: Request):
             price_id = item["price"]["id"] if item else None
             await _upsert_subscription(
                 tenant_id,
+                user_id=user_id,
                 stripe_customer_id=data.get("customer"),
                 stripe_subscription_id=data.get("id"),
                 stripe_price_id=price_id,

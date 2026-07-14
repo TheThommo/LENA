@@ -136,7 +136,11 @@ async def start_session(request: Request) -> SessionStartResponse:
         geo_country=geo_data.get("country"),
         geo_lat=geo_data.get("lat"),
         geo_lon=geo_data.get("lon"),
-        referrer=request.state.referrer_data.get("referrer") if request.state.referrer_data else None,
+        referrer=(
+            (request.state.referrer_data.get("raw") or request.state.referrer_data.get("domain"))
+            if request.state.referrer_data
+            else None
+        ),
         utm_source=request.state.utm_data.get("utm_source") if request.state.utm_data else None,
         utm_medium=request.state.utm_data.get("utm_medium") if request.state.utm_data else None,
         utm_campaign=request.state.utm_data.get("utm_campaign") if request.state.utm_data else None,
@@ -370,6 +374,7 @@ async def capture_email(
 async def unified_capture(
     session_id: UUID,
     body: UnifiedCaptureRequest,
+    request: Request,
 ) -> UnifiedCaptureResponse:
     """
     Single-step first-visit capture.
@@ -413,6 +418,20 @@ async def unified_capture(
             stage=stage,
             metadata={"unified": True},
         )
+
+    # Stamp IP+UA fingerprint disclaimer so gate stays honest after capture
+    try:
+        ip = (request.headers.get("X-Forwarded-For") or "").split(",")[0].strip()
+        if not ip:
+            ip = request.headers.get("X-Real-IP") or (request.client.host if request.client else "")
+        ua = request.headers.get("User-Agent", "")
+        fp_hash = compute_fingerprint(ip, ua)
+        await AnonFingerprintRepository.get_or_create(
+            fingerprint_hash=fp_hash, ip_address=ip, user_agent=ua
+        )
+        await AnonFingerprintRepository.record_disclaimer(fp_hash)
+    except Exception:
+        pass
 
     # Fire-and-forget confirmation email (do not block response on email delivery)
     email_sent = False
