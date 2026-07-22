@@ -49,6 +49,45 @@ export interface ValidatedResult {
   matched_modes?: ResultMode[];
   study_type?: string;
   cross_validations?: number;
+  contradictions?: number;
+  summary?: string;
+  is_preprint?: boolean;
+  display_label?: string | null;
+}
+
+export interface ChemblCompound {
+  chembl_id: string;
+  name: string;
+  max_phase: number | null;
+  molecule_type: string | null;
+  smiles: string | null;
+  formula: string | null;
+  url: string;
+  summary: string;
+}
+
+export interface OpenTargetsHit {
+  id: string;
+  entity: string;
+  name: string;
+  description: string;
+  score: number | null;
+  url: string;
+}
+
+export interface SynapseDataset {
+  id: string;
+  name: string;
+  description: string;
+  access_status: 'open' | 'restricted' | string;
+  url: string;
+  entity_type?: string | null;
+}
+
+export interface SearchEnrichment {
+  chembl?: ChemblCompound[];
+  opentargets?: OpenTargetsHit[];
+  synapse?: SynapseDataset[];
 }
 
 export interface SourceAgreement {
@@ -177,6 +216,7 @@ export interface SearchResponse {
   modes?: ResultMode[];
   response_time_ms: number;
   pulse_report: PulseReport;
+  enrichment?: SearchEnrichment | null;
   supplement_verification?: SupplementVerification | null;
   llm_summary?: string | null;
   attached_content?: AttachedContent[];

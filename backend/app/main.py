@@ -4,6 +4,7 @@ FastAPI Application Entry Point
 """
 
 import logging
+import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
@@ -13,6 +14,7 @@ from app.api.routes import health, search, session, auth, dashboard_platform, da
 from app.middleware.analytics import AnalyticsMiddleware
 from app.middleware.search_gate import SearchGateMiddleware
 from app.middleware.security_headers import SecurityHeadersMiddleware
+from app.core.source_keys import validate_required_source_keys
 
 logger = logging.getLogger(__name__)
 
@@ -22,6 +24,12 @@ if settings.is_production and settings.jwt_secret_key == "change-me-in-productio
         "JWT_SECRET_KEY is still set to the default placeholder in production. "
         "Refusing to start — set a strong secret via environment variable."
     )
+
+# Fail loud for required Phase-2 source keys in production (or when forced).
+_require_source_keys = settings.is_production or (
+    os.getenv("LENA_REQUIRE_SOURCE_KEYS", "").lower() in ("1", "true", "yes")
+)
+validate_required_source_keys(require=_require_source_keys)
 
 # Hide OpenAPI docs in production so attackers can't introspect the API surface.
 _docs_url = None if settings.is_production else "/docs"

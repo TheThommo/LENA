@@ -10,6 +10,7 @@ import { formatVancouverCitation } from '@/lib/citations';
 import { logShareEvent, LenaUpgradeRequiredError } from '@/lib/api';
 import { buildResearchSharePayload } from '@/lib/shareResearch';
 import SupplementVerificationCard from './SupplementVerificationCard';
+import EnrichmentPanel from './EnrichmentPanel';
 import ShareModal from './ShareModal';
 import PulseExplainer from '@/components/pulse/PulseExplainer';
 import { resolvePulseConfidencePercent } from '@/lib/pulseLabels';
@@ -223,6 +224,7 @@ const SOURCE_COLORS: Record<string, { border: string; bg: string; text: string; 
   dailymed:        { border: 'border-l-[#DB2777]', bg: 'bg-pink-50',    text: 'text-pink-700',    label: 'FDA DailyMed' },
   ods_dsld:        { border: 'border-l-[#0D9488]', bg: 'bg-teal-50',    text: 'text-teal-700',    label: 'NIH DSLD' },
   openfda:         { border: 'border-l-[#B91C1C]', bg: 'bg-rose-50',    text: 'text-rose-700',    label: 'openFDA' },
+  biorxiv:         { border: 'border-l-[#D97706]', bg: 'bg-amber-50',   text: 'text-amber-800',   label: 'bioRxiv/medRxiv' },
 };
 
 function getSourceStyle(source: string) {
@@ -369,8 +371,16 @@ function SourceCard({ result, isEdgeCase, index, query }: { result: ValidatedRes
         <div className="flex items-center justify-between gap-2">
         <div className="flex flex-wrap items-center gap-1.5 flex-1 min-w-0">
             <span className={`px-1.5 py-0.5 text-[9px] font-semibold rounded ${style.bg} ${style.text} flex-shrink-0 tracking-wide`}>
-              {style.label}
+              {result.display_label || style.label}
             </span>
+            {(result.is_preprint || result.study_type === 'preprint' || result.source === 'biorxiv') && (
+              <span
+                className="px-1.5 py-0.5 text-[9px] font-bold rounded-full bg-amber-100 text-amber-900 flex-shrink-0 border border-amber-200"
+                title="Preprint — not peer-reviewed. Weighted below case reports in PULSE; preprint-only claims never reach validated status."
+              >
+                PREPRINT
+              </span>
+            )}
             {result.year > 0 && (
               <span className="text-[10px] text-slate-400 flex-shrink-0 tabular-nums">{result.year}</span>
             )}
@@ -1007,6 +1017,9 @@ export default function ChatMessage({
             Select <span className="font-medium">All results</span> to see {allResults.length} hidden source{allResults.length === 1 ? '' : 's'}.
           </p>
         )}
+
+        {/* Phase-3 enrichment panels — always below the existing source panel */}
+        <EnrichmentPanel enrichment={response?.enrichment} />
 
         {/* Follow-up suggestions */}
         {followUps.length > 0 && onFollowUp && (
