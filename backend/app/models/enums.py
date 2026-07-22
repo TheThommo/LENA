@@ -34,7 +34,11 @@ class PlanType(str, Enum):
     FREE = "free"
     STARTER = "starter"
     PROFESSIONAL = "professional"
+    RESEARCHER = "researcher"
+    PRO = "pro"
+    PRO_FOUNDING = "pro_founding"
     ENTERPRISE = "enterprise"
+    ANONYMOUS = "anonymous"
 
 
 class SearchSource(str, Enum):

@@ -18,14 +18,14 @@ interface UpgradeCTACardProps {
 }
 
 const DEFAULT_MESSAGE =
-  "You've reached a Free plan limit. Upgrade to **Pro** for unlimited searches, project folders, saved history, and export — or tell us what you need and we'll help.";
+  "You've reached a Free plan limit. Upgrade to **Researcher** ($19/mo) for unlimited searches, advanced sources, project folders, and export — or tell us what you need and we'll help.";
 
 export default function UpgradeCTACard({
   onUpgrade,
   onContact,
   message,
   subtext,
-  upgradeLabel = 'Upgrade to Pro',
+  upgradeLabel = 'Upgrade to Researcher',
   contactLabel = 'Contact us',
 }: UpgradeCTACardProps) {
   const body = message?.trim() || DEFAULT_MESSAGE;
@@ -73,7 +73,8 @@ export default function UpgradeCTACard({
         </div>
 
         <p className="mt-2 text-[11px] text-slate-400">
-          ${product.proMonthlyUsd}/mo or ${product.proAnnualUsd}/yr. Founding 10: $50/yr (first 10 members only).
+          Researcher ${product.researcherMonthlyUsd}/mo or ${product.researcherAnnualUsd}/yr.
+          Pro ${product.proMonthlyUsd}/mo. Founding 10: $50/yr.
         </p>
       </div>
     </div>

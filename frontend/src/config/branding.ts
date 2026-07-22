@@ -84,9 +84,13 @@ export const product = {
   /** Free tier: 10 searches per calendar month (registered) */
   freeSearchLimit: 10,
 
-  /** Pro individual price (USD) — must match Stripe */
-  proMonthlyUsd: 19,
-  proAnnualUsd: 190,
+  /** Researcher (was Pro $19) — must match Stripe researcher prices */
+  researcherMonthlyUsd: 19,
+  researcherAnnualUsd: 190,
+
+  /** Pro $49 — must match Stripe pro_49 prices */
+  proMonthlyUsd: 49,
+  proAnnualUsd: 490,
 
   get tagline() {
     return `LENA cross-validates ${this.paperCount} papers across ${this.sourceCount} databases`;

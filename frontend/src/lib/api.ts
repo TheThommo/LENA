@@ -437,12 +437,23 @@ export async function searchLiterature(
 // Stripe keys are set in Railway env. getBillingStatus is safe to call
 // without an auth token; createCheckoutSession requires one.
 
-export type BillingPlan = 'pro_monthly' | 'pro_annual' | 'pro_founding';
+export type BillingPlan =
+  | 'researcher_monthly'
+  | 'researcher_annual'
+  | 'pro_monthly'
+  | 'pro_annual'
+  | 'pro_founding';
 
 export interface BillingStatus {
   enabled: boolean;
   publishable_key: string | null;
-  plans: { pro_monthly: boolean; pro_annual: boolean; pro_founding: boolean };
+  plans: {
+    researcher_monthly?: boolean;
+    researcher_annual?: boolean;
+    pro_monthly: boolean;
+    pro_annual: boolean;
+    pro_founding: boolean;
+  };
   founding_remaining: number;
   founding_max: number;
 }

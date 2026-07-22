@@ -79,9 +79,13 @@ class Settings(BaseSettings):
     stripe_secret_key: Optional[str] = None
     stripe_publishable_key: Optional[str] = None
     stripe_webhook_secret: Optional[str] = None
-    stripe_price_pro_monthly: Optional[str] = None
+    stripe_price_pro_monthly: Optional[str] = None  # LEGACY: $19 Price ID until migrated to researcher_*
     stripe_price_pro_annual: Optional[str] = None
     stripe_price_pro_founding: Optional[str] = None
+    stripe_price_researcher_monthly: Optional[str] = None  # $19/mo (renamed from Pro)
+    stripe_price_researcher_annual: Optional[str] = None   # $190/yr
+    stripe_price_pro_49_monthly: Optional[str] = None      # new Pro $49/mo
+    stripe_price_pro_49_annual: Optional[str] = None       # new Pro $490/yr
     stripe_founding_max_redemptions: int = 10
     billing_success_url: str = "https://www.lenamd.com/chat?billing=success"
     billing_cancel_url: str = "https://www.lenamd.com/chat?billing=cancelled"
@@ -106,6 +110,8 @@ class Settings(BaseSettings):
         "rapidapi_key",
         "stripe_secret_key", "stripe_publishable_key", "stripe_webhook_secret",
         "stripe_price_pro_monthly", "stripe_price_pro_annual", "stripe_price_pro_founding",
+        "stripe_price_researcher_monthly", "stripe_price_researcher_annual",
+        "stripe_price_pro_49_monthly", "stripe_price_pro_49_annual",
         "synapse_api_token", "consensus_api_key", "biorender_access_token",
         "owkin_api_key", "owkin_api_url",
         mode="before",
@@ -144,9 +150,11 @@ class Settings(BaseSettings):
         return bool(
             self.stripe_secret_key
             and (
-                self.stripe_price_pro_monthly
+                self.stripe_price_researcher_monthly
+                or self.stripe_price_pro_monthly
                 or self.stripe_price_pro_annual
                 or self.stripe_price_pro_founding
+                or self.stripe_price_pro_49_monthly
             )
         )
 

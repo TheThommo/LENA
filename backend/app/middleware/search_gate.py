@@ -205,9 +205,25 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
 
             # Full-access accounts (owner, QA) skip the 24h demo quota too.
             client = get_supabase_admin_client()
-            from app.core.entitlements import user_has_full_access
+            from app.core.entitlements import user_has_full_access, resolve_user_access_tier
+            from app.core.plan_tiers import has_unlimited_searches
             if await user_has_full_access(client, user_id_str):
                 request.state.bypass_all = True
+                session_id = extract_session_id(request)
+                if session_id:
+                    try:
+                        session = await SessionRepository.get_by_id(UUID(session_id))
+                        request.state.session_id = session_id
+                        request.state.session = session
+                    except Exception:
+                        request.state.session_id = None
+                        request.state.session = None
+                return await call_next(request)
+
+            # Researcher / Pro / Founding / Enterprise — unlimited searches
+            access_tier = await resolve_user_access_tier(client, user_id_str)
+            request.state.access_tier = access_tier.value
+            if has_unlimited_searches(access_tier):
                 session_id = extract_session_id(request)
                 if session_id:
                     try:
@@ -226,8 +242,8 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
                 return _guardrail_response(
                     "registered_limit",
                     f"You've used your **{reg_limit} free searches** this month.\n\n"
-                    "Upgrade to **Pro** ($19/mo) for unlimited searches, projects, PDF exports, "
-                    "and voice (coming soon). Your free tier resets on the 1st.",
+                    "Upgrade to **Researcher** ($19/mo) for unlimited searches, PDF exports, "
+                    "bioRxiv, Consensus, and more. Your free tier resets on the 1st.",
                     query_param,
                 )
 
@@ -320,6 +336,7 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
         # the increment only AFTER a non-empty result is returned, so a
         # visitor who got zero papers (source timeouts, no matches) never
         # burns a free search. See search.py for the commit logic.
+        request.state.access_tier = "anonymous"
         request.state.session_id = session_id
         request.state.session = session
         request.state.anon_fingerprint = fp_hash

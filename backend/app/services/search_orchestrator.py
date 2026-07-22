@@ -293,6 +293,7 @@ async def search_all_sources(
     query: str,
     max_results_per_source: int = 10,
     sources: Optional[list[str]] = None,
+    access_tier: Optional[str] = None,
 ) -> tuple[dict[str, list[SourceResult]], dict[str, str]]:
     """
     Query multiple data sources in parallel.
@@ -301,11 +302,20 @@ async def search_all_sources(
         query: The search query
         max_results_per_source: Max results from each source
         sources: List of source names to query (defaults to all)
+        access_tier: anonymous|free|researcher|pro|enterprise|founding
 
     Returns:
         Tuple of (results_by_source, errors_by_source)
     """
+    from app.core.plan_tiers import AccessTier, filter_scored_sources
+
+    try:
+        tier = AccessTier((access_tier or "free").lower())
+    except ValueError:
+        tier = AccessTier.FREE
+
     sources_to_query = sources or ALL_SOURCES
+    sources_to_query = filter_scored_sources(sources_to_query, tier)
     errors: dict[str, str] = {}
 
     # Build the list of coroutines to run in parallel
@@ -336,12 +346,20 @@ async def search_enrichment_sources(
     max_results: int = 8,
     *,
     include_owkin: bool = False,
+    access_tier: Optional[str] = None,
 ) -> tuple[dict, dict[str, str]]:
     """
     Query non-PULSE enrichment sources in parallel (isolated try/catch).
 
     Returns (enrichment_payload, errors_by_source).
     """
+    from app.core.plan_tiers import AccessTier, enrichment_allowed, tier_rank
+
+    try:
+        tier = AccessTier((access_tier or "free").lower())
+    except ValueError:
+        tier = AccessTier.FREE
+
     persona_key = (persona or "general").strip().lower()
     enrichment: dict = {
         "chembl": [],
@@ -354,6 +372,8 @@ async def search_enrichment_sources(
 
     async def _chembl():
         try:
+            if not enrichment_allowed("chembl", tier):
+                return "chembl", []
             if persona_key not in ENRICHMENT_PERSONAS["chembl"]:
                 return "chembl", []
             rows = await chembl.search_chembl(query, max_results=max_results)
@@ -363,6 +383,8 @@ async def search_enrichment_sources(
 
     async def _opentargets():
         try:
+            if not enrichment_allowed("opentargets", tier):
+                return "opentargets", []
             if persona_key not in ENRICHMENT_PERSONAS["opentargets"]:
                 return "opentargets", []
             rows = await opentargets.search_open_targets(query, max_results=max_results)
@@ -374,13 +396,25 @@ async def search_enrichment_sources(
         try:
             if persona_key not in ENRICHMENT_PERSONAS["synapse"]:
                 return "synapse", []
+            if not enrichment_allowed("synapse", tier, synapse_access="open"):
+                return "synapse", []
             rows = await synapse.search_synapse(query, max_results=max_results)
-            return "synapse", [r.to_dict() for r in rows]
+            # Filter restricted datasets unless Pro+
+            allow_restricted = enrichment_allowed("synapse", tier, synapse_access="restricted")
+            payload = []
+            for r in rows:
+                d = r.to_dict()
+                if d.get("access_status") == "restricted" and not allow_restricted:
+                    continue
+                payload.append(d)
+            return "synapse", payload
         except Exception as exc:
             return "synapse", exc
 
     async def _biorender():
         try:
+            if not enrichment_allowed("biorender", tier):
+                return "biorender", {"figures": [], "meta": {"skipped": True}}
             if persona_key not in ENRICHMENT_PERSONAS["biorender"]:
                 return "biorender", {"figures": [], "meta": {"skipped": True}}
             figures, meta = await biorender.search_biorender(query, max_results=max_results)
@@ -392,11 +426,14 @@ async def search_enrichment_sources(
         try:
             if not include_owkin or not settings.owkin_enabled:
                 return "owkin", []
+            if not enrichment_allowed("owkin", tier):
+                return "owkin", []
             rows = await owkin.search_owkin(query, max_results=max_results)
             return "owkin", [r.to_dict() for r in rows]
         except Exception as exc:
             return "owkin", exc
 
+    _ = tier_rank  # used by enrichment_allowed
     tasks = [_chembl(), _opentargets(), _synapse(), _biorender(), _owkin()]
     results = await asyncio.gather(*tasks, return_exceptions=True)
     for result in results:
@@ -1162,6 +1199,7 @@ async def run_search(
     attached_context: Optional[str] = None,
     attached_filename: Optional[str] = None,
     attached_kind: Optional[str] = None,
+    access_tier: Optional[str] = None,
 ) -> dict:
     """
     Full LENA search pipeline:
@@ -1267,6 +1305,7 @@ async def run_search(
         query=source_query,
         max_results_per_source=max_results_per_source,
         sources=sources,
+        access_tier=access_tier or "free",
     )
 
     if errors:
@@ -1305,7 +1344,8 @@ async def run_search(
         search_enrichment_sources(
             query=source_query,
             persona=persona,
-            include_owkin=False,  # Enterprise gate lands in Phase 4/5
+            include_owkin=(access_tier or "") == "enterprise",
+            access_tier=access_tier or "free",
         )
     )
 

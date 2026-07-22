@@ -6,14 +6,14 @@ Scaffolded before Stripe keys are in Railway env. All endpoints return
 frontend can degrade gracefully to a mailto fallback.
 
 Plans (env-driven, not hardcoded):
-- pro_monthly   ($19/mo)   -> STRIPE_PRICE_PRO_MONTHLY
-- pro_annual    ($190/yr)  -> STRIPE_PRICE_PRO_ANNUAL
-- pro_founding  ($50/yr)   -> STRIPE_PRICE_PRO_FOUNDING  (first 10 only)
+- researcher_monthly ($19/mo)  -> STRIPE_PRICE_RESEARCHER_MONTHLY (fallback: STRIPE_PRICE_PRO_MONTHLY)
+- researcher_annual  ($190/yr) -> STRIPE_PRICE_RESEARCHER_ANNUAL  (fallback: STRIPE_PRICE_PRO_ANNUAL)
+- pro_monthly        ($49/mo)  -> STRIPE_PRICE_PRO_49_MONTHLY
+- pro_annual         ($490/yr) -> STRIPE_PRICE_PRO_49_ANNUAL
+- pro_founding       ($50/yr)  -> STRIPE_PRICE_PRO_FOUNDING  (first 10 only)
 
-Webhook events handled:
-- checkout.session.completed          -> write customer/subscription IDs
-- customer.subscription.updated       -> sync status + period end
-- customer.subscription.deleted       -> mark cancelled
+Legacy checkout keys `pro_monthly`/`pro_annual` without 49-env configured still
+resolve to Researcher ($19) so existing clients are not worse off.
 """
 
 from __future__ import annotations
@@ -35,7 +35,13 @@ logger = logging.getLogger("lena.billing")
 router = APIRouter(prefix="/billing", tags=["billing"])
 
 
-PlanKey = Literal["pro_monthly", "pro_annual", "pro_founding"]
+PlanKey = Literal[
+    "researcher_monthly",
+    "researcher_annual",
+    "pro_monthly",
+    "pro_annual",
+    "pro_founding",
+]
 
 
 class CheckoutRequest(BaseModel):
@@ -64,18 +70,48 @@ def _require_stripe():
 
 
 def _resolve_price_id(plan: PlanKey) -> str:
-    mapping = {
-        "pro_monthly": settings.stripe_price_pro_monthly,
-        "pro_annual": settings.stripe_price_pro_annual,
-        "pro_founding": settings.stripe_price_pro_founding,
-    }
-    price_id = mapping.get(plan)
+    """
+    Map checkout plan keys to Stripe Price IDs.
+
+    Researcher ($19) prefers STRIPE_PRICE_RESEARCHER_*; falls back to legacy
+    STRIPE_PRICE_PRO_* so existing $19 products keep working after rename.
+    New Pro ($49) uses STRIPE_PRICE_PRO_49_*.
+    """
+    if plan == "researcher_monthly":
+        price_id = settings.stripe_price_researcher_monthly or settings.stripe_price_pro_monthly
+    elif plan == "researcher_annual":
+        price_id = settings.stripe_price_researcher_annual or settings.stripe_price_pro_annual
+    elif plan == "pro_monthly":
+        # Prefer $49; if not configured yet, fall back to $19 researcher so checkout never 400s mid-migration
+        price_id = settings.stripe_price_pro_49_monthly or settings.stripe_price_researcher_monthly or settings.stripe_price_pro_monthly
+    elif plan == "pro_annual":
+        price_id = settings.stripe_price_pro_49_annual or settings.stripe_price_researcher_annual or settings.stripe_price_pro_annual
+    elif plan == "pro_founding":
+        price_id = settings.stripe_price_pro_founding
+    else:
+        price_id = None
+
     if not price_id:
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail=f"Plan '{plan}' is not configured.",
         )
     return price_id
+
+
+def _tier_for_price_id(price_id: Optional[str]) -> str:
+    """Return plan_tiers.name for a Stripe price id (researcher | pro | pro_founding)."""
+    if not price_id:
+        return "researcher"
+    if price_id == settings.stripe_price_pro_founding:
+        return "pro_founding"
+    if price_id in {
+        settings.stripe_price_pro_49_monthly,
+        settings.stripe_price_pro_49_annual,
+    }:
+        return "pro"
+    # Default / legacy $19 prices → researcher
+    return "researcher"
 
 
 async def _founding_seats_remaining() -> int:
@@ -119,8 +155,22 @@ async def billing_status():
         "enabled": settings.stripe_enabled,
         "publishable_key": settings.stripe_publishable_key,
         "plans": {
-            "pro_monthly": bool(settings.stripe_price_pro_monthly),
-            "pro_annual": bool(settings.stripe_price_pro_annual),
+            "researcher_monthly": bool(
+                settings.stripe_price_researcher_monthly or settings.stripe_price_pro_monthly
+            ),
+            "researcher_annual": bool(
+                settings.stripe_price_researcher_annual or settings.stripe_price_pro_annual
+            ),
+            "pro_monthly": bool(
+                settings.stripe_price_pro_49_monthly
+                or settings.stripe_price_researcher_monthly
+                or settings.stripe_price_pro_monthly
+            ),
+            "pro_annual": bool(
+                settings.stripe_price_pro_49_annual
+                or settings.stripe_price_researcher_annual
+                or settings.stripe_price_pro_annual
+            ),
             "pro_founding": bool(settings.stripe_price_pro_founding),
         },
         "founding_remaining": founding_remaining,
@@ -272,7 +322,7 @@ def _map_status(stripe_status: Optional[str]) -> Optional[str]:
 def _plan_id_from_price(price_id: Optional[str]) -> Optional[str]:
     """Map a Stripe price to the internal plan_tiers row via
     plan_tiers.stripe_monthly_price_id / stripe_annual_price_id.
-    Used so tenant_subscriptions.plan_id stays consistent with our schema."""
+    Falls back to tier name (researcher | pro | pro_founding)."""
     if not price_id:
         return None
     client = get_supabase_admin_client()
@@ -295,6 +345,16 @@ def _plan_id_from_price(price_id: Optional[str]) -> Optional[str]:
         )
         if annual.data:
             return annual.data[0]["id"]
+        tier_name = _tier_for_price_id(price_id)
+        by_name = (
+            client.table("plan_tiers")
+            .select("id")
+            .eq("name", tier_name)
+            .limit(1)
+            .execute()
+        )
+        if by_name.data:
+            return by_name.data[0]["id"]
     except Exception:
         logger.warning("plan_id lookup failed for price %s", price_id, exc_info=True)
     return None

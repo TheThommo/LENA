@@ -582,7 +582,7 @@ export default function Home() {
   // Route the upgrade CTA: if Stripe is live, create a checkout session
   // and redirect; otherwise fall back to a mailto so we never leave the
   // user stranded. Anon visitors hit the signup page first.
-  const handleUpgrade = useCallback(async (plan: BillingPlan = 'pro_monthly') => {
+  const handleUpgrade = useCallback(async (plan: BillingPlan = 'researcher_monthly') => {
     if (!isAuthenticated || !authToken) {
       router.push(`/register?session_id=${session.sessionId || ''}`);
       return;
@@ -1027,7 +1027,7 @@ export default function Home() {
                     <UpgradeCTACard
                       key={msg.id}
                       message={msg.response?.guardrail_message}
-                      onUpgrade={() => handleUpgrade('pro_monthly')}
+                      onUpgrade={() => handleUpgrade('researcher_monthly')}
                       onContact={() => {
                         window.location.href = 'mailto:hello@lena-app.com?subject=LENA%20Enterprise%20enquiry';
                       }}
@@ -1070,7 +1070,7 @@ export default function Home() {
               {clientNotice?.kind === 'upgrade' && !loading && (
                 <UpgradeCTACard
                   message={clientNotice.message}
-                  onUpgrade={() => handleUpgrade('pro_monthly')}
+                  onUpgrade={() => handleUpgrade('researcher_monthly')}
                   onContact={() => {
                     window.location.href = 'mailto:hello@lena-app.com?subject=LENA%20Enterprise%20enquiry';
                   }}
@@ -1246,7 +1246,7 @@ export default function Home() {
           onSearchClick={(sid, q) => { handleRecentSessionClick(sid, q); if (window.innerWidth < 1024) setSidebarOpen(false); }}
           onDeleteSession={deleteRecentSession}
           onRenameSession={renameRecentSession}
-          onUpgrade={() => handleUpgrade('pro_monthly')}
+          onUpgrade={() => handleUpgrade('researcher_monthly')}
           onShareReferral={handleShareReferral}
           onStartProjectSearch={(pid) => { startFreshProjectChat(pid); if (window.innerWidth < 1024) setSidebarOpen(false); }}
           userName={session.name || user?.name}

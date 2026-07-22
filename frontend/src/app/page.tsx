@@ -27,31 +27,58 @@ const FEATURES = [
 
 const PRICING = [
   {
-    name: 'Free',
+    name: 'Anonymous',
     price: '$0',
-    period: 'forever',
+    period: '',
     highlight: false,
     features: [
-      '3 searches — no signup required',
-      `${product.freeSearchLimit} searches/month with free account`,
-      'PULSE validation & evidence briefs',
-      'Saved history & project folders',
+      `${product.freeAnonSearchLimit} searches — no signup`,
+      'Core literature sources',
+      'PULSE validation preview',
     ],
     cta: 'Try free search',
     href: '/chat',
   },
   {
-    name: 'Pro',
-    price: `$${product.proMonthlyUsd}`,
+    name: 'Free',
+    price: '$0',
+    period: '/mo',
+    highlight: false,
+    features: [
+      `${product.freeSearchLimit} searches/month`,
+      'All 11 core databases',
+      'Saved history & 1 project folder',
+    ],
+    cta: 'Create free account',
+    href: '/register',
+  },
+  {
+    name: 'Researcher',
+    price: `$${product.researcherMonthlyUsd}`,
     period: '/month',
     highlight: true,
     features: [
       'Unlimited searches',
       'PDF export & full brief sharing',
-      'All 11 databases + URL/label ingest',
-      'Priority voice add-on coming soon (~$5/mo)',
+      'bioRxiv, Consensus, ChEMBL, Open Targets',
+      'BioRender browse + Synapse open datasets',
     ],
-    cta: 'Start with Pro',
+    cta: 'Start with Researcher',
+    href: '/register',
+    sub: `$${product.researcherAnnualUsd}/yr · existing $19 Pro → Researcher`,
+  },
+  {
+    name: 'Pro',
+    price: `$${product.proMonthlyUsd}`,
+    period: '/month',
+    highlight: false,
+    features: [
+      'Everything in Researcher',
+      'Synapse restricted datasets',
+      'Benchling + priority + team seats',
+      'Custom My Brain',
+    ],
+    cta: 'Upgrade to Pro',
     href: '/register',
     sub: `$${product.proAnnualUsd}/yr billed annually`,
   },
@@ -61,10 +88,10 @@ const PRICING = [
     period: '',
     highlight: false,
     features: [
-      'White-label / co-brand reskin',
-      'Team seats & admin console',
-      'Custom source integrations',
+      'Pro + Owkin pathology',
+      'White-label / co-brand',
       'Dedicated support & SLA',
+      'Contact sales',
     ],
     cta: 'Contact us',
     href: 'mailto:hello@lena-app.com?subject=LENA%20Enterprise',
@@ -193,7 +220,7 @@ export default function LandingPage() {
             <h2 className="text-3xl sm:text-4xl font-bold text-slate-900">Simple, honest pricing</h2>
             <p className="mt-3 text-slate-600">Start free. Upgrade when research is part of your workflow.</p>
           </div>
-          <div className="grid md:grid-cols-3 gap-6">
+          <div className="grid md:grid-cols-3 lg:grid-cols-5 gap-6">
             {PRICING.map((tier) => (
               <div
                 key={tier.name}

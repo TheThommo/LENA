@@ -117,6 +117,8 @@ async def search_literature(
         attached_context=attached_context,
         attached_filename=attached_filename,
         attached_kind=attached_kind,
+        access_tier=getattr(request.state, "access_tier", None)
+        or ("enterprise" if bypass_all else ("anonymous" if not getattr(request.state, "user_id", None) else "free")),
     )
 
     # A "chargeable" search is one that was NOT guardrail-blocked AND
