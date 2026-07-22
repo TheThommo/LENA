@@ -84,31 +84,10 @@ export interface SynapseDataset {
   entity_type?: string | null;
 }
 
-export interface BiorenderFigure {
-  id: string;
-  title: string;
-  thumbnail_url: string;
-  url: string;
-  caption?: string;
-}
-
-export interface OwkinPathologyResult {
-  id: string;
-  title: string;
-  summary: string;
-  url: string;
-  confidence?: number | null;
-}
-
 export interface SearchEnrichment {
   chembl?: ChemblCompound[];
   opentargets?: OpenTargetsHit[];
   synapse?: SynapseDataset[];
-  biorender?: {
-    figures: BiorenderFigure[];
-    meta?: { auth_required?: boolean; message?: string; skipped?: boolean; count?: number };
-  };
-  owkin?: OwkinPathologyResult[];
 }
 
 export interface SourceAgreement {

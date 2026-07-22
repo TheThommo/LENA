@@ -298,7 +298,7 @@ class SourceResult:
     cross_validations: int = 0  # how many papers from OTHER sources corroborate
     contradictions: int = 0     # how many papers from OTHER sources contradict
     is_preprint: bool = False   # bioRxiv/medRxiv flag for UI PREPRINT badge
-    display_label: Optional[str] = None  # e.g. "Additional academic sources"
+    display_label: Optional[str] = None  # optional UI override for source name
 
 
 @dataclass

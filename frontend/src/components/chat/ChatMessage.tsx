@@ -225,7 +225,6 @@ const SOURCE_COLORS: Record<string, { border: string; bg: string; text: string; 
   ods_dsld:        { border: 'border-l-[#0D9488]', bg: 'bg-teal-50',    text: 'text-teal-700',    label: 'NIH DSLD' },
   openfda:         { border: 'border-l-[#B91C1C]', bg: 'bg-rose-50',    text: 'text-rose-700',    label: 'openFDA' },
   biorxiv:         { border: 'border-l-[#D97706]', bg: 'bg-amber-50',   text: 'text-amber-800',   label: 'bioRxiv/medRxiv' },
-  consensus:       { border: 'border-l-[#475569]', bg: 'bg-slate-100',  text: 'text-slate-700',   label: 'Additional academic sources' },
 };
 
 function getSourceStyle(source: string) {
