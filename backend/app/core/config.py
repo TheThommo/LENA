@@ -89,13 +89,8 @@ class Settings(BaseSettings):
     # RapidAPI (iHerb product data, etc.)
     rapidapi_key: Optional[str] = None
 
-    # Phase-2 source keys (fail loud for Synapse + Consensus)
+    # Phase-2 source keys (fail loud for Synapse)
     synapse_api_token: Optional[str] = None
-    consensus_api_key: Optional[str] = None
-    biorender_access_token: Optional[str] = None  # user OAuth token (optional)
-    owkin_enabled: bool = False
-    owkin_api_key: Optional[str] = None
-    owkin_api_url: Optional[str] = None
 
     # Rate limiting
     rate_limit_per_minute: int = 60
@@ -106,8 +101,7 @@ class Settings(BaseSettings):
         "rapidapi_key",
         "stripe_secret_key", "stripe_publishable_key", "stripe_webhook_secret",
         "stripe_price_pro_monthly", "stripe_price_pro_annual", "stripe_price_pro_founding",
-        "synapse_api_token", "consensus_api_key", "biorender_access_token",
-        "owkin_api_key", "owkin_api_url",
+        "synapse_api_token",
         mode="before",
     )
     @classmethod
