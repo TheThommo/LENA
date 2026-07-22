@@ -242,8 +242,8 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
                 return _guardrail_response(
                     "registered_limit",
                     f"You've used your **{reg_limit} free searches** this month.\n\n"
-                    "Upgrade to **Researcher** ($19/mo) for unlimited searches, PDF exports, "
-                    "bioRxiv, Consensus, and more. Your free tier resets on the 1st.",
+                    "Upgrade to **Researcher** ($19/mo) for unlimited searches, all 15 sources, "
+                    "PDF export, and content ingest. Your free tier resets on the 1st.",
                     query_param,
                 )
 

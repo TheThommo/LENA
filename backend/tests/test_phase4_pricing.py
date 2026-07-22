@@ -1,11 +1,18 @@
-"""Phase 4 pricing: AccessTier, migration of $19 Pro → Researcher, source gating."""
+"""Phase 4 pricing: AccessTier, migration of $19 Pro → Researcher, binary source gating."""
 
 from app.core.plan_tiers import (
     AccessTier,
     allowed_scored_sources,
+    can_bulk_pdf_export,
+    can_custom_my_brain,
+    can_priority_processing,
+    can_saved_search_alerts,
+    can_team_sharing,
+    can_unlimited_projects,
     enrichment_allowed,
     filter_scored_sources,
     has_unlimited_searches,
+    max_projects,
     normalize_plan_slug,
 )
 from app.api.routes.billing import PlanKey, _tier_for_price_id
@@ -14,12 +21,14 @@ from app.core import config as cfg
 
 def test_access_tier_enum_has_required_values():
     names = {t.value for t in AccessTier}
-    assert "anonymous" in names
-    assert "free" in names
-    assert "researcher" in names
-    assert "pro" in names
-    assert "enterprise" in names
-    assert "founding" in names
+    assert names == {
+        "anonymous",
+        "free",
+        "researcher",
+        "pro",
+        "enterprise",
+        "founding",
+    }
 
 
 def test_legacy_19_pro_resolves_to_researcher_unlimited():
@@ -29,9 +38,6 @@ def test_legacy_19_pro_resolves_to_researcher_unlimited():
     assert has_unlimited_searches(tier) is True
 
     tier30 = normalize_plan_slug("pro", monthly_price_cents=3000)
-    # <=2500 is researcher; 3000 legacy seed still defaults to researcher when
-    # price alone is ambiguous — normalize treats >2500 and <4000 via default researcher
-    # Actually code: <=2500 researcher, >=4000 pro, else researcher
     assert tier30 == AccessTier.RESEARCHER
 
 
@@ -41,37 +47,76 @@ def test_new_49_pro_resolves_to_pro():
     assert has_unlimited_searches(tier) is True
 
 
-def test_source_gating():
-    anon = allowed_scored_sources(AccessTier.ANONYMOUS)
-    assert "pubmed" in anon
-    assert "biorxiv" not in anon
-    assert "consensus" not in anon
+def test_source_gating_binary_paid_vs_free():
+    """Anonymous/Free = 11 core; Researcher+ = all 15 (11 + biorxiv scored + 3 enrichment)."""
+    for tier in (AccessTier.ANONYMOUS, AccessTier.FREE):
+        scored = allowed_scored_sources(tier)
+        assert "pubmed" in scored
+        assert "biorxiv" not in scored
+        assert not enrichment_allowed("chembl", tier)
+        assert not enrichment_allowed("opentargets", tier)
+        assert not enrichment_allowed("synapse", tier)
 
-    free = allowed_scored_sources(AccessTier.FREE)
-    assert "dailymed" in free
-    assert "biorxiv" not in free
+    for tier in (AccessTier.RESEARCHER, AccessTier.PRO, AccessTier.ENTERPRISE, AccessTier.FOUNDING):
+        scored = allowed_scored_sources(tier)
+        assert "biorxiv" in scored
+        assert enrichment_allowed("chembl", tier)
+        assert enrichment_allowed("opentargets", tier)
+        assert enrichment_allowed("synapse", tier)
+        # Restricted Synapse is no longer Pro-only — all paid get all sources
+        assert enrichment_allowed("synapse", tier, synapse_access="restricted")
 
-    researcher = allowed_scored_sources(AccessTier.RESEARCHER)
-    assert "biorxiv" in researcher and "consensus" in researcher
 
-    assert enrichment_allowed("chembl", AccessTier.RESEARCHER)
-    assert enrichment_allowed("owkin", AccessTier.ENTERPRISE)
-    assert not enrichment_allowed("owkin", AccessTier.PRO)
-    assert enrichment_allowed("synapse", AccessTier.RESEARCHER, synapse_access="open")
-    assert not enrichment_allowed("synapse", AccessTier.RESEARCHER, synapse_access="restricted")
-    assert enrichment_allowed("synapse", AccessTier.PRO, synapse_access="restricted")
+def test_no_cut_source_gating_references():
+    """Cut sources must not appear in allowed scored/enrichment sets."""
+    for tier in AccessTier:
+        scored = allowed_scored_sources(tier)
+        assert "consensus" not in scored
+        assert not enrichment_allowed("biorender", tier)
+        assert not enrichment_allowed("owkin", tier)
+
+
+def test_researcher_denied_pro_features():
+    r = AccessTier.RESEARCHER
+    assert can_unlimited_projects(r) is False
+    assert can_team_sharing(r) is False
+    assert can_custom_my_brain(r) is False
+    assert can_priority_processing(r) is False
+    assert can_saved_search_alerts(r) is False
+    assert can_bulk_pdf_export(r) is False
+    assert max_projects(r) == 5
+
+
+def test_pro_allowed_pro_features():
+    p = AccessTier.PRO
+    assert can_unlimited_projects(p) is True
+    assert can_team_sharing(p) is True
+    assert can_custom_my_brain(p) is True
+    assert can_priority_processing(p) is True
+    assert can_saved_search_alerts(p) is True
+    assert can_bulk_pdf_export(p) is True
+    assert max_projects(p) is None
+
+    e = AccessTier.ENTERPRISE
+    assert can_unlimited_projects(e) is True
+    assert can_bulk_pdf_export(e) is True
 
 
 def test_filter_scored_sources_preserves_core_order():
     filtered = filter_scored_sources(
-        ["pubmed", "biorxiv", "consensus", "openalex"],
+        ["pubmed", "biorxiv", "openalex"],
         AccessTier.FREE,
     )
     assert filtered == ["pubmed", "openalex"]
 
+    paid = filter_scored_sources(
+        ["pubmed", "biorxiv", "openalex"],
+        AccessTier.RESEARCHER,
+    )
+    assert paid == ["pubmed", "biorxiv", "openalex"]
+
 
 def test_plan_key_includes_researcher_and_pro():
-    # typing-only: ensure literals accepted by assigning
     keys: list[PlanKey] = [
         "researcher_monthly",
         "researcher_annual",

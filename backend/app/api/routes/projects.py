@@ -19,8 +19,10 @@ from pydantic import BaseModel, Field
 from app.core.auth import require_auth
 from app.core.entitlements import (
     project_limit_upgrade_message,
+    resolve_user_access_tier,
     user_has_full_access,
 )
+from app.core.plan_tiers import AccessTier, max_projects
 from app.core.logging import get_logger
 from app.db.supabase import get_supabase_admin_client
 
@@ -29,6 +31,7 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 FREE_TIER_PROJECT_LIMIT = 1
+RESEARCHER_PROJECT_LIMIT = 5
 
 
 class ProjectCreate(BaseModel):
@@ -188,22 +191,34 @@ async def _first_active_project_name(client, user_id: str) -> Optional[str]:
 
 async def _project_limits_for_user(client, user_id: str) -> ProjectLimitsOut:
     active = await _count_active_projects(client, user_id)
-    is_free = await _user_plan_is_free(client, user_id)
     full_access = await user_has_full_access(client, user_id)
-
-    if full_access or not is_free:
+    if full_access:
         return ProjectLimitsOut(
-            plan="pro" if not is_free else "free",
+            plan="pro",
+            max_active=None,
+            active_count=active,
+            can_create=True,
+        )
+
+    tier = await resolve_user_access_tier(client, user_id)
+    if tier in (AccessTier.ANONYMOUS, AccessTier.FREE):
+        limit: Optional[int] = FREE_TIER_PROJECT_LIMIT
+    else:
+        limit = max_projects(tier)
+
+    if limit is None:
+        return ProjectLimitsOut(
+            plan=tier.value,
             max_active=None,
             active_count=active,
             can_create=True,
         )
 
     return ProjectLimitsOut(
-        plan="free",
-        max_active=FREE_TIER_PROJECT_LIMIT,
+        plan=tier.value,
+        max_active=limit,
         active_count=active,
-        can_create=active < FREE_TIER_PROJECT_LIMIT,
+        can_create=active < limit,
     )
 
 
@@ -222,16 +237,20 @@ async def create_project(body: ProjectCreate, user=Depends(require_auth)):
     tenant_id = user["tenant_id"]
 
     full_access = await user_has_full_access(client, user_id)
-    if not full_access and await _user_plan_is_free(client, user_id):
-        active = await _count_active_projects(client, user_id)
-        if active >= FREE_TIER_PROJECT_LIMIT:
+    if not full_access:
+        limits = await _project_limits_for_user(client, user_id)
+        if not limits.can_create:
             active_name = await _first_active_project_name(client, user_id)
             return JSONResponse(
                 status_code=200,
                 content={
                     "upgrade_required": True,
                     "feature": "projects",
-                    "message": project_limit_upgrade_message(active_name),
+                    "message": project_limit_upgrade_message(
+                        active_name,
+                        plan=limits.plan,
+                        max_active=limits.max_active,
+                    ),
                     "active_project_name": active_name,
                 },
             )
@@ -286,20 +305,22 @@ async def update_project(project_id: UUID, body: ProjectUpdate, user=Depends(req
     else:
         # Unarchive-and-over-limit check
         if body.archived is False:
-            full_access = await user_has_full_access(client, user_id)
-            if not full_access and await _user_plan_is_free(client, user_id):
-                active = await _count_active_projects(client, user_id)
-                if active >= FREE_TIER_PROJECT_LIMIT:
-                    active_name = await _first_active_project_name(client, user_id)
-                    return JSONResponse(
-                        status_code=200,
-                        content={
-                            "upgrade_required": True,
-                            "feature": "projects",
-                            "message": project_limit_upgrade_message(active_name),
-                            "active_project_name": active_name,
-                        },
-                    )
+            limits = await _project_limits_for_user(client, user_id)
+            if not limits.can_create:
+                active_name = await _first_active_project_name(client, user_id)
+                return JSONResponse(
+                    status_code=200,
+                    content={
+                        "upgrade_required": True,
+                        "feature": "projects",
+                        "message": project_limit_upgrade_message(
+                            active_name,
+                            plan=limits.plan,
+                            max_active=limits.max_active,
+                        ),
+                        "active_project_name": active_name,
+                    },
+                )
         res = (
             client.table("projects")
             .update(update)

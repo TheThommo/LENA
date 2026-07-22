@@ -132,19 +132,32 @@ async def resolve_user_access_tier(client, user_id: Optional[str]) -> "AccessTie
         return AccessTier.FREE
 
 
-def project_limit_upgrade_message(active_project_name: Optional[str] = None) -> str:
+def project_limit_upgrade_message(
+    active_project_name: Optional[str] = None,
+    *,
+    plan: Optional[str] = None,
+    max_active: Optional[int] = None,
+) -> str:
     """Welcoming commercial copy — never an error tone."""
+    plan_key = (plan or "free").lower()
+    if plan_key in ("researcher", "founding") or max_active == 5:
+        target = "Pro ($49/mo) for unlimited projects, team sharing, and priority processing"
+        cap = "up to **5 active research folders**"
+    else:
+        target = "Researcher ($19/mo) for up to 5 projects, all 15 sources, and PDF export"
+        cap = "**one active research folder**"
+
     if active_project_name:
         return (
             f"You're getting great value from **Projects**! "
-            f"The Free plan includes **one active research folder** — "
-            f"**{active_project_name}** is yours right now.\n\n"
-            "Upgrade to **Researcher** ($19/mo) for unlimited projects and advanced sources, "
+            f"Your plan includes {cap} — "
+            f"**{active_project_name}** is among yours right now.\n\n"
+            f"Upgrade to **{target}**, "
             "or archive a folder from the ⋯ menu and create a new one anytime."
         )
     return (
         "You're getting great value from **Projects**! "
-        "The Free plan includes **one active research folder**.\n\n"
-        "Upgrade to **Researcher** ($19/mo) for unlimited projects and advanced sources, "
+        f"Your plan includes {cap}.\n\n"
+        f"Upgrade to **{target}**, "
         "or archive a folder from the ⋯ menu and create a new one anytime."
     )

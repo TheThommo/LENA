@@ -18,7 +18,7 @@ interface UpgradeCTACardProps {
 }
 
 const DEFAULT_MESSAGE =
-  "You've reached a Free plan limit. Upgrade to **Researcher** ($19/mo) for unlimited searches, advanced sources, project folders, and export — or tell us what you need and we'll help.";
+  "You've reached a Free plan limit. Upgrade to **Researcher** ($19/mo) for unlimited searches, all 15 sources, PDF export, and up to 5 projects — or tell us what you need and we'll help.";
 
 export default function UpgradeCTACard({
   onUpgrade,
