@@ -2,16 +2,11 @@
 Named startup / runtime errors for required third-party source keys.
 
 Missing keys must FAIL LOUD — never silently skip the source.
-Owkin is the exception (gated by OWKIN_ENABLED=false).
 """
 
 
 class MissingSynapseApiTokenError(RuntimeError):
     """SYNAPSE_API_TOKEN is not configured."""
-
-
-class MissingConsensusApiKeyError(RuntimeError):
-    """CONSENSUS_API_KEY is not configured."""
 
 
 def validate_required_source_keys(*, require: bool) -> None:
@@ -31,10 +26,5 @@ def validate_required_source_keys(*, require: bool) -> None:
     if not settings.synapse_api_token:
         raise MissingSynapseApiTokenError(
             "SYNAPSE_API_TOKEN is required. Refusing to start — "
-            "set the environment variable (fail-loud source policy)."
-        )
-    if not settings.consensus_api_key:
-        raise MissingConsensusApiKeyError(
-            "CONSENSUS_API_KEY is required. Refusing to start — "
             "set the environment variable (fail-loud source policy)."
         )

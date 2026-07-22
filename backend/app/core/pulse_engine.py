@@ -69,7 +69,6 @@ SOURCE_EVIDENCE_DEFAULTS = {
     "ods_dsld": "observational",
     "openfda": "observational",
     "biorxiv": "preprint",
-    "consensus": "unknown",
 }
 
 # Patterns to detect study type from abstract text
