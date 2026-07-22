@@ -31,7 +31,6 @@ router = APIRouter(prefix="/projects", tags=["projects"])
 
 
 FREE_TIER_PROJECT_LIMIT = 1
-RESEARCHER_PROJECT_LIMIT = 5
 
 
 class ProjectCreate(BaseModel):
