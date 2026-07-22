@@ -15,6 +15,7 @@ from app.core.guardrails import run_all_guardrails
 from app.core.logging import get_logger
 from app.core.config import settings
 from app.services import pubmed, clinical_trials, cochrane, who_iris, cdc, openalex, ods_dsld, openfda, semantic_scholar, europe_pmc, dailymed
+from app.services import biorxiv, consensus_api, chembl, opentargets, synapse, biorender, owkin
 from app.services.topic_classifier import classify_query_topic
 from app.services.result_cache import get_cached_result, cache_result
 from app.services.outlier_authors import (
@@ -26,11 +27,26 @@ logger = get_logger("lena.search")
 
 
 # Maps source names to their query functions
+# Existing 11 core sources — DO NOT remove or reorder casually.
 ALL_SOURCES = [
     "pubmed", "clinical_trials", "cochrane", "who_iris", "cdc", "openalex",
     "semantic_scholar", "europe_pmc", "dailymed",
     "ods_dsld", "openfda",
+    # Phase-2 SCORED sources (additive)
+    "biorxiv",
+    "consensus",
 ]
+
+# Enrichment sources — NOT fed into PULSE scoring
+ENRICHMENT_SOURCES = ["chembl", "opentargets", "synapse", "biorender", "owkin"]
+
+ENRICHMENT_PERSONAS = {
+    "chembl": {"pharmacist", "researcher", "neuroscientist", "clinician"},
+    "opentargets": {"researcher", "pharmacist", "clinician", "neuroscientist"},
+    "synapse": {"researcher", "neuroscientist"},
+    "biorender": {"researcher", "lecturer", "medical_student", "neuroscientist"},
+    "owkin": set(),  # enterprise-only; gated by OWKIN_ENABLED + plan in later phases
+}
 
 
 async def _query_pubmed(query: str, max_results: int) -> list[SourceResult]:
@@ -217,6 +233,44 @@ async def _query_europe_pmc(query: str, max_results: int) -> list[SourceResult]:
     ]
 
 
+async def _query_biorxiv(query: str, max_results: int) -> list[SourceResult]:
+    """bioRxiv/medRxiv preprints — SCORED, flagged PREPRINT."""
+    papers = await biorxiv.search_biorxiv(query, max_results=max_results)
+    return [
+        SourceResult(
+            source_name="biorxiv",
+            title=p.title,
+            summary=p.abstract,
+            url=p.url,
+            doi=p.doi or None,
+            year=p.year,
+            authors=list(p.authors or []),
+            study_type="preprint",
+            is_preprint=True,
+        )
+        for p in papers
+    ]
+
+
+async def _query_consensus(query: str, max_results: int) -> list[SourceResult]:
+    """Consensus.app — SCORED validation source (UI: Additional academic sources)."""
+    papers = await consensus_api.search_consensus(query, max_results=max_results)
+    return [
+        SourceResult(
+            source_name="consensus",
+            title=p.title,
+            summary=p.abstract,
+            url=p.url,
+            doi=p.doi,
+            year=p.year,
+            authors=list(p.authors or []),
+            display_label="Additional academic sources",
+            study_type=p.study_type or "unknown",
+        )
+        for p in papers
+    ]
+
+
 # Map source names to their query functions
 SOURCE_QUERY_MAP = {
     "pubmed": _query_pubmed,
@@ -230,6 +284,8 @@ SOURCE_QUERY_MAP = {
     "dailymed": _query_dailymed,
     "ods_dsld": _query_ods_dsld,
     "openfda": _query_openfda,
+    "biorxiv": _query_biorxiv,
+    "consensus": _query_consensus,
 }
 
 
@@ -272,6 +328,96 @@ async def search_all_sources(
             results_by_source[name] = result
 
     return results_by_source, errors
+
+
+async def search_enrichment_sources(
+    query: str,
+    persona: str = "general",
+    max_results: int = 8,
+    *,
+    include_owkin: bool = False,
+) -> tuple[dict, dict[str, str]]:
+    """
+    Query non-PULSE enrichment sources in parallel (isolated try/catch).
+
+    Returns (enrichment_payload, errors_by_source).
+    """
+    persona_key = (persona or "general").strip().lower()
+    enrichment: dict = {
+        "chembl": [],
+        "opentargets": [],
+        "synapse": [],
+        "biorender": {"figures": [], "meta": {}},
+        "owkin": [],
+    }
+    errors: dict[str, str] = {}
+
+    async def _chembl():
+        try:
+            if persona_key not in ENRICHMENT_PERSONAS["chembl"]:
+                return "chembl", []
+            rows = await chembl.search_chembl(query, max_results=max_results)
+            return "chembl", [r.to_dict() for r in rows]
+        except Exception as exc:
+            return "chembl", exc
+
+    async def _opentargets():
+        try:
+            if persona_key not in ENRICHMENT_PERSONAS["opentargets"]:
+                return "opentargets", []
+            rows = await opentargets.search_open_targets(query, max_results=max_results)
+            return "opentargets", [r.to_dict() for r in rows]
+        except Exception as exc:
+            return "opentargets", exc
+
+    async def _synapse():
+        try:
+            if persona_key not in ENRICHMENT_PERSONAS["synapse"]:
+                return "synapse", []
+            rows = await synapse.search_synapse(query, max_results=max_results)
+            return "synapse", [r.to_dict() for r in rows]
+        except Exception as exc:
+            return "synapse", exc
+
+    async def _biorender():
+        try:
+            if persona_key not in ENRICHMENT_PERSONAS["biorender"]:
+                return "biorender", {"figures": [], "meta": {"skipped": True}}
+            figures, meta = await biorender.search_biorender(query, max_results=max_results)
+            return "biorender", {"figures": [f.to_dict() for f in figures], "meta": meta}
+        except Exception as exc:
+            return "biorender", exc
+
+    async def _owkin():
+        try:
+            if not include_owkin or not settings.owkin_enabled:
+                return "owkin", []
+            rows = await owkin.search_owkin(query, max_results=max_results)
+            return "owkin", [r.to_dict() for r in rows]
+        except Exception as exc:
+            return "owkin", exc
+
+    tasks = [_chembl(), _opentargets(), _synapse(), _biorender(), _owkin()]
+    results = await asyncio.gather(*tasks, return_exceptions=True)
+    for result in results:
+        if isinstance(result, Exception):
+            errors["enrichment"] = str(result)
+            logger.warning("Enrichment task failed: %s", result)
+            continue
+        name, payload = result
+        if isinstance(payload, Exception):
+            errors[name] = str(payload)
+            logger.warning("Enrichment %s failed: %s", name, payload)
+            continue
+        try:
+            if name == "biorender":
+                enrichment["biorender"] = payload
+            else:
+                enrichment[name] = payload
+        except Exception as exc:
+            errors[name] = str(exc)
+
+    return enrichment, errors
 
 
 async def _generate_llm_summary(
@@ -337,6 +483,8 @@ async def _generate_llm_summary(
             "dailymed": "FDA DailyMed (drug labels)",
             "ods_dsld": "NIH ODS DSLD (supplement labels)",
             "openfda": "openFDA CAERS (adverse events)",
+            "biorxiv": "bioRxiv/medRxiv (preprints)",
+            "consensus": "Additional academic sources (Consensus)",
         }
         queried = sources_queried or list(all_source_names.keys())
         failed = sources_failed or {}
@@ -1152,6 +1300,15 @@ async def run_search(
     # so confidence_ratio penalizes low coverage honestly.
     total_sources_attempted = len(scoped_results_by_source) + len(errors)
 
+    # Enrichment sources run in parallel with PULSE — isolated, never crash scoring
+    enrichment_task = asyncio.create_task(
+        search_enrichment_sources(
+            query=source_query,
+            persona=persona,
+            include_owkin=False,  # Enterprise gate lands in Phase 4/5
+        )
+    )
+
     pulse_report = await run_pulse_validation(
         query=query,
         results_by_source=scoped_results_by_source,
@@ -1159,6 +1316,16 @@ async def run_search(
     )
     # Inject the total-attempted count for confidence calculation
     pulse_report._sources_attempted = total_sources_attempted
+
+    enrichment_payload: dict = {}
+    enrichment_errors: dict[str, str] = {}
+    try:
+        enrichment_payload, enrichment_errors = await enrichment_task
+    except Exception as exc:
+        logger.warning("Enrichment gather failed (non-blocking): %s", exc)
+        enrichment_errors = {"enrichment": str(exc)}
+    if enrichment_errors:
+        errors.update({f"enrichment:{k}": v for k, v in enrichment_errors.items()})
 
     _post_filter_by_query_fit(pulse_report, subjects, primary_terms=primary_terms)
 
@@ -1222,6 +1389,7 @@ async def run_search(
         "include_alt_medicine": include_alt_medicine,
         "modes": modes,
         "pulse_report": pulse_report.to_dict(),
+        "enrichment": enrichment_payload,
         "supplement_verification": supplement_verification,
         "llm_summary": (advice_preamble + "\n\n" + llm_summary) if advice_preamble and llm_summary else llm_summary,
         "llm_usage": llm_usage,  # {model, prompt_tokens, completion_tokens, cost_micros} | None

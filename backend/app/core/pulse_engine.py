@@ -50,6 +50,7 @@ EVIDENCE_WEIGHTS = {
     "case_control": 1.0,
     "case_report": 0.8,
     "observational": 0.9,
+    "preprint": 0.7,  # additive: below case_report, above editorial
     "editorial": 0.6,
     "unknown": 0.7,
 }
@@ -67,6 +68,8 @@ SOURCE_EVIDENCE_DEFAULTS = {
     "dailymed": "unknown",
     "ods_dsld": "observational",
     "openfda": "observational",
+    "biorxiv": "preprint",
+    "consensus": "unknown",
 }
 
 # Patterns to detect study type from abstract text
@@ -77,6 +80,7 @@ _STUDY_TYPE_PATTERNS = [
     (r"cohort study|prospective study|longitudinal study|follow-up study", "cohort"),
     (r"case-control|case control|retrospective study", "case_control"),
     (r"case report|case series|single case", "case_report"),
+    (r"preprint|bioRxiv|medRxiv|not peer.reviewed", "preprint"),
     (r"cross-sectional|observational|survey|prevalence", "observational"),
     (r"editorial|commentary|opinion|letter to the editor", "editorial"),
 ]
@@ -294,6 +298,8 @@ class SourceResult:
     claims: list[str] = field(default_factory=list)
     cross_validations: int = 0  # how many papers from OTHER sources corroborate
     contradictions: int = 0     # how many papers from OTHER sources contradict
+    is_preprint: bool = False   # bioRxiv/medRxiv flag for UI PREPRINT badge
+    display_label: Optional[str] = None  # e.g. "Additional academic sources"
 
 
 @dataclass
@@ -486,6 +492,8 @@ class PULSEReport:
                     "cross_validations": r.cross_validations,
                     "contradictions": r.contradictions,
                     "summary": (r.summary[:200] + "…") if len(r.summary) > 200 else r.summary,
+                    "is_preprint": bool(r.is_preprint or r.study_type == "preprint"),
+                    "display_label": r.display_label,
                 }
                 for r in self.validated_results
             ],
@@ -502,6 +510,8 @@ class PULSEReport:
                     "study_type": r.study_type,
                     "cross_validations": r.cross_validations,
                     "contradictions": r.contradictions,
+                    "is_preprint": bool(r.is_preprint or r.study_type == "preprint"),
+                    "display_label": r.display_label,
                 }
                 for r in self.edge_cases
             ],
@@ -749,6 +759,24 @@ async def run_pulse_validation(
         report.status = ValidationStatus.INSUFFICIENT
     else:
         report.status = ValidationStatus.PENDING if active_sources == 0 else ValidationStatus.INSUFFICIENT
+
+    # Preprint-only claims must never reach VALIDATED — demote to EDGE_CASE.
+    # Existing peer-reviewed paths are unchanged when non-preprint evidence exists.
+    peer_reviewed_xval = any(
+        (not r.is_preprint and r.study_type != "preprint" and r.cross_validations > 0)
+        for r in report.validated_results
+    )
+    if report.status == ValidationStatus.VALIDATED and not peer_reviewed_xval:
+        report.status = ValidationStatus.EDGE_CASE
+
+    # Keep preprint papers visible but in edge_cases when they lack peer-reviewed corroboration
+    still_validated: list[SourceResult] = []
+    for r in report.validated_results:
+        if (r.is_preprint or r.study_type == "preprint") and not peer_reviewed_xval:
+            report.edge_cases.append(r)
+        else:
+            still_validated.append(r)
+    report.validated_results = still_validated
 
     # ── Step 8: Build consensus summary ──────────────────────────────
     if consensus_keywords or report.total_cross_validations > 0:
