@@ -1,0 +1,37 @@
+{
+  "id": "HOLD-003",
+  "defect_ids": ["D5"],
+  "query": "Does hydroxychloroquine reduce mortality in hospitalised COVID-19?",
+  "persona": "clinician",
+  "subject_terms": ["hydroxychloroquine", "COVID", "mortality"],
+  "sources": {
+    "pubmed": [
+      {
+        "title": "RECOVERY: hydroxychloroquine did not reduce mortality",
+        "year": 2020,
+        "summary": "In hospitalised COVID-19 patients, hydroxychloroquine did not reduce 28-day mortality compared with usual care."
+      }
+    ],
+    "openalex": [
+      {
+        "title": "Early observational report suggesting hydroxychloroquine benefit",
+        "year": 2020,
+        "summary": "An early single-centre observational report suggested hydroxychloroquine reduced mortality in hospitalised COVID-19; later randomised evidence contradicted this."
+      }
+    ],
+    "cochrane": [
+      {
+        "title": "Cochrane living review: no mortality benefit for hydroxychloroquine",
+        "year": 2021,
+        "summary": "Living systematic review found hydroxychloroquine does not reduce mortality in hospitalised COVID-19 and may increase adverse events."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "divergence_present",
+      "topic": "mortality",
+      "defect_id": "D5"
+    }
+  ]
+}

@@ -1,0 +1,47 @@
+{
+  "id": "GOLD-002",
+  "defect_ids": ["D1"],
+  "query": "What metformin dose was shown to reduce HbA1c in the primary trial evidence for adults with type 2 diabetes?",
+  "persona": "pharmacist",
+  "subject_terms": ["metformin", "dose", "HbA1c", "diabetes"],
+  "sources": {
+    "pubmed": [
+      {
+        "title": "Metformin 1000 mg twice daily and HbA1c reduction",
+        "year": 2019,
+        "summary": "In adults with type 2 diabetes, metformin 1000 mg twice daily significantly reduced HbA1c compared with placebo. Lower doses of 500 mg twice daily produced smaller glycaemic effects."
+      }
+    ],
+    "cochrane": [
+      {
+        "title": "Cochrane review of metformin dosing in type 2 diabetes",
+        "year": 2020,
+        "summary": "Systematic review found that metformin at 1000 mg twice daily was associated with clinically meaningful HbA1c reduction. Dose titration from 500 mg was recommended to improve tolerability."
+      }
+    ],
+    "dailymed": [
+      {
+        "title": "Metformin hydrochloride tablet label — dosage",
+        "year": 2023,
+        "summary": "Recommended starting dose is 500 mg orally twice daily or 850 mg once daily. Maximum recommended daily dose is 2000–2550 mg depending on formulation."
+      }
+    ]
+  },
+  "recorded_brief": "## Key Findings\n- Evidence shows metformin reduced HbA1c in type 2 diabetes.\n\n## Bottom Line\n- Metformin reduces HbA1c in adults with type 2 diabetes.\n",
+  "assertions": [
+    {
+      "type": "qualifier_preserved",
+      "term": "1000 mg",
+      "variants": ["=1000 mg twice", "=1 g twice", "metformin reduces"],
+      "scope": "bottom_line",
+      "defect_id": "D1"
+    },
+    {
+      "type": "forbidden_unqualified",
+      "pattern": "Metformin reduces HbA1c",
+      "scope": "bottom_line",
+      "reason": "dose qualifier required for the efficacy claim under test",
+      "defect_id": "D1"
+    }
+  ]
+}

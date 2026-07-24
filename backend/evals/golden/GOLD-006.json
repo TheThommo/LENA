@@ -1,0 +1,29 @@
+{
+  "id": "GOLD-006",
+  "defect_ids": ["D3"],
+  "query": "Does crystalline zodrium chloride cure tinnitus in humans?",
+  "persona": "general",
+  "subject_terms": ["zodrium", "tinnitus"],
+  "sources_attempted": 11,
+  "sources": {
+    "pubmed": [
+      {
+        "title": "Letter noting absence of zodrium chloride clinical trials",
+        "year": 2024,
+        "summary": "No controlled human trials of crystalline zodrium chloride for tinnitus were identified. Authors conclude evidence is insufficient for clinical recommendations."
+      }
+    ]
+  },
+  "recorded_brief": "## Key Findings\n- No controlled trials identified.\n\n## Bottom Line\n- Evidence is insufficient.\n",
+  "assertions": [
+    {
+      "type": "status_is",
+      "expected": "insufficient_validation",
+      "defect_id": "D3"
+    },
+    {
+      "type": "confidence_status_coherent",
+      "defect_id": "D3"
+    }
+  ]
+}

@@ -1,0 +1,36 @@
+{
+  "id": "GOLD-007",
+  "defect_ids": ["D7"],
+  "query": "What themes emerge across evidence on cardiac rehabilitation after myocardial infarction?",
+  "persona": "physiotherapist",
+  "subject_terms": ["cardiac", "rehabilitation", "myocardial", "infarction"],
+  "sources": {
+    "pubmed": [
+      {
+        "title": "Exercise-based cardiac rehabilitation reduces rehospitalisation",
+        "year": 2021,
+        "summary": "Exercise-based cardiac rehabilitation after myocardial infarction reduced rehospitalisation and improved functional capacity in randomised trials."
+      }
+    ],
+    "cochrane": [
+      {
+        "title": "Cochrane systematic review of cardiac rehabilitation",
+        "year": 2020,
+        "summary": "Systematic review confirmed cardiac rehabilitation programmes improve quality of life after myocardial infarction and may reduce cardiovascular mortality."
+      }
+    ],
+    "openalex": [
+      {
+        "title": "Psychosocial support within cardiac rehab pathways",
+        "year": 2019,
+        "summary": "Psychosocial support components of cardiac rehabilitation improve adherence after myocardial infarction."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "themes_are_clusters",
+      "defect_id": "D7"
+    }
+  ]
+}

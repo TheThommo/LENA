@@ -1,0 +1,43 @@
+{
+  "id": "HOLD-001",
+  "defect_ids": ["D1", "D2"],
+  "query": "Do European approvals of ofatumumab for MS exclude any lymphocyte-count subgroups, and how is that stated versus broader carrier-style language?",
+  "persona": "pharmacist",
+  "subject_terms": ["ofatumumab", "lymphocyte", "MS", "approval"],
+  "sources": {
+    "pubmed": [
+      {
+        "title": "EU SmPC: ofatumumab contraindicated when lymphocytes <0.5×10^9/L",
+        "year": 2023,
+        "summary": "European marketing authorisation contraindicates ofatumumab when absolute lymphocyte count is below 0.5×10^9/L. Patients above that threshold remain eligible with monitoring."
+      }
+    ],
+    "europe_pmc": [
+      {
+        "title": "US vs EU ofatumumab labelling on lymphocyte thresholds",
+        "year": 2024,
+        "summary": "EU labelling uses a numeric lymphocyte threshold (<0.5×10^9/L). Broader phrases such as 'patients with lymphopenia' overstate the excluded population."
+      }
+    ],
+    "dailymed": [
+      {
+        "title": "Ofatumumab US label — laboratory monitoring",
+        "year": 2024,
+        "summary": "US labelling requires baseline and ongoing lymphocyte monitoring for ofatumumab without copying the EU numeric contraindication wording verbatim."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "qualifier_preserved",
+      "term": "0.5",
+      "variants": ["=lymphocyte count", "lymphopenia"],
+      "scope": "bottom_line",
+      "defect_id": "D1"
+    },
+    {
+      "type": "internal_consistency",
+      "defect_id": "D2"
+    }
+  ]
+}

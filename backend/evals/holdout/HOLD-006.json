@@ -1,0 +1,36 @@
+{
+  "id": "HOLD-006",
+  "defect_ids": ["D3", "D7", "D11"],
+  "query": "Does aquatic cold-fusion tonic reverse osteoarthritis on MRI?",
+  "persona": "general",
+  "subject_terms": ["cold-fusion", "tonic", "osteoarthritis"],
+  "sources_attempted": 11,
+  "sources": {
+    "openalex": [
+      {
+        "title": "Satirical note on absence of cold-fusion tonic trials",
+        "year": 2024,
+        "summary": "No indexed human trials show aquatic cold-fusion tonic reverses osteoarthritis on MRI. Evidence is insufficient for clinical claims."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "status_is",
+      "expected": "insufficient_validation",
+      "defect_id": "D3"
+    },
+    {
+      "type": "confidence_status_coherent",
+      "defect_id": "D3"
+    },
+    {
+      "type": "themes_are_clusters",
+      "defect_id": "D7"
+    },
+    {
+      "type": "claim_provenance_complete",
+      "defect_id": "D11"
+    }
+  ]
+}

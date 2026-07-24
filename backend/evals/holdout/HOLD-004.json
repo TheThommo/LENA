@@ -1,0 +1,37 @@
+{
+  "id": "HOLD-004",
+  "defect_ids": ["D6"],
+  "query": "What is the current CDC recommendation on routine COVID-19 boosters for healthy young adults?",
+  "persona": "general",
+  "subject_terms": ["COVID", "booster", "CDC"],
+  "sources": {
+    "cdc": [
+      {
+        "title": "2022 CDC interim booster recommendation snapshot",
+        "year": 2022,
+        "summary": "2022 interim CDC materials emphasised broad booster uptake for adults after primary series."
+      }
+    ],
+    "pubmed": [
+      {
+        "title": "2024 updated immunisation schedule superseding 2022 booster framing",
+        "year": 2024,
+        "summary": "Updated 2024 schedules revise booster timing and risk-based emphasis versus 2022 interim broad booster messaging. Older 2022 snapshots are superseded for current practice."
+      }
+    ],
+    "who_iris": [
+      {
+        "title": "WHO note on evolving COVID booster policy",
+        "year": 2024,
+        "summary": "WHO notes that early-pandemic booster guidance has been superseded by risk-stratified updates."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "divergence_present",
+      "topic": "booster",
+      "defect_id": "D6"
+    }
+  ]
+}

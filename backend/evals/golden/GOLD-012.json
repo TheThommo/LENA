@@ -1,0 +1,44 @@
+{
+  "id": "GOLD-012",
+  "defect_ids": ["D3"],
+  "query": "Is there multi-source agreement that cardiac rehab improves outcomes after MI?",
+  "persona": "physiotherapist",
+  "subject_terms": ["cardiac", "rehabilitation", "myocardial"],
+  "sources_attempted": 11,
+  "sources": {
+    "pubmed": [
+      {
+        "title": "RCT: cardiac rehab improves VO2 after MI",
+        "year": 2018,
+        "summary": "Randomized controlled trial found cardiac rehabilitation improved VO2 max after myocardial infarction compared with usual care."
+      }
+    ],
+    "cochrane": [
+      {
+        "title": "Cochrane review: cardiac rehab after MI",
+        "year": 2020,
+        "summary": "Systematic review demonstrated cardiac rehabilitation reduces rehospitalisation after myocardial infarction."
+      }
+    ],
+    "openalex": [
+      {
+        "title": "Observational confirmation of rehab benefit post-MI",
+        "year": 2019,
+        "summary": "Observational data showed cardiac rehabilitation participation associated with lower rehospitalisation after myocardial infarction."
+      }
+    ],
+    "semantic_scholar": [
+      {
+        "title": "Meta-analysis of exercise-based rehab post-MI",
+        "year": 2021,
+        "summary": "Meta-analysis found exercise-based cardiac rehabilitation improved functional outcomes after myocardial infarction."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "confidence_status_coherent",
+      "defect_id": "D3"
+    }
+  ]
+}

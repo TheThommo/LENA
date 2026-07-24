@@ -1,0 +1,41 @@
+{
+  "id": "HOLD-007",
+  "defect_ids": ["D9", "D10"],
+  "query": "When did the FDA approve empagliflozin for HFrEF, and is that an approval or a guideline?",
+  "persona": "clinician",
+  "subject_terms": ["empagliflozin", "HFrEF", "FDA", "approval"],
+  "sources": {
+    "pubmed": [
+      {
+        "title": "FDA approval of empagliflozin for HFrEF in 2022",
+        "year": 2022,
+        "summary": "The FDA approved empagliflozin to reduce cardiovascular death and heart failure hospitalisation in adults with HFrEF in 2022. Society guidelines separately advise on implementation."
+      }
+    ],
+    "dailymed": [
+      {
+        "title": "Empagliflozin label — HFrEF indication",
+        "year": 2023,
+        "summary": "US labelling includes indication to reduce risk of cardiovascular death and hospitalisation for heart failure in adults with HFrEF."
+      }
+    ],
+    "openalex": [
+      {
+        "title": "Guideline versus label distinction for SGLT2 inhibitors",
+        "year": 2023,
+        "summary": "Authors distinguish FDA approval language from advisory heart-failure guidelines."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "source_dates_present_in_narrative",
+      "min_dates": 1,
+      "defect_id": "D9"
+    },
+    {
+      "type": "approvals_not_called_guidelines",
+      "defect_id": "D10"
+    }
+  ]
+}

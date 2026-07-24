@@ -1,0 +1,39 @@
+{
+  "id": "GOLD-005",
+  "defect_ids": ["D8"],
+  "query": "What are the FDA-labelled boxed warnings and dosing limits for methotrexate tablets?",
+  "persona": "pharmacist",
+  "subject_terms": ["methotrexate", "boxed warning", "dosing", "FDA"],
+  "sources": {
+    "pubmed": [
+      {
+        "title": "Observational cohort of methotrexate use in rheumatoid arthritis",
+        "year": 2018,
+        "summary": "Cohort study describing methotrexate utilisation patterns in rheumatoid arthritis clinics. Does not reproduce FDA label boxed warnings."
+      }
+    ],
+    "openalex": [
+      {
+        "title": "Academic review of folate antagonism",
+        "year": 2015,
+        "summary": "Narrative review of folate pathway antagonism. Not a regulatory label source."
+      }
+    ],
+    "cdc": [
+      {
+        "title": "CDC arthritis program overview",
+        "year": 2021,
+        "summary": "Public health overview of arthritis burden. No methotrexate tablet labelling content."
+      }
+    ]
+  },
+  "force_ranked_sources": ["pubmed", "openalex", "cdc"],
+  "recorded_brief": "## Key Findings\n- Literature discusses methotrexate use in RA.\n\n## Bottom Line\n- See clinical literature for methotrexate use.\n",
+  "assertions": [
+    {
+      "type": "source_class_present",
+      "source_class": "regulatory",
+      "defect_id": "D8"
+    }
+  ]
+}

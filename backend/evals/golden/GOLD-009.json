@@ -1,0 +1,30 @@
+{
+  "id": "GOLD-009",
+  "defect_ids": ["D10"],
+  "query": "What is the legal labelling status of lecanemab in the EU versus advisory clinical guidance?",
+  "persona": "pharmacist",
+  "subject_terms": ["lecanemab", "marketing", "authorisation", "guideline"],
+  "sources": {
+    "pubmed": [
+      {
+        "title": "EU marketing authorisation text for lecanemab",
+        "year": 2025,
+        "summary": "The EU marketing authorisation sets the legally binding indicated population for lecanemab. Separate clinical practice guidelines may offer advisory recommendations that do not themselves confer legal force."
+      }
+    ],
+    "europe_pmc": [
+      {
+        "title": "Professional society guideline on anti-amyloid use",
+        "year": 2024,
+        "summary": "Society guidelines advise on clinic readiness and monitoring. Guidelines are advisory and distinct from marketing authorisation."
+      }
+    ]
+  },
+  "recorded_brief": "## Key Findings\n- European guidelines exclude ApoE e4/4 carriers from lecanemab approval.\n\n## Bottom Line\n- Follow European guidelines for lecanemab approval eligibility.\n",
+  "assertions": [
+    {
+      "type": "approvals_not_called_guidelines",
+      "defect_id": "D10"
+    }
+  ]
+}

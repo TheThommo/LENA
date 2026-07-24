@@ -1,0 +1,38 @@
+{
+  "id": "GOLD-004",
+  "defect_ids": ["D6"],
+  "query": "What is the current EMA position on donanemab marketing authorisation?",
+  "persona": "researcher",
+  "subject_terms": ["donanemab", "EMA", "CHMP", "authorisation"],
+  "sources": {
+    "pubmed": [
+      {
+        "title": "Lancet 2025: EMA declined donanemab authorisation",
+        "year": 2025,
+        "summary": "A 2025 Lancet report stated the EMA declined donanemab marketing authorisation after an unfavourable benefit–risk assessment. This reflected the status at publication."
+      }
+    ],
+    "europe_pmc": [
+      {
+        "title": "July 2025 CHMP positive opinion reversing prior donanemab stance",
+        "year": 2025,
+        "summary": "In July 2025 the CHMP issued a positive opinion for donanemab, reversing the earlier negative trajectory. The newer regulatory position supersedes prior decline reports."
+      }
+    ],
+    "openalex": [
+      {
+        "title": "Timeline of donanemab EU regulatory review",
+        "year": 2025,
+        "summary": "Donanemab EU review moved from an initial decline narrative to a July 2025 CHMP positive opinion. Readers should treat pre-July 2025 decline statements as superseded."
+      }
+    ]
+  },
+  "recorded_brief": "## Key Findings\n- A 2025 Lancet source stated EMA declined donanemab.\n\n## Bottom Line\n- EMA declined donanemab.\n",
+  "assertions": [
+    {
+      "type": "divergence_present",
+      "topic": "donanemab",
+      "defect_id": "D6"
+    }
+  ]
+}
