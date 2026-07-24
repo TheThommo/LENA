@@ -181,6 +181,7 @@ async def run_case(case: dict[str, Any]) -> CaseResult:
     attempted = case.get("sources_attempted")
     if attempted:
         pulse._sources_attempted = int(attempted)
+        pulse.refresh_status()
 
     conf = pulse.confidence_ratio
     status = pulse.status.value if hasattr(pulse.status, "value") else str(pulse.status)

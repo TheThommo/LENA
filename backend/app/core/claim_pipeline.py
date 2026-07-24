@@ -196,15 +196,21 @@ def _claim_id_for(source_id: str, span: str, idx: int) -> str:
 
 
 def _is_claim_sentence(sent: str) -> bool:
+    """Domain-general: any research finding sentence, not clinical-only."""
     if len(sent) < 30 or len(sent) > 600:
         return False
     return bool(
         re.search(
-            r"(?:found|showed|demonstrated|associated|reduced|increased|"
-            r"decreased|exclude[sd]?|approv(?:ed|al)|authori[sz]ation|"
-            r"contraindicat|recommend|significant|compared|versus|vs\.?|"
-            r"dose|label|indicat|risk|mortality|hospitalisation|hospitalization|"
-            r"supersede|declined|positive opinion|benefit)",
+            r"(?:found|showed|demonstrated|reported|observed|measured|"
+            r"estimated|associated|reduced|increased|decreased|improved|"
+            r"exclude[sd]?|approv(?:ed|al)|authori[sz]ation|contraindicat|"
+            r"recommend|significant|compared|versus|vs\.?|dose|label|"
+            r"indicat|risk|mortality|hospitalisation|hospitalization|"
+            r"supersede|declined|positive opinion|benefit|conclude[sd]?|"
+            r"suggest(?:s|ed)?|indicate[sd]?|reveal(?:s|ed)?|confirm(?:s|ed)?|"
+            r"prevalence|incidence|effective|efficacy|correlated|"
+            r"according to|based on|in contrast|however|"
+            r"meta-analysis|systematic review|trial|cohort|survey)",
             sent,
             re.I,
         )
@@ -322,67 +328,80 @@ def reconcile_claims(claims: list[AtomicClaim]) -> list[ClaimGroup]:
     """
     Group semantically related claims and classify each group.
     ABSENCE is never emitted here — absence is lack of a claim, not a group.
+    Domain-general: works for clinical and non-clinical research findings.
     """
     unused = list(claims)
     groups: list[ClaimGroup] = []
     gid = 0
+
+    def _classify_members(members: list[AtomicClaim]) -> tuple[ReconcileClass, str, Optional[str], str]:
+        classification = ReconcileClass.AGREEMENT
+        reason = "independent sources agree"
+        topic = " ".join(sorted(_token_set(members[0].text))[:4])
+        superseded_by = None
+
+        if len(members) < 2:
+            return classification, reason, superseded_by, topic
+
+        dated = [m for m in members if m.year]
+        if len(dated) >= 2:
+            dated_sorted = sorted(
+                dated, key=lambda c: (c.year or 0, c.qualifiers.timeframe or "")
+            )
+            older, newer = dated_sorted[0], dated_sorted[-1]
+            supersede_lang = bool(
+                re.search(
+                    r"supersede|revers(?:e|ing|ed)|replaced by|updated by",
+                    " ".join(m.text for m in members),
+                    re.I,
+                )
+            )
+            year_newer = bool(older.year and newer.year and newer.year > older.year)
+            if (year_newer or supersede_lang) and _polarity_conflict(older.text, newer.text):
+                shared = sorted(_token_set(older.text) & _token_set(newer.text))
+                return (
+                    ReconcileClass.TEMPORAL_SUPERSESSION,
+                    f"newer source ({newer.year}) supersedes older source ({older.year})",
+                    newer.claim_id,
+                    " ".join(shared[:6]) or topic,
+                )
+
+        for i, ca in enumerate(members):
+            for cb in members[i + 1 :]:
+                if _polarity_conflict(ca.text, cb.text) and not _qualifier_conflict(
+                    ca.qualifiers, cb.qualifiers
+                ):
+                    shared = sorted(_token_set(ca.text) & _token_set(cb.text))
+                    return (
+                        ReconcileClass.CONTRADICTION,
+                        "sources assert opposing outcomes on the same topic",
+                        None,
+                        " ".join(shared[:6]) or topic,
+                    )
+
+        for i, ca in enumerate(members):
+            for cb in members[i + 1 :]:
+                if _qualifier_conflict(ca.qualifiers, cb.qualifiers):
+                    return (
+                        ReconcileClass.SCOPE_DIFFERENCE,
+                        "same finding under different qualifier scopes",
+                        None,
+                        topic,
+                    )
+        return classification, reason, superseded_by, topic
+
     while unused:
         seed = unused.pop(0)
         members = [seed]
         rest: list[AtomicClaim] = []
         for other in unused:
-            if _claim_similarity(seed, other) >= 0.28:
+            if _claim_similarity(seed, other) >= 0.22:
                 members.append(other)
             else:
                 rest.append(other)
         unused = rest
         gid += 1
-        classification = ReconcileClass.AGREEMENT
-        reason = "independent sources agree"
-        topic = " ".join(sorted(_token_set(seed.text))[:4])
-        superseded_by = None
-
-        if len(members) >= 2:
-            # Temporal supersession: same topic, different years, newer reverses older
-            dated = [m for m in members if m.year]
-            if len(dated) >= 2:
-                dated_sorted = sorted(dated, key=lambda c: c.year or 0)
-                older, newer = dated_sorted[0], dated_sorted[-1]
-                if (
-                    older.year
-                    and newer.year
-                    and newer.year > older.year
-                    and _polarity_conflict(older.text, newer.text)
-                ):
-                    classification = ReconcileClass.TEMPORAL_SUPERSESSION
-                    reason = (
-                        f"newer source ({newer.year}) supersedes older "
-                        f"source ({older.year})"
-                    )
-                    superseded_by = newer.claim_id
-                    topic = topic or "temporal"
-            if classification == ReconcileClass.AGREEMENT:
-                # Contradiction: overlapping topic, opposing polarity, same era
-                for i, ca in enumerate(members):
-                    for cb in members[i + 1 :]:
-                        if _polarity_conflict(ca.text, cb.text) and not _qualifier_conflict(
-                            ca.qualifiers, cb.qualifiers
-                        ):
-                            classification = ReconcileClass.CONTRADICTION
-                            reason = "sources assert opposing outcomes on the same topic"
-                            break
-                    if classification == ReconcileClass.CONTRADICTION:
-                        break
-            if classification == ReconcileClass.AGREEMENT:
-                for i, ca in enumerate(members):
-                    for cb in members[i + 1 :]:
-                        if _qualifier_conflict(ca.qualifiers, cb.qualifiers):
-                            classification = ReconcileClass.SCOPE_DIFFERENCE
-                            reason = "same finding under different qualifier scopes"
-                            break
-                    if classification == ReconcileClass.SCOPE_DIFFERENCE:
-                        break
-
+        classification, reason, superseded_by, topic = _classify_members(members)
         groups.append(
             ClaimGroup(
                 group_id=f"grp_{gid:03d}",
@@ -393,6 +412,72 @@ def reconcile_claims(claims: list[AtomicClaim]) -> list[ClaimGroup]:
                 superseded_by=superseded_by,
             )
         )
+
+    # Global conflict pass: opposing polarity + shared topic tokens across ALL claims.
+    # Catches paraphrased contradictions / supersessions that similarity grouping missed.
+    conflicted_ids: set[str] = set()
+    conflict_groups: list[ClaimGroup] = []
+    for i, ca in enumerate(claims):
+        for cb in claims[i + 1 :]:
+            if ca.claim_id in conflicted_ids and cb.claim_id in conflicted_ids:
+                continue
+            ta, tb = _token_set(ca.text), _token_set(cb.text)
+            if not ta or not tb:
+                continue
+            overlap = len(ta & tb) / len(ta | tb)
+            if overlap < 0.08:
+                continue
+            if not _polarity_conflict(ca.text, cb.text):
+                continue
+            members = [ca, cb]
+            classification, reason, superseded_by, topic = _classify_members(members)
+            if classification not in (
+                ReconcileClass.CONTRADICTION,
+                ReconcileClass.TEMPORAL_SUPERSESSION,
+            ):
+                # Force contradiction when polarity opposes on shared topic
+                classification = ReconcileClass.CONTRADICTION
+                reason = "sources assert opposing outcomes on the same topic"
+                shared = sorted(ta & tb)
+                topic = " ".join(shared[:6]) or topic
+            gid += 1
+            conflict_groups.append(
+                ClaimGroup(
+                    group_id=f"grp_{gid:03d}",
+                    classification=classification,
+                    claims=members,
+                    topic=topic,
+                    reason=reason,
+                    superseded_by=superseded_by,
+                )
+            )
+            conflicted_ids.add(ca.claim_id)
+            conflicted_ids.add(cb.claim_id)
+
+    if conflict_groups:
+        # Keep non-conflicting groups; replace overlapping members with conflict groups
+        kept = []
+        for g in groups:
+            remaining = [c for c in g.claims if c.claim_id not in conflicted_ids]
+            if not remaining:
+                continue
+            if len(remaining) == len(g.claims):
+                kept.append(g)
+            else:
+                classification, reason, superseded_by, topic = _classify_members(remaining)
+                gid += 1
+                kept.append(
+                    ClaimGroup(
+                        group_id=f"grp_{gid:03d}",
+                        classification=classification,
+                        claims=remaining,
+                        topic=topic,
+                        reason=reason,
+                        superseded_by=superseded_by,
+                    )
+                )
+        return kept + conflict_groups
+
     return groups
 
 

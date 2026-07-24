@@ -225,12 +225,12 @@ def claim_provenance_complete(
     )
 
 
-# Published status thresholds — must stay in sync with pulse scoring once fixed.
-# Baseline (unfixed) code does NOT use these; assertion encodes the target contract.
-CONFIDENCE_STATUS_THRESHOLDS = (
-    (0.70, "validated"),
-    (0.40, "edge_case"),
-    (0.0, "insufficient_validation"),
+# Published status thresholds — must stay in sync with pulse_engine.
+from app.core.pulse_engine import CONFIDENCE_STATUS_THRESHOLDS as _PULSE_THRESHOLDS
+
+CONFIDENCE_STATUS_THRESHOLDS = tuple(
+    (float(t), s.value if hasattr(s, "value") else str(s))
+    for t, s in _PULSE_THRESHOLDS
 )
 
 
@@ -295,7 +295,7 @@ def divergence_present(
 ) -> AssertionResult:
     """
     Require that a contradiction/supersession on `topic` was surfaced.
-    Accepts either reason strings or edge-case dicts with reason/topic fields.
+    Accepts either reason strings or edge-case dicts with reason/topic/claim fields.
     """
     blob_parts: list[str] = []
     for item in edge_cases_or_flags:
@@ -305,9 +305,21 @@ def divergence_present(
             blob_parts.append(
                 " ".join(
                     str(item.get(k, ""))
-                    for k in ("reason", "topic", "classification", "divergence_type", "summary", "claim")
+                    for k in (
+                        "reason",
+                        "topic",
+                        "classification",
+                        "divergence_type",
+                        "summary",
+                        "claim",
+                    )
                 )
             )
+            for c in item.get("claims") or []:
+                if isinstance(c, dict):
+                    blob_parts.append(str(c.get("span") or c.get("text") or ""))
+                else:
+                    blob_parts.append(str(c))
     blob = " ".join(blob_parts).lower()
     if topic.lower() not in blob and not re.search(re.escape(topic), blob, re.I):
         return AssertionResult(

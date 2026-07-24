@@ -1157,8 +1157,10 @@ async def run_search(
         results_by_source=scoped_results_by_source,
         subject_terms=query_subjects,
     )
-    # Inject the total-attempted count for confidence calculation
+    # Inject the total-attempted count for confidence calculation, then
+    # refresh status so the label stays a pure function of confidence.
     pulse_report._sources_attempted = total_sources_attempted
+    pulse_report.refresh_status()
 
     _post_filter_by_query_fit(pulse_report, subjects, primary_terms=primary_terms)
 
