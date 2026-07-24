@@ -5,20 +5,20 @@ import { BrandMark } from '@/components/brand/BrandMark';
 import { branding } from '@/config/branding';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { LenaUpgradeRequiredError, listProjectSearches, type Project } from '@/lib/api';
+import { listProjectSearches, type Project } from '@/lib/api';
 import { defaultContactHandler } from '@/components/chat/UpgradeCTACard';
-import { type RecentSessionRecord, formatSessionSubtitle, getSessionDisplayTitle } from '@/lib/sessionTime';
+import { type RecentSessionRecord, formatSessionSubtitle, getSessionDisplayTitle, mergeProjectSessions, projectChatDedupeKey } from '@/lib/sessionTime';
+import { isUpgradeRequiredError, openSupportMail } from '@/lib/supportContact';
 
 interface SidebarProps {
   activeView: string;
   onViewChange: (view: string) => void;
   onNewSearch: () => void;
   recentSessions: RecentSessionRecord[];
-  /** Called when a recent session is clicked. Passes the session id and a
-   *  fallback query (used only if the cached thread can't be restored). */
-  onSearchClick: (sessionId: string, fallbackQuery: string) => void;
+  /** Called when a recent/project session is clicked. Never triggers a new search. */
+  onSearchClick: (sessionId: string, fallbackQuery: string, projectId?: string | null) => void;
   onDeleteSession?: (sessionId: string) => void;
-  onRenameSession?: (sessionId: string, title: string) => void;
+  onRenameSession?: (sessionId: string, title: string, seed?: RecentSessionRecord) => void;
   userName?: string;
   userEmail?: string;
   isAuthenticated?: boolean;
@@ -269,7 +269,7 @@ export function Sidebar({
                     type="button"
                     onClick={() => {
                       setMenuOpen(false);
-                      window.location.href = 'mailto:hello@lena-app.com?subject=LENA%20Support%20request';
+                      openSupportMail('LENA Support request');
                     }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors group"
                   >
@@ -561,7 +561,7 @@ function SessionRow({
   variant: 'recent' | 'project';
   onOpen: () => void;
   onDelete?: (sessionId: string) => void;
-  onRename?: (sessionId: string, title: string) => void;
+  onRename?: (sessionId: string, title: string, seed?: RecentSessionRecord) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -579,12 +579,16 @@ function SessionRow({
     setEditing(true);
   };
 
+  const skipBlurRef = useRef(false);
+
   const commitEdit = () => {
-    onRename?.(session.id, draft);
+    if (!editing) return;
+    onRename?.(session.id, draft, session);
     setEditing(false);
   };
 
   const cancelEdit = () => {
+    skipBlurRef.current = true;
     setEditing(false);
     setDraft('');
   };
@@ -598,12 +602,25 @@ function SessionRow({
             value={draft}
             onChange={e => setDraft(e.target.value)}
             onKeyDown={e => {
-              if (e.key === 'Enter') commitEdit();
-              if (e.key === 'Escape') cancelEdit();
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitEdit();
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelEdit();
+              }
             }}
-            onBlur={commitEdit}
-            placeholder="Session name"
+            onBlur={() => {
+              if (skipBlurRef.current) {
+                skipBlurRef.current = false;
+                return;
+              }
+              commitEdit();
+            }}
+            placeholder="Chat name"
             className="w-full border border-lena-300 rounded-md px-2 py-2 focus:outline-none focus:ring-2 focus:ring-lena-200 bg-white input-touch"
+            data-testid={`rename-input-${session.id}`}
           />
           <p className="text-[10px] text-gray-400 mt-1">Enter to save · Esc to cancel</p>
         </div>
@@ -623,6 +640,7 @@ function SessionRow({
               : 'px-1.5 py-1 text-[12px] text-gray-600 hover:text-lena-600 hover:bg-lena-50/60'
           }`}
           title={session.firstQuery}
+          data-testid={`open-session-${session.id}`}
         >
           {isRecent ? (
             <>
@@ -646,11 +664,12 @@ function SessionRow({
           <button
             type="button"
             onClick={startEdit}
-            className={`flex-shrink-0 self-center touch-target flex items-center justify-center rounded-md text-gray-400 lg:opacity-0 ${
-              isRecent ? 'lg:group-hover:opacity-100 mr-0.5' : 'lg:group-hover/sess:opacity-100'
-            } hover:text-lena-600 hover:bg-lena-50 transition-all`}
-            title="Rename session"
-            aria-label="Rename session"
+            className={`flex-shrink-0 self-center touch-target flex items-center justify-center rounded-md text-gray-400 hover:text-lena-600 hover:bg-lena-50 transition-all ${
+              isRecent ? 'lg:opacity-0 lg:group-hover:opacity-100 mr-0.5' : 'opacity-100 mr-0.5'
+            }`}
+            title="Rename chat"
+            aria-label="Rename chat"
+            data-testid={`rename-session-${session.id}`}
           >
             <PencilIcon className={isRecent ? 'w-3.5 h-3.5' : 'w-3 h-3'} />
           </button>
@@ -694,28 +713,50 @@ function ProjectRow({
   filed: RecentSessionRecord[];
   isArchived?: boolean;
   onOpenProject: (projectId: string) => void;
-  onSearchClick?: (sessionId: string, fallbackQuery: string) => void;
+  onSearchClick?: (sessionId: string, fallbackQuery: string, projectId?: string | null) => void;
   onDeleteSession?: (sessionId: string) => void;
-  onRenameSession?: (sessionId: string, title: string) => void;
+  onRenameSession?: (sessionId: string, title: string, seed?: RecentSessionRecord) => void;
 }) {
   const { setActiveProjectId, rename, archive, unarchive, remove } = useProjects();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [remoteFiled, setRemoteFiled] = useState<RecentSessionRecord[]>([]);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(project.name);
   const [busy, setBusy] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const collapseKey = user?.id ? `lena_project_collapsed_${user.id}` : 'lena_project_collapsed';
 
-  const displayFiled = useMemo(() => {
-    const byId = new Map<string, RecentSessionRecord>();
-    for (const s of [...filed, ...remoteFiled]) {
-      if (!byId.has(s.id)) byId.set(s.id, s);
-    }
-    return Array.from(byId.values()).sort(
-      (a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime(),
-    );
-  }, [filed, remoteFiled]);
+  const displayFiled = useMemo(
+    () => mergeProjectSessions(filed, remoteFiled),
+    [filed, remoteFiled],
+  );
+
+  const hasChats = !isArchived && displayFiled.length > 0;
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(collapseKey);
+      if (!raw) return;
+      const map = JSON.parse(raw) as Record<string, boolean>;
+      if (map[project.id]) setCollapsed(true);
+    } catch { /* ignore */ }
+  }, [collapseKey, project.id]);
+
+  const toggleCollapsed = (e?: React.MouseEvent) => {
+    e?.stopPropagation();
+    setCollapsed(prev => {
+      const next = !prev;
+      try {
+        const raw = localStorage.getItem(collapseKey);
+        const map = raw ? JSON.parse(raw) as Record<string, boolean> : {};
+        map[project.id] = next;
+        localStorage.setItem(collapseKey, JSON.stringify(map));
+      } catch { /* ignore */ }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!token || isArchived) return;
@@ -793,13 +834,35 @@ function ProjectRow({
   }
 
   return (
-    <li>
+    <li data-testid={`project-row-${project.id}`}>
       <div className="flex items-center gap-0.5 group/proj">
+        {hasChats && (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="flex-shrink-0 touch-target flex items-center justify-center rounded-md text-gray-500 hover:text-gray-700 hover:bg-gray-100 transition-colors"
+            aria-expanded={!collapsed}
+            aria-label={collapsed ? 'Expand project chats' : 'Collapse project chats'}
+            title={collapsed ? 'Expand' : 'Collapse'}
+            data-testid={`project-collapse-${project.id}`}
+          >
+            <ChevronIcon className={`w-3.5 h-3.5 transition-transform ${collapsed ? '' : 'rotate-90'}`} />
+          </button>
+        )}
         <button
           type="button"
-          onClick={() => { setActiveProjectId(project.id); onOpenProject(project.id); }}
+          onClick={() => {
+            setActiveProjectId(project.id);
+            if (hasChats) {
+              toggleCollapsed();
+            } else {
+              onOpenProject(project.id);
+            }
+          }}
           className={`flex-1 min-w-0 flex items-center gap-2 px-2 py-1.5 rounded-md text-sm transition-colors
             ${isActive ? 'bg-lena-50 text-lena-700' : 'text-gray-700 hover:bg-gray-50'}`}
+          data-testid={`project-title-${project.id}`}
+          title={hasChats ? (collapsed ? 'Expand chats' : 'Collapse chats') : 'Open project'}
         >
           <span className="text-[13px] flex-shrink-0">{project.emoji || '📁'}</span>
           <span className="truncate flex-1 text-left">{project.name}</span>
@@ -813,13 +876,24 @@ function ProjectRow({
           <button
             type="button"
             onClick={(e) => { e.stopPropagation(); setMenuOpen(v => !v); }}
-            className="touch-target flex items-center justify-center rounded-md text-gray-400 lg:opacity-0 lg:group-hover/proj:opacity-100 hover:text-gray-600 hover:bg-gray-100 transition-all"
+            className="touch-target flex items-center justify-center rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-all"
             aria-label="Project options"
           >
             <MoreIcon className="w-3.5 h-3.5" />
           </button>
           {menuOpen && (
-            <div className="absolute right-0 top-full mt-1 z-50 w-36 bg-white border border-gray-200 rounded-lg shadow-lg py-1 text-xs">
+            <div className="absolute right-0 top-full mt-1 z-50 w-40 bg-white border border-gray-200 rounded-lg shadow-lg py-1 text-xs">
+              <button
+                type="button"
+                className="w-full text-left px-3 py-1.5 hover:bg-gray-50"
+                onClick={() => {
+                  setMenuOpen(false);
+                  setActiveProjectId(project.id);
+                  onOpenProject(project.id);
+                }}
+              >
+                Open folder
+              </button>
               <button
                 type="button"
                 className="w-full text-left px-3 py-1.5 hover:bg-gray-50"
@@ -860,14 +934,17 @@ function ProjectRow({
           )}
         </div>
       </div>
-      {!isArchived && displayFiled.length > 0 && onSearchClick && (
-        <ul className="ml-6 mt-0.5 mb-1 space-y-0.5 border-l border-gray-100 pl-2">
+      {hasChats && !collapsed && onSearchClick && (
+        <ul
+          className="ml-6 mt-0.5 mb-1 space-y-0.5 border-l border-gray-100 pl-2"
+          data-testid={`project-chats-${project.id}`}
+        >
           {displayFiled.slice(0, 12).map(sess => (
             <SessionRow
-              key={sess.id}
+              key={`${project.id}:${projectChatDedupeKey(sess)}`}
               session={sess}
               variant="project"
-              onOpen={() => onSearchClick(sess.id, sess.firstQuery)}
+              onOpen={() => onSearchClick(sess.id, sess.firstQuery, sess.projectId || project.id)}
               onDelete={onDeleteSession}
               onRename={onRenameSession}
             />
@@ -882,6 +959,14 @@ function MoreIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
       <circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" />
+    </svg>
+  );
+}
+
+function ChevronIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 6l6 6-6 6" />
     </svg>
   );
 }
@@ -911,15 +996,16 @@ function ProjectsSection({
   onSignIn?: () => void;
   onUpgrade?: () => void;
   recentSessions?: RecentSessionRecord[];
-  onSearchClick?: (sessionId: string, fallbackQuery: string) => void;
+  onSearchClick?: (sessionId: string, fallbackQuery: string, projectId?: string | null) => void;
   onDeleteSession?: (sessionId: string) => void;
-  onRenameSession?: (sessionId: string, title: string) => void;
+  onRenameSession?: (sessionId: string, title: string, seed?: RecentSessionRecord) => void;
 }) {
   const { projects, activeProjectId, setActiveProjectId, createNew, limits, error } = useProjects();
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [upgradeCta, setUpgradeCta] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -932,9 +1018,10 @@ function ProjectsSection({
 
   const submit = async () => {
     const name = newName.trim();
-    if (!name) return;
+    if (!name || submitting) return;
     setSubmitting(true);
     setUpgradeCta(null);
+    setCreateError(null);
     try {
       const p = await createNew({ name });
       setActiveProjectId(p.id);
@@ -946,13 +1033,13 @@ function ProjectsSection({
       setNewName('');
       setCreating(false);
     } catch (e) {
-      if (e instanceof LenaUpgradeRequiredError) {
-        setUpgradeCta(e.message);
+      if (isUpgradeRequiredError(e)) {
+        setUpgradeCta(e.message || 'Upgrade to create more projects.');
         setCreating(false);
         setNewName('');
       } else {
-        setUpgradeCta(null);
-        defaultContactHandler();
+        // Never open mailto on create failure — show the error inline.
+        setCreateError(e instanceof Error ? e.message : 'Could not create project. Try again.');
       }
     } finally {
       setSubmitting(false);
@@ -970,7 +1057,7 @@ function ProjectsSection({
         </div>
         {isAuthenticated && !creating && (
           <button
-            onClick={() => { setUpgradeCta(null); setCreating(true); }}
+            onClick={() => { setUpgradeCta(null); setCreateError(null); setCreating(true); }}
             className="p-1 text-gray-400 hover:text-lena-500 rounded transition-colors"
             title="New project"
           >
@@ -1032,14 +1119,29 @@ function ProjectsSection({
             value={newName}
             onChange={e => setNewName(e.target.value)}
             onKeyDown={e => {
-              if (e.key === 'Enter') submit();
-              if (e.key === 'Escape') { setCreating(false); setNewName(''); setUpgradeCta(null); }
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                void submit();
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                setCreating(false);
+                setNewName('');
+                setUpgradeCta(null);
+                setCreateError(null);
+              }
             }}
             placeholder="e.g. SGLT2 in HFpEF"
             disabled={submitting}
             className="w-full input-touch border border-lena-300 rounded-md px-2 py-2 focus:outline-none focus:ring-2 focus:ring-lena-200 bg-white"
           />
-          <span className="text-[10px] text-gray-400 block mt-1.5">Enter to save · Esc to cancel</span>
+          <span className="text-[10px] text-gray-400 block mt-1.5">
+            {submitting ? 'Saving…' : 'Enter to save · Esc to cancel'}
+          </span>
+          {createError && (
+            <p className="text-[11px] text-red-600 mt-1.5 leading-snug">{createError}</p>
+          )}
         </div>
       )}
 

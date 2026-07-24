@@ -3,8 +3,7 @@
 import React from 'react';
 import Image from 'next/image';
 import { branding, product } from '@/config/branding';
-
-const SUPPORT_MAIL = 'mailto:hello@lena-app.com?subject=LENA%20Support%20request';
+import { openSupportMail } from '@/lib/supportContact';
 
 interface UpgradeCTACardProps {
   onUpgrade: () => void;
@@ -81,5 +80,5 @@ export default function UpgradeCTACard({
 }
 
 export function defaultContactHandler() {
-  window.location.href = SUPPORT_MAIL;
+  openSupportMail('LENA Support request');
 }

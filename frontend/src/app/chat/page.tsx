@@ -32,9 +32,11 @@ import {
   type RecentSessionRecord,
   normalizeRecentSession,
   sessionNeedsTimestampMigration,
+  applySessionRename,
 } from '@/lib/sessionTime';
 import { resolvePulseConfidencePercent } from '@/lib/pulseLabels';
 import { copyTextToClipboard } from '@/lib/clipboard';
+import { openSupportMail, supportMailto } from '@/lib/supportContact';
 import { SegmentedControl } from '@/components/ui/SegmentedControl';
 import { BrandMark } from '@/components/brand/BrandMark';
 import { useMediaQuery, useVisualViewportBottomInset } from '@/hooks/useMediaQuery';
@@ -90,6 +92,8 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   type ClientNotice = { kind: 'support' } | { kind: 'upgrade'; message: string };
   const [clientNotice, setClientNotice] = useState<ClientNotice | null>(null);
+  /** Shown when opening history without a locally cached thread — never auto-searches. */
+  const [historyNotice, setHistoryNotice] = useState<string | null>(null);
   const [signupModalOpen, setSignupModalOpen] = useState(false);
 
   // UI state
@@ -419,18 +423,14 @@ export default function Home() {
     }
   }, [isAuthenticated, sessionsKey, threadsKey]);
 
-  const renameRecentSession = useCallback((sessionId: string, title: string) => {
+  const renameRecentSession = useCallback((
+    sessionId: string,
+    title: string,
+    seed?: RecentSessionRecord,
+  ) => {
     if (!isAuthenticated || !sessionsKey) return;
-    const trimmed = title.trim();
     setRecentSessions(prev => {
-      const next = prev.map(s => {
-        if (s.id !== sessionId) return s;
-        if (!trimmed || trimmed === s.firstQuery) {
-          const { title: _drop, ...rest } = s;
-          return rest;
-        }
-        return { ...s, title: trimmed };
-      });
+      const next = applySessionRename(prev, sessionId, title, seed);
       try { localStorage.setItem(sessionsKey, JSON.stringify(next)); } catch {}
       return next;
     });
@@ -473,6 +473,7 @@ export default function Home() {
 
     setInput('');
     setClientNotice(null);
+    setHistoryNotice(null);
     const attachmentSnapshot: MessageAttachment | undefined = pendingAttachment
       ? {
           name: pendingAttachment.name,
@@ -597,8 +598,10 @@ export default function Home() {
     } catch (err) {
       console.warn('Stripe unavailable, falling back to mailto', err);
     }
-    window.location.href =
-      'mailto:hello@lena-app.com?subject=LENA%20Pro%20Upgrade&body=I%27d%20like%20to%20upgrade%20to%20LENA%20Pro.';
+    window.location.href = supportMailto(
+      'LENA Pro Upgrade',
+      "I'd like to upgrade to LENA Pro.",
+    );
   }, [isAuthenticated, authToken, router, session.sessionId]);
 
   // Handle inline disclaimer acceptance: POST accept, drop the card
@@ -614,31 +617,77 @@ export default function Home() {
   }, [acceptDisclaimer]);
 
   // Restore a prior session's thread from localStorage without re-hitting the
-  // backend. Falls back to running a fresh search only if the thread is
-  // missing (e.g. storage cleared, cross-device).
-  const handleRecentSessionClick = useCallback((sessionId: string, fallbackQuery: string) => {
-    const thread = loadSessionThread(sessionId);
-    // Restore the project context this session was born into so the
-    // pill and sidebar highlight match the thread being viewed.
+  // backend. NEVER auto-runs a search — opening history must not burn tokens.
+  const handleRecentSessionClick = useCallback((
+    sessionId: string,
+    fallbackQuery: string,
+    projectId?: string | null,
+  ) => {
+    // Always guard the project-switch effect before any setState.
+    restoringThreadRef.current = true;
+    setHistoryNotice(null);
+
     const saved = recentSessions.find(s => s.id === sessionId);
-    if (saved) {
-      restoringThreadRef.current = true;
-      setActiveProjectId(saved.projectId || null);
+    const resolvedProjectId =
+      projectId !== undefined
+        ? projectId
+        : (saved?.projectId ?? null);
+    setActiveProjectId(resolvedProjectId);
+
+    let thread = loadSessionThread(sessionId);
+
+    // If the session id doesn't match (e.g. remote search id), find a cached
+    // thread whose first user message matches the query — still no network search.
+    if ((!thread || thread.length === 0) && threadsKey && fallbackQuery) {
+      try {
+        const raw = localStorage.getItem(threadsKey);
+        if (raw) {
+          const all: Record<string, Message[]> = JSON.parse(raw);
+          for (const [sid, msgs] of Object.entries(all)) {
+            if (!Array.isArray(msgs) || msgs.length === 0) continue;
+            const firstUser = msgs.find(m => m.type === 'user');
+            if (firstUser && firstUser.content.trim() === fallbackQuery.trim()) {
+              thread = msgs.map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
+              currentSessionIdRef.current = sid;
+              setMessages(thread);
+              setClientNotice(null);
+              setActiveView('chat');
+              if (activeSessionKey) {
+                try { localStorage.setItem(activeSessionKey, sid); } catch {}
+              }
+              return;
+            }
+          }
+        }
+      } catch { /* ignore */ }
     }
+
     if (thread && thread.length > 0) {
       currentSessionIdRef.current = sessionId;
       setMessages(thread);
       setClientNotice(null);
       setActiveView('chat');
+      if (activeSessionKey) {
+        try { localStorage.setItem(activeSessionKey, sessionId); } catch {}
+      }
       return;
     }
-    // No persisted thread — run the query as a last resort
+
+    // No cached results — show notice only. Do NOT call handleSend.
+    currentSessionIdRef.current = sessionId;
+    setMessages([]);
+    setClientNotice(null);
+    setHistoryNotice(
+      fallbackQuery
+        ? `Past results for “${fallbackQuery.slice(0, 80)}${fallbackQuery.length > 80 ? '…' : ''}” aren’t on this device. Re-run from the search box only if you want a fresh search.`
+        : 'Past results aren’t available on this device. Re-run from the search box only if you want a fresh search.',
+    );
     setActiveView('chat');
-    handleSend(fallbackQuery);
-  }, [loadSessionThread, recentSessions, setActiveProjectId]);
+  }, [loadSessionThread, recentSessions, setActiveProjectId, threadsKey, activeSessionKey]);
 
   const handleProjectSearchOpen = useCallback((search: ProjectSearch) => {
     if (!activeProjectId) return;
+    setHistoryNotice(null);
     if (threadsKey) {
       try {
         const raw = localStorage.getItem(threadsKey);
@@ -654,14 +703,17 @@ export default function Home() {
       } catch {}
     }
     const sess = recentSessions.find(
-      s => s.projectId === activeProjectId && s.queries.includes(search.query),
+      s => s.projectId === activeProjectId && (
+        s.queries.includes(search.query) || s.firstQuery === search.query
+      ),
     );
     if (sess) {
       handleRecentSessionClick(sess.id, search.query);
       return;
     }
-    setActiveView('chat');
-    void handleSend(search.query);
+    // Prefer session_id from the project search row when present.
+    const sid = search.session_id || search.id;
+    handleRecentSessionClick(sid, search.query);
   }, [activeProjectId, threadsKey, recentSessions, handleRecentSessionClick]);
 
   const handleShareReferral = useCallback(async (): Promise<boolean> => {
@@ -692,6 +744,7 @@ export default function Home() {
     setActiveProjectId(projectId);
     setMessages([]);
     setClientNotice(null);
+    setHistoryNotice(null);
     setInput('');
     currentSessionIdRef.current = Date.now().toString();
     lastProjectIdRef.current = projectId;
@@ -1028,9 +1081,7 @@ export default function Home() {
                       key={msg.id}
                       message={msg.response?.guardrail_message}
                       onUpgrade={() => handleUpgrade('pro_monthly')}
-                      onContact={() => {
-                        window.location.href = 'mailto:hello@lena-app.com?subject=LENA%20Enterprise%20enquiry';
-                      }}
+                      onContact={() => openSupportMail('LENA Support request')}
                     />
                   );
                 }
@@ -1071,17 +1122,18 @@ export default function Home() {
                 <UpgradeCTACard
                   message={clientNotice.message}
                   onUpgrade={() => handleUpgrade('pro_monthly')}
-                  onContact={() => {
-                    window.location.href = 'mailto:hello@lena-app.com?subject=LENA%20Enterprise%20enquiry';
-                  }}
+                  onContact={() => openSupportMail('LENA Support request')}
                 />
               )}
               {clientNotice?.kind === 'support' && !loading && (
                 <ContactSupportCard
-                  onContact={() => {
-                    window.location.href = 'mailto:hello@lena-app.com?subject=LENA%20Support%20request';
-                  }}
+                  onContact={() => openSupportMail('LENA Support request')}
                 />
+              )}
+              {historyNotice && !loading && (
+                <div className="mb-4 rounded-xl border border-amber-200 bg-amber-50/80 px-4 py-3 text-[13px] text-amber-950 leading-relaxed">
+                  {historyNotice}
+                </div>
               )}
               <div ref={messagesEndRef} />
             </div>
@@ -1243,7 +1295,10 @@ export default function Home() {
           onViewChange={(v) => { setActiveView(v); if (window.innerWidth < 1024) setSidebarOpen(false); }}
           onNewSearch={() => { handleNewSearch(); if (window.innerWidth < 1024) setSidebarOpen(false); }}
           recentSessions={recentSessions}
-          onSearchClick={(sid, q) => { handleRecentSessionClick(sid, q); if (window.innerWidth < 1024) setSidebarOpen(false); }}
+          onSearchClick={(sid, q, pid) => {
+            handleRecentSessionClick(sid, q, pid);
+            if (window.innerWidth < 1024) setSidebarOpen(false);
+          }}
           onDeleteSession={deleteRecentSession}
           onRenameSession={renameRecentSession}
           onUpgrade={() => handleUpgrade('pro_monthly')}
