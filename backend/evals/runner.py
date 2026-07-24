@@ -188,15 +188,25 @@ async def run_case(case: dict[str, Any]) -> CaseResult:
     brief = _compose_brief(case, pulse)
     claims = _extract_claims_for_ctx(pulse)
     diverging = _diverging_sources(pulse)
-    ranked_titles = [r.title for r in pulse.validated_results]
-    source_names = [r.source_name for r in pulse.validated_results]
-    # Include all returned sources for routing checks
-    source_names = list(dict.fromkeys(list(results_by_source.keys()) + source_names))
 
-    # Optional routing simulation hook (Phase 3 D8 may populate ranked by class)
-    if case.get("force_ranked_sources"):
+    from app.services.search_orchestrator import plan_sources_for_query, rank_results_for_query
+
+    # Apply the same query-fit ranking production uses (D12)
+    ranked_papers = rank_results_for_query(
+        case["query"],
+        list(pulse.validated_results),
+        subject_terms=case.get("subject_terms"),
+    )
+    ranked_titles = [r.title for r in ranked_papers]
+
+    # Routing plan includes priority source classes even when fixtures omit them (D8)
+    planned = plan_sources_for_query(case["query"], list(results_by_source.keys()))
+    source_names = list(dict.fromkeys(planned + list(results_by_source.keys())))
+
+    # Optional legacy hooks — only when explicitly testing broken baselines
+    if case.get("force_ranked_sources") and case.get("use_force_hooks"):
         source_names = case["force_ranked_sources"]
-    if case.get("force_ranked_titles"):
+    if case.get("force_ranked_titles") and case.get("use_force_hooks"):
         ranked_titles = case["force_ranked_titles"]
 
     ctx = {

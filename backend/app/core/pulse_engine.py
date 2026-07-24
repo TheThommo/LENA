@@ -725,6 +725,17 @@ async def run_pulse_validation(
         for sa in report.source_agreements:
             if sa.source_name in conflict_sources:
                 sa.is_consensus = False
+
+        # Theme clusters from reconciled claim topics (not alphabetised raw tokens)
+        clusters: list[str] = []
+        for g in groups:
+            tokens = [t for t in (g.topic or "").split() if len(t) > 2]
+            if len(tokens) >= 2:
+                cluster = " ".join(tokens[:4])
+                if cluster not in clusters:
+                    clusters.append(cluster)
+        if clusters:
+            report.consensus_keywords = clusters[:12]
     except Exception as e:
         logger.warning(f"Claim reconciliation skipped: {e}")
 
