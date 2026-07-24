@@ -274,3 +274,54 @@ async def search_literature(
         },
         **search_result,
     }
+
+
+@router.get("/provenance")
+async def pulse_provenance(
+    q: str = Query(..., description="Query whose cached brief provenance to return"),
+    sources: Optional[str] = Query(None, description="Comma-separated source filter used in the search"),
+    include_alt_medicine: bool = Query(True),
+    modes: Optional[str] = Query(None),
+):
+    """
+    Return the full claim/provenance audit trail for a brief.
+
+    Looks up the cached search result for `q` and returns atomic claims with
+    claim_id, source_ids, supporting spans, reconciliation groups, edge cases
+    (contradiction / temporal supersession only), and the scoring breakdown.
+    """
+    from fastapi import HTTPException
+    from app.services.result_cache import get_cached_result
+    from app.core.pulse_engine import CONFIDENCE_STATUS_THRESHOLDS, EVIDENCE_WEIGHTS
+
+    source_list = sources.split(",") if sources else None
+    mode_list = [m.strip() for m in modes.split(",")] if modes else None
+    cached = get_cached_result(
+        q,
+        sources=source_list,
+        include_alt_medicine=include_alt_medicine,
+        modes=mode_list,
+    )
+    if not cached:
+        raise HTTPException(
+            status_code=404,
+            detail="No cached brief for this query. Run /search first, then retry provenance.",
+        )
+
+    pr = cached.get("pulse_report") or {}
+    return {
+        "query": q,
+        "status": pr.get("status"),
+        "confidence_ratio": pr.get("confidence_ratio"),
+        "confidence_breakdown": pr.get("confidence_breakdown"),
+        "status_thresholds": [
+            {"min_confidence": t, "status": s.value}
+            for t, s in CONFIDENCE_STATUS_THRESHOLDS
+        ],
+        "evidence_tier_weights": dict(EVIDENCE_WEIGHTS),
+        "claims": pr.get("atomic_claims") or [],
+        "claim_groups": pr.get("claim_groups") or [],
+        "edge_cases": pr.get("reconciliation_edge_cases") or [],
+        "brief": cached.get("llm_summary"),
+        "validated_results": pr.get("validated_results") or [],
+    }

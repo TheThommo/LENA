@@ -1,0 +1,36 @@
+{
+  "id": "GOLD-010",
+  "defect_ids": ["D11"],
+  "query": "What does the evidence say about SGLT2 inhibitors and hospitalisation for heart failure?",
+  "persona": "clinician",
+  "subject_terms": ["SGLT2", "heart failure", "hospitalisation"],
+  "sources": {
+    "pubmed": [
+      {
+        "title": "DAPA-HF: dapagliflozin reduced heart failure hospitalisation",
+        "year": 2019,
+        "summary": "Dapagliflozin significantly reduced the risk of hospitalisation for heart failure in patients with HFrEF compared with placebo."
+      }
+    ],
+    "cochrane": [
+      {
+        "title": "SGLT2 inhibitors and heart failure outcomes review",
+        "year": 2021,
+        "summary": "Systematic review found SGLT2 inhibitors reduce hospitalisation for heart failure across diabetes and heart-failure populations."
+      }
+    ],
+    "clinical_trials": [
+      {
+        "title": "EMPEROR-Reduced trial registry entry",
+        "year": 2020,
+        "summary": "Empagliflozin reduced hospitalisation for heart failure in HFrEF in the EMPEROR-Reduced programme."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "claim_provenance_complete",
+      "defect_id": "D11"
+    }
+  ]
+}

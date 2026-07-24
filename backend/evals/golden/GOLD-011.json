@@ -1,0 +1,42 @@
+{
+  "id": "GOLD-011",
+  "defect_ids": ["D12"],
+  "query": "How do US and EU labelled eligibility criteria for lecanemab compare?",
+  "persona": "clinician",
+  "subject_terms": ["lecanemab", "US", "EU", "eligibility"],
+  "sources": {
+    "cdc": [
+      {
+        "title": "Asia-Pacific Alzheimer prevalence surveillance tables",
+        "year": 2021,
+        "summary": "Prevalence estimates for Alzheimer disease across Asia-Pacific CDC partner regions. Does not compare US and EU lecanemab labelling."
+      }
+    ],
+    "pubmed": [
+      {
+        "title": "Comparison of US FDA and EU lecanemab eligibility",
+        "year": 2025,
+        "summary": "US and EU labelled eligibility for lecanemab differ on ApoE ε4/ε4 exclusion and monitoring intensity."
+      }
+    ],
+    "europe_pmc": [
+      {
+        "title": "EU SmPC eligibility excerpt for lecanemab",
+        "year": 2025,
+        "summary": "EU SmPC excludes ApoE e4/4 homozygotes from the indicated population for lecanemab."
+      }
+    ]
+  },
+  "force_ranked_titles": [
+    "Asia-Pacific Alzheimer prevalence surveillance tables",
+    "Comparison of US FDA and EU lecanemab eligibility",
+    "EU SmPC eligibility excerpt for lecanemab"
+  ],
+  "assertions": [
+    {
+      "type": "top_source_not_irrelevant",
+      "forbidden_first": ["Asia-Pacific", "prevalence surveillance"],
+      "defect_id": "D12"
+    }
+  ]
+}

@@ -822,7 +822,12 @@ export default function ChatMessage({
             height={24}
             className="rounded-full flex-shrink-0 ring-1 ring-black/5"
           />
-          <span className="text-[13px] font-semibold text-slate-700 tracking-tight">{branding.name}</span>
+          <div className="min-w-0 flex flex-col">
+            <span className="text-[13px] font-semibold text-slate-700 tracking-tight">{branding.name}</span>
+            <span className="text-[10px] text-slate-400 leading-snug">
+              LENA is AI and can make mistakes and should be cross checked if any uncertainty.
+            </span>
+          </div>
         </div>
 
         <div className="flex items-center gap-2 flex-wrap sm:flex-shrink-0">

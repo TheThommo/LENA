@@ -37,6 +37,24 @@ class ValidationStatus(str, Enum):
     PENDING = "pending"
 
 
+# Status is a pure function of confidence against these published thresholds.
+# Keep in sync with evals.assertions.CONFIDENCE_STATUS_THRESHOLDS and UI explainer.
+CONFIDENCE_STATUS_THRESHOLDS: tuple[tuple[float, ValidationStatus], ...] = (
+    (0.70, ValidationStatus.VALIDATED),
+    (0.40, ValidationStatus.EDGE_CASE),
+    (0.0, ValidationStatus.INSUFFICIENT),
+)
+
+
+def status_for_confidence(confidence: float) -> ValidationStatus:
+    """Map confidence ratio → status label. Never set status independently."""
+    c = float(confidence or 0.0)
+    for threshold, label in CONFIDENCE_STATUS_THRESHOLDS:
+        if c >= threshold:
+            return label
+    return ValidationStatus.INSUFFICIENT
+
+
 # ── Evidence Hierarchy ─────────────────────────────────────────────────
 # Higher weight = stronger evidence. Used to weight cross-validation
 # so a Cochrane systematic review corroborating a PubMed RCT scores
@@ -340,6 +358,10 @@ class PULSEReport:
     total_claims_extracted: int = 0
     total_cross_validations: int = 0
     total_contradictions: int = 0
+    # Claim-pipeline audit trail (set by orchestrator / run_pulse_validation)
+    atomic_claims: list[dict] = field(default_factory=list)
+    claim_groups: list[dict] = field(default_factory=list)
+    reconciliation_edge_cases: list[dict] = field(default_factory=list)
 
     @property
     def sources_queried_count(self) -> int:
@@ -352,6 +374,14 @@ class PULSEReport:
     @property
     def confidence_ratio(self) -> float:
         return self._compute_confidence()["ratio"]
+
+    def refresh_status(self) -> ValidationStatus:
+        """Recompute status from current confidence (call after coverage inputs change)."""
+        if self.source_count == 0 and not self.validated_results and not self.edge_cases:
+            self.status = ValidationStatus.PENDING
+        else:
+            self.status = status_for_confidence(self.confidence_ratio)
+        return self.status
 
     def _compute_confidence(self) -> dict:
         """
@@ -426,6 +456,16 @@ class PULSEReport:
             "coverage_factor": round(coverage_factor, 2),
             "edge_case_penalty": round(edge_penalty, 2),
             "contradiction_penalty": round(contradiction_penalty, 2),
+            "weights": {
+                "cross_validation_density": 0.45,
+                "source_coverage": 0.30,
+                "source_agreement": 0.25,
+            },
+            "evidence_tier_weights": dict(EVIDENCE_WEIGHTS),
+            "status_thresholds": [
+                {"min_confidence": t, "status": s.value}
+                for t, s in CONFIDENCE_STATUS_THRESHOLDS
+            ],
         }
 
     def to_dict(self) -> dict:
@@ -447,6 +487,9 @@ class PULSEReport:
             "total_claims_extracted": self.total_claims_extracted,
             "total_cross_validations": self.total_cross_validations,
             "total_contradictions": self.total_contradictions,
+            "atomic_claims": self.atomic_claims,
+            "claim_groups": self.claim_groups,
+            "reconciliation_edge_cases": self.reconciliation_edge_cases,
             "source_agreements": [
                 {
                     "source": sa.source_name,
@@ -633,13 +676,14 @@ async def run_pulse_validation(
     )
 
     # ── Step 4: Score each source against keyword consensus ──────────
+    # Keyword uniqueness is ABSENCE / scope profiling — never divergence.
+    # is_consensus stays True unless a later reconcile step finds a real
+    # CONTRADICTION or TEMPORAL_SUPERSESSION involving that source.
     for source_name, source_kws in source_keyword_profiles.items():
         overlap_score = _compute_overlap(source_kws, consensus_keywords)
         shared = sorted(source_kws & consensus_keywords)
         unique = sorted(source_kws - consensus_keywords)
-        is_consensus = overlap_score >= edge_case_threshold
 
-        # Collect study types and cross-validation counts for this source
         source_papers = [p for p in all_papers if p.source_name == source_name]
         study_types = list(set(p.study_type for p in source_papers))
         xval_count = sum(p.cross_validations for p in source_papers)
@@ -650,16 +694,63 @@ async def run_pulse_validation(
             keyword_overlap_score=overlap_score,
             shared_keywords=shared,
             unique_keywords=unique,
-            is_consensus=is_consensus,
+            is_consensus=True,
             study_types_found=study_types,
             cross_validation_count=xval_count,
         )
         report.source_agreements.append(agreement)
 
-    # ── Step 5: Score every result and build validated/edge lists ─────
-    consensus_sources = {sa.source_name for sa in report.source_agreements if sa.is_consensus}
+    # Agreement count for confidence: sources with corroborating signal
+    # (keyword overlap or claim cross-validation) — not "non-divergent".
+    report.agreement_count = sum(
+        1
+        for sa in report.source_agreements
+        if sa.keyword_overlap_score >= edge_case_threshold or sa.cross_validation_count > 0
+    )
+
+    # ── Step 4b: Claim reconcile — only real conflicts flip is_consensus ─
+    try:
+        from app.core.claim_pipeline import (
+            bind_claims_from_pulse_results,
+            reconcile_claims,
+            surfaceable_edge_cases,
+            ReconcileClass,
+        )
+
+        bound = bind_claims_from_pulse_results(all_papers)
+        groups = reconcile_claims(bound)
+        edges = surfaceable_edge_cases(groups)
+        report.atomic_claims = [c.to_dict() for c in bound]
+        report.claim_groups = [g.to_dict() for g in groups]
+        report.reconciliation_edge_cases = edges
+        report.total_contradictions = sum(
+            1 for e in edges if e.get("classification") == ReconcileClass.CONTRADICTION.value
+        )
+
+        conflict_sources: set[str] = set()
+        for e in edges:
+            for c in e.get("claims") or []:
+                for sid in c.get("source_ids") or []:
+                    conflict_sources.add(sid)
+        for sa in report.source_agreements:
+            if sa.source_name in conflict_sources:
+                sa.is_consensus = False
+
+        # Theme clusters from reconciled claim topics (not alphabetised raw tokens)
+        clusters: list[str] = []
+        for g in groups:
+            tokens = [t for t in (g.topic or "").split() if len(t) > 2]
+            if len(tokens) >= 2:
+                cluster = " ".join(tokens[:4])
+                if cluster not in clusters:
+                    clusters.append(cluster)
+        if clusters:
+            report.consensus_keywords = clusters[:12]
+    except Exception as e:
+        logger.warning(f"Claim reconciliation skipped: {e}")
+
+    # Divergent sources for narrative = conflict participants only (D4/D5/D6)
     edge_sources = {sa.source_name for sa in report.source_agreements if not sa.is_consensus}
-    report.agreement_count = len(consensus_sources)
 
     MAX_PER_SOURCE = 10
     source_validated_counts: dict[str, int] = {}
@@ -739,39 +830,32 @@ async def run_pulse_validation(
 
     report.validated_results = interleaved
 
-    # ── Step 7: Determine overall validation status ──────────────────
-    active_sources = len(results_by_source)
-    has_cross_validations = report.total_cross_validations > 0
-
-    if active_sources >= 3 and report.agreement_count >= 3 and has_cross_validations:
-        report.status = ValidationStatus.VALIDATED
-    elif active_sources >= 2 and (report.agreement_count >= 1 or has_cross_validations):
-        report.status = ValidationStatus.INSUFFICIENT
-    else:
-        report.status = ValidationStatus.PENDING if active_sources == 0 else ValidationStatus.INSUFFICIENT
+    # ── Step 7: Status is a pure function of confidence ───────────────
+    # Never assign VALIDATED when confidence is below the published threshold.
+    report.refresh_status()
 
     # ── Step 8: Build consensus summary ──────────────────────────────
-    if consensus_keywords or report.total_cross_validations > 0:
+    if report.consensus_keywords or report.total_cross_validations > 0 or report.reconciliation_edge_cases:
         parts = []
-        sources_agreeing = [sa.source_name for sa in report.source_agreements if sa.is_consensus]
+        sources_agreeing = [
+            sa.source_name
+            for sa in report.source_agreements
+            if sa.keyword_overlap_score >= edge_case_threshold or sa.cross_validation_count > 0
+        ]
 
         if report.total_cross_validations > 0:
             parts.append(
                 f"{report.total_cross_validations} cross-validated finding(s) "
                 f"identified across {len(sources_agreeing)} source(s)."
             )
-        if consensus_keywords:
-            top_terms = report.consensus_keywords[:8]
-            parts.append(f"Key themes: {', '.join(top_terms)}.")
-        if edge_sources:
-            parts.append(
-                f"{len(edge_sources)} source(s) diverge: {', '.join(sorted(edge_sources))}."
-            )
-        if report.total_contradictions > 0:
-            parts.append(
-                f"{report.total_contradictions} contradicting finding(s) detected — "
-                "evidence is not uniform."
-            )
+        # Only surface multi-word theme clusters (omit raw token lists)
+        theme_clusters = [t for t in report.consensus_keywords if " " in t or "-" in t]
+        if theme_clusters:
+            parts.append(f"Key themes: {', '.join(theme_clusters[:8])}.")
+        for e in report.reconciliation_edge_cases[:4]:
+            dtype = e.get("divergence_type") or e.get("classification") or "CONFLICT"
+            reason = e.get("reason") or "sources diverge"
+            parts.append(f"{dtype}: {reason}.")
         report.consensus_summary = " ".join(parts)
 
     return report

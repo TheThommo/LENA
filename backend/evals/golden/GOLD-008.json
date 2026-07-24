@@ -1,0 +1,38 @@
+{
+  "id": "GOLD-008",
+  "defect_ids": ["D9"],
+  "query": "How have FDA approval milestones for lecanemab evolved over time?",
+  "persona": "researcher",
+  "subject_terms": ["lecanemab", "FDA", "approval"],
+  "sources": {
+    "pubmed": [
+      {
+        "title": "Lecanemab accelerated approval January 2023",
+        "year": 2023,
+        "summary": "Lecanemab received accelerated FDA approval in January 2023 based on amyloid plaque reduction."
+      }
+    ],
+    "europe_pmc": [
+      {
+        "title": "Lecanemab traditional FDA approval July 2023",
+        "year": 2023,
+        "summary": "Traditional FDA approval for lecanemab was granted in July 2023 after confirmatory clinical data."
+      }
+    ],
+    "openalex": [
+      {
+        "title": "Regulatory timeline commentary on anti-amyloid antibodies",
+        "year": 2024,
+        "summary": "Commentary distinguishes January 2023 accelerated approval from July 2023 traditional approval for lecanemab."
+      }
+    ]
+  },
+  "recorded_brief": "## Key Findings\n- Lecanemab was approved by the FDA.\n- Confirmatory data later supported broader labelling.\n\n## Bottom Line\n- Lecanemab has FDA approval for early Alzheimer disease.\n",
+  "assertions": [
+    {
+      "type": "source_dates_present_in_narrative",
+      "min_dates": 1,
+      "defect_id": "D9"
+    }
+  ]
+}

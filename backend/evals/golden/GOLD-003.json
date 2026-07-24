@@ -1,0 +1,38 @@
+{
+  "id": "GOLD-003",
+  "defect_ids": ["D5"],
+  "query": "Does aspirin primary prevention reduce cardiovascular mortality in adults over 70?",
+  "persona": "clinician",
+  "subject_terms": ["aspirin", "primary prevention", "cardiovascular", "mortality"],
+  "sources": {
+    "pubmed": [
+      {
+        "title": "ASPREE: aspirin did not reduce cardiovascular mortality in healthy elderly",
+        "year": 2018,
+        "summary": "In adults aged 70 years or older without cardiovascular disease, low-dose aspirin did not significantly reduce cardiovascular mortality compared with placebo and increased major haemorrhage."
+      }
+    ],
+    "openalex": [
+      {
+        "title": "Older meta-analysis suggesting aspirin mortality benefit in primary prevention",
+        "year": 2010,
+        "summary": "A 2010 pooled analysis suggested low-dose aspirin reduced cardiovascular mortality in primary prevention cohorts including older adults. Subsequent large trials have challenged this conclusion."
+      }
+    ],
+    "cochrane": [
+      {
+        "title": "Cochrane: mixed aspirin primary-prevention mortality findings",
+        "year": 2019,
+        "summary": "Evidence on aspirin for primary prevention shows conflicting mortality findings across eras; ASPREE found no cardiovascular mortality benefit in adults ≥70."
+      }
+    ]
+  },
+  "recorded_brief": "## Key Findings\n- ASPREE found no cardiovascular mortality benefit for aspirin in adults ≥70.\n- An older meta-analysis reported a mortality benefit.\n\n## Bottom Line\n- Evidence is mixed across eras.\n",
+  "assertions": [
+    {
+      "type": "divergence_present",
+      "topic": "cardiovascular mortality",
+      "defect_id": "D5"
+    }
+  ]
+}

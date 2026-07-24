@@ -1,0 +1,74 @@
+{
+  "id": "GOLD-001",
+  "defect_ids": ["D1", "D2", "D4", "D7"],
+  "query": "How do eligible patient populations for lecanemab and donanemab differ between US and European approvals, and what does the evidence say about ApoE4 carrier status and ARIA risk?",
+  "persona": "pharmacist",
+  "subject_terms": ["lecanemab", "donanemab", "ApoE", "ARIA", "approval"],
+  "sources_attempted": 11,
+  "sources": {
+    "pubmed": [
+      {
+        "title": "EMA marketing authorisation for lecanemab: ApoE ε4/ε4 exclusion",
+        "year": 2025,
+        "summary": "The European marketing authorisation for lecanemab excludes ApoE e4/4 homozygous carriers due to elevated ARIA risk. Heterozygous ApoE e4 carriers remain eligible under EU labelling when monitoring criteria are met. US FDA labelling permits treatment of ApoE4 carriers with enhanced MRI monitoring."
+      },
+      {
+        "title": "ARIA risk stratified by ApoE genotype in anti-amyloid therapy",
+        "year": 2024,
+        "summary": "ARIA-E incidence was highest in ApoE ε4/ε4 homozygotes receiving lecanemab. Heterozygotes showed intermediate risk versus non-carriers. Genotype-specific counselling is recommended before initiation."
+      }
+    ],
+    "europe_pmc": [
+      {
+        "title": "CHMP opinion on donanemab eligibility and ApoE e4/4",
+        "year": 2025,
+        "summary": "European approvals for amyloid antibodies exclude ApoE e4/4 carriers from the indicated population. The decision reflects ARIA safety signals concentrated in homozygotes, not all ApoE4 carriers."
+      }
+    ],
+    "openalex": [
+      {
+        "title": "Lecanemab traditional FDA approval July 2023 after accelerated January 2023",
+        "year": 2023,
+        "summary": "Lecanemab received accelerated FDA approval in January 2023 and traditional approval in July 2023. Eligibility criteria reference ApoE4 testing for ARIA risk counselling."
+      }
+    ],
+    "cdc": [
+      {
+        "title": "Alzheimer disease prevalence estimates across Asia-Pacific regions",
+        "year": 2022,
+        "summary": "CDC open data tables summarise dementia prevalence estimates for Asia-Pacific surveillance regions. No European marketing authorisation criteria or ApoE genotype eligibility rules are discussed."
+      }
+    ]
+  },
+  "recorded_brief": "## Key Findings\n- European marketing authorisation for lecanemab excludes **ApoE e4/4 carriers** (homozygotes) because of ARIA risk; heterozygotes remain eligible with monitoring.\n- US labelling allows ApoE4 carriers with enhanced MRI surveillance.\n- ARIA risk is highest in homozygotes.\n\n## Bottom Line\n- European guidelines exclude **ApoE4 carriers** from lecanemab and donanemab.\n- Genotype testing informs ARIA risk counselling in both regions.\n",
+  "assertions": [
+    {
+      "type": "qualifier_preserved",
+      "term": "ApoE e4/4",
+      "variants": ["=ApoE ε4/ε4", "=homozygot", "ApoE4 carriers", "ApoE4 carrier"],
+      "scope": "bottom_line",
+      "defect_id": "D1"
+    },
+    {
+      "type": "forbidden_unqualified",
+      "pattern": "ApoE4 carriers",
+      "scope": "bottom_line",
+      "reason": "EU exclusion is homozygotes only; 'ApoE4 carriers' overstates by ~4x",
+      "defect_id": "D1"
+    },
+    {
+      "type": "internal_consistency",
+      "defect_id": "D2"
+    },
+    {
+      "type": "divergence_absent",
+      "source": "cdc",
+      "reason": "CDC topic-absence on EU marketing authorisations must not count as contradiction",
+      "defect_id": "D4"
+    },
+    {
+      "type": "themes_are_clusters",
+      "defect_id": "D7"
+    }
+  ]
+}

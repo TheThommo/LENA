@@ -7,6 +7,7 @@ objects, and runs them through the PULSE engine for cross-referencing.
 """
 
 import asyncio
+import re
 import time
 from typing import Optional
 
@@ -31,6 +32,108 @@ ALL_SOURCES = [
     "semantic_scholar", "europe_pmc", "dailymed",
     "ods_dsld", "openfda",
 ]
+
+# Query-type → source class prioritisation (domain-general research routing)
+_REGULATORY_QUERY_RE = re.compile(
+    r"\b(?:FDA|EMA|SmPC|label(?:led|ing)?|boxed warning|marketing authori[sz]ation|"
+    r"DailyMed|openFDA|contraindicat|dosage limits?|prescribing information|"
+    r"package insert|iPLEDGE)\b",
+    re.I,
+)
+_TRIAL_QUERY_RE = re.compile(
+    r"\b(?:clinical trial|NCT\d+|recruiting|endpoint|phase\s*[I1234])\b",
+    re.I,
+)
+_GUIDELINE_QUERY_RE = re.compile(
+    r"\b(?:WHO|CDC|guideline|public health|surveillance)\b",
+    re.I,
+)
+
+REGULATORY_SOURCES = ("dailymed", "openfda", "ods_dsld")
+TRIAL_SOURCES = ("clinical_trials",)
+GUIDELINE_SOURCES = ("who_iris", "cdc")
+LITERATURE_SOURCES = (
+    "pubmed", "cochrane", "openalex", "semantic_scholar", "europe_pmc",
+)
+
+
+def classify_query_type(query: str) -> str:
+    """Classify research query type for source prioritisation (all domains)."""
+    q = query or ""
+    if _REGULATORY_QUERY_RE.search(q):
+        return "regulatory"
+    if _TRIAL_QUERY_RE.search(q):
+        return "trial_registry"
+    if _GUIDELINE_QUERY_RE.search(q):
+        return "guideline"
+    return "literature"
+
+
+def plan_sources_for_query(
+    query: str,
+    available: Optional[list[str]] = None,
+) -> list[str]:
+    """
+    Order sources for a query. Regulatory questions always include DailyMed /
+    openFDA (and ODS DSLD) at the front — even when a caller passes a subset,
+    missing priority sources for that class are injected from ALL_SOURCES.
+    """
+    base = list(available) if available is not None else list(ALL_SOURCES)
+    qtype = classify_query_type(query)
+    priority: tuple[str, ...] = ()
+    if qtype == "regulatory":
+        priority = REGULATORY_SOURCES
+    elif qtype == "trial_registry":
+        priority = TRIAL_SOURCES
+    elif qtype == "guideline":
+        priority = GUIDELINE_SOURCES
+
+    ordered: list[str] = []
+    for src in priority:
+        if src not in ordered:
+            ordered.append(src)
+    for src in base:
+        if src not in ordered:
+            ordered.append(src)
+    # Ensure priority sources exist even if caller omitted them
+    for src in priority:
+        if src not in ordered and src in ALL_SOURCES:
+            ordered.insert(0, src)
+    return ordered
+
+
+def rank_results_for_query(
+    query: str,
+    results: list,
+    subject_terms: Optional[list[str]] = None,
+) -> list:
+    """
+    Rank papers by query fit then relevance. Prevents off-topic surveillance /
+    prevalence hits from outranking on-jurisdiction answers (D12).
+    """
+    subjects = [t.lower() for t in (subject_terms or []) if t]
+    q_tokens = set(re.findall(r"[a-z0-9]{3,}", (query or "").lower()))
+    # Drop ultra-common function words already handled elsewhere
+    q_tokens -= {"the", "and", "for", "how", "what", "does", "with", "from", "that", "this"}
+
+    def score(r) -> tuple:
+        blob = f"{getattr(r, 'title', '')} {getattr(r, 'summary', '')}".lower()
+        hits = sum(1 for t in q_tokens if t in blob)
+        fit = hits / max(len(q_tokens), 1)
+        subj = sum(1 for t in subjects if t in blob) / max(len(subjects), 1) if subjects else 0.0
+        rel = float(getattr(r, "relevance_score", 0.0) or 0.0)
+        # Soft-penalise clearly off-geography prevalence dumps on jurisdiction queries
+        geo_penalty = 0.0
+        if re.search(r"\b(?:US|EU|FDA|EMA|United States|European)\b", query or "", re.I):
+            if re.search(
+                r"\b(?:Asia-Pacific|South-East Asia|regional burden|prevalence surveillance)\b",
+                blob,
+                re.I,
+            ) and not re.search(r"\b(?:US|EU|FDA|EMA|label|SmPC)\b", blob, re.I):
+                geo_penalty = 0.5
+        return (fit - geo_penalty, subj, rel)
+
+    return sorted(results, key=score, reverse=True)
 
 
 async def _query_pubmed(query: str, max_results: int) -> list[SourceResult]:
@@ -1115,10 +1218,11 @@ async def run_search(
     source_query = _build_source_query(literature_query, query_subjects)
     if source_query != query:
         logger.info("Source query rewritten: %r -> %r", query[:120], source_query)
+    planned_sources = plan_sources_for_query(query, sources)
     raw_results_by_source, errors = await search_all_sources(
         query=source_query,
         max_results_per_source=max_results_per_source,
-        sources=sources,
+        sources=planned_sources,
     )
 
     if errors:
@@ -1157,26 +1261,55 @@ async def run_search(
         results_by_source=scoped_results_by_source,
         subject_terms=query_subjects,
     )
-    # Inject the total-attempted count for confidence calculation
+    # Inject the total-attempted count for confidence calculation, then
+    # refresh status so the label stays a pure function of confidence.
     pulse_report._sources_attempted = total_sources_attempted
+    pulse_report.refresh_status()
 
     _post_filter_by_query_fit(pulse_report, subjects, primary_terms=primary_terms)
+
+    # Query-fit ranking: on-topic jurisdiction/label hits before off-topic prevalence
+    pulse_report.validated_results = rank_results_for_query(
+        query, pulse_report.validated_results, subject_terms=query_subjects
+    )
+    pulse_report.edge_cases = rank_results_for_query(
+        query, pulse_report.edge_cases, subject_terms=query_subjects
+    )
 
     # PULSE re-extracts keywords; re-tag so matched_modes reflects the fresh keyword set
     for r in pulse_report.validated_results + pulse_report.edge_cases:
         _tag_result_modes(r)
         _prioritize_display_keywords(r, query_subjects)
 
-    # Step 7: Generate LLM summary (non-blocking, best-effort)
-    # Pass source coverage so the LLM can acknowledge evidence gaps honestly
+    # Step 7: Claim-bound brief (extract → reconcile → compose → verify).
+    # Qualifiers are immutable; free-form LLM paraphrase must not be the sole
+    # source of Key Findings / Bottom Line (precision failure mode).
     all_queried = list(raw_results_by_source.keys()) + list(errors.keys())
-    llm_summary, llm_usage = await _generate_llm_summary(
-        query, pulse_report, persona,
-        sources_failed=errors,
-        sources_queried=all_queried,
-        profile_context=profile_context,
-        attached_context=attached_context_text or None,
-    )
+    llm_usage = None
+    llm_summary = None
+    try:
+        from app.core.claim_pipeline import run_claim_pipeline
+
+        claim_bundle = run_claim_pipeline(
+            list(pulse_report.validated_results) + list(pulse_report.edge_cases),
+            query=query,
+        )
+        pulse_report.atomic_claims = claim_bundle.get("composable_claims") or claim_bundle.get("claims") or []
+        pulse_report.reconciliation_edge_cases = claim_bundle.get("edge_cases") or []
+        pulse_report.claim_groups = claim_bundle.get("groups") or []
+        llm_summary = claim_bundle.get("brief")
+    except Exception:
+        logger.warning("Claim pipeline failed; falling back to LLM summary", exc_info=True)
+        llm_summary = None
+
+    if not llm_summary:
+        llm_summary, llm_usage = await _generate_llm_summary(
+            query, pulse_report, persona,
+            sources_failed=errors,
+            sources_queried=all_queried,
+            profile_context=profile_context,
+            attached_context=attached_context_text or None,
+        )
 
     # Step 7b: Auto-verify supplement if query touches supplement keywords.
     # Runs in parallel with the LLM summary (both are post-PULSE) to add

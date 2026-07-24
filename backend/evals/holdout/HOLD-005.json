@@ -1,0 +1,44 @@
+{
+  "id": "HOLD-005",
+  "defect_ids": ["D8", "D4"],
+  "query": "What openFDA and DailyMed labelled warnings apply to isotretinoin regarding pregnancy?",
+  "persona": "pharmacist",
+  "subject_terms": ["isotretinoin", "pregnancy", "iPLEDGE", "label"],
+  "sources": {
+    "pubmed": [
+      {
+        "title": "Dermatology clinic experience with acne pathways",
+        "year": 2017,
+        "summary": "Clinic narrative on acne care pathways. Not a substitute for labelled pregnancy contraindications."
+      }
+    ],
+    "cdc": [
+      {
+        "title": "CDC birth defects surveillance overview",
+        "year": 2019,
+        "summary": "Population surveillance of birth defects. Does not reproduce isotretinoin label text."
+      }
+    ],
+    "openalex": [
+      {
+        "title": "Academic history of retinoid teratogenicity research",
+        "year": 2010,
+        "summary": "Historical academic review of retinoid teratogenicity without FDA label excerpts."
+      }
+    ]
+  },
+  "force_ranked_sources": ["pubmed", "cdc", "openalex"],
+  "assertions": [
+    {
+      "type": "source_class_present",
+      "source_class": "regulatory",
+      "defect_id": "D8"
+    },
+    {
+      "type": "divergence_absent",
+      "source": "cdc",
+      "reason": "CDC surveillance absence on isotretinoin label text is not a contradiction",
+      "defect_id": "D4"
+    }
+  ]
+}

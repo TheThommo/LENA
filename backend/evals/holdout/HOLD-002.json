@@ -1,0 +1,39 @@
+{
+  "id": "HOLD-002",
+  "defect_ids": ["D1"],
+  "query": "Which apixaban dose was studied for stroke prevention in nonvalvular atrial fibrillation in the pivotal trial?",
+  "persona": "pharmacist",
+  "subject_terms": ["apixaban", "dose", "atrial", "fibrillation"],
+  "sources": {
+    "pubmed": [
+      {
+        "title": "ARISTOTLE: apixaban 5 mg twice daily versus warfarin",
+        "year": 2011,
+        "summary": "Apixaban 5 mg twice daily reduced stroke or systemic embolism versus warfarin in nonvalvular atrial fibrillation. A 2.5 mg twice-daily dose was used only for specific dose-reduction criteria."
+      }
+    ],
+    "dailymed": [
+      {
+        "title": "Apixaban tablet label — recommended dose 5 mg twice daily",
+        "year": 2023,
+        "summary": "Recommended dose is 5 mg orally twice daily. Reduce to 2.5 mg twice daily when two or more dose-reduction characteristics are present."
+      }
+    ],
+    "cochrane": [
+      {
+        "title": "Review of DOAC dosing in atrial fibrillation",
+        "year": 2020,
+        "summary": "Systematic review emphasises that efficacy conclusions for apixaban in AF refer primarily to the 5 mg twice-daily regimen."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "qualifier_preserved",
+      "term": "5 mg",
+      "variants": ["=twice daily", "apixaban prevents stroke"],
+      "scope": "bottom_line",
+      "defect_id": "D1"
+    }
+  ]
+}

@@ -1,0 +1,42 @@
+{
+  "id": "HOLD-008",
+  "defect_ids": ["D12"],
+  "query": "What do US and EU labels say about amiodarone pulmonary toxicity monitoring?",
+  "persona": "pharmacist",
+  "subject_terms": ["amiodarone", "pulmonary", "toxicity", "label"],
+  "sources": {
+    "who_iris": [
+      {
+        "title": "WHO regional arrhythmia burden estimates for South-East Asia",
+        "year": 2018,
+        "summary": "Regional burden estimates for arrhythmia in South-East Asia. Not US/EU amiodarone label guidance."
+      }
+    ],
+    "dailymed": [
+      {
+        "title": "Amiodarone US label — pulmonary toxicity warnings",
+        "year": 2023,
+        "summary": "US labelling warns of pulmonary toxicity and recommends baseline and periodic monitoring."
+      }
+    ],
+    "europe_pmc": [
+      {
+        "title": "EU SmPC monitoring for amiodarone pulmonary adverse reactions",
+        "year": 2022,
+        "summary": "EU SmPC details pulmonary adverse reaction monitoring requirements for amiodarone."
+      }
+    ]
+  },
+  "force_ranked_titles": [
+    "WHO regional arrhythmia burden estimates for South-East Asia",
+    "Amiodarone US label — pulmonary toxicity warnings",
+    "EU SmPC monitoring for amiodarone pulmonary adverse reactions"
+  ],
+  "assertions": [
+    {
+      "type": "top_source_not_irrelevant",
+      "forbidden_first": ["South-East Asia", "regional arrhythmia burden"],
+      "defect_id": "D12"
+    }
+  ]
+}
