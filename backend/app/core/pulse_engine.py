@@ -340,6 +340,10 @@ class PULSEReport:
     total_claims_extracted: int = 0
     total_cross_validations: int = 0
     total_contradictions: int = 0
+    # Claim-pipeline audit trail (set by orchestrator / run_pulse_validation)
+    atomic_claims: list[dict] = field(default_factory=list)
+    claim_groups: list[dict] = field(default_factory=list)
+    reconciliation_edge_cases: list[dict] = field(default_factory=list)
 
     @property
     def sources_queried_count(self) -> int:
@@ -447,6 +451,9 @@ class PULSEReport:
             "total_claims_extracted": self.total_claims_extracted,
             "total_cross_validations": self.total_cross_validations,
             "total_contradictions": self.total_contradictions,
+            "atomic_claims": self.atomic_claims,
+            "claim_groups": self.claim_groups,
+            "reconciliation_edge_cases": self.reconciliation_edge_cases,
             "source_agreements": [
                 {
                     "source": sa.source_name,
