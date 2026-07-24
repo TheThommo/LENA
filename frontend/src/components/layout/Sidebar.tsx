@@ -760,8 +760,9 @@ function ProjectRow({
 
   useEffect(() => {
     if (!token || isArchived) return;
-    const expected = Math.max(project.search_count, filed.length);
-    if (expected === 0 || filed.length >= expected) {
+    // Always sync remote project searches so new server-side rows appear even
+    // when local filed count already matches search_count (membership can differ).
+    if (Math.max(project.search_count, filed.length) === 0) {
       setRemoteFiled([]);
       return;
     }
@@ -771,7 +772,10 @@ function ProjectRow({
         const data = await listProjectSearches(token, project.id);
         if (cancelled) return;
         const mapped: RecentSessionRecord[] = data.searches.map((s) => ({
-          id: s.session_id || s.id,
+          // Unique per search_logs row — never use shared auth session_id as id
+          // (that collapsed every project search into one sidebar entry).
+          id: s.id,
+          searchId: s.id,
           firstQuery: s.query,
           queries: [s.query],
           createdAt: s.created_at,
