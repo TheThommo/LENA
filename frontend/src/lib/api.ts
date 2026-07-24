@@ -79,6 +79,35 @@ export interface PulseConfidenceBreakdown {
   coverage_factor: number;
   edge_case_penalty: number;
   contradiction_penalty: number;
+  weights?: {
+    cross_validation_density: number;
+    source_coverage: number;
+    source_agreement: number;
+  };
+  evidence_tier_weights?: Record<string, number>;
+  status_thresholds?: { min_confidence: number; status: string }[];
+}
+
+export interface AtomicClaim {
+  claim_id: string;
+  text: string;
+  span: string;
+  supporting_span?: string;
+  source_ids: string[];
+  source_titles?: string[];
+  year?: number | null;
+  qualifiers?: Record<string, string | null>;
+  study_type?: string;
+}
+
+export interface ReconciliationEdgeCase {
+  group_id?: string;
+  classification: string;
+  divergence_type?: string;
+  reason: string;
+  topic?: string;
+  claim_ids?: string[];
+  claims?: AtomicClaim[];
 }
 
 export interface PulseReport {
@@ -101,6 +130,9 @@ export interface PulseReport {
   source_agreements: SourceAgreement[];
   validated_results: ValidatedResult[];
   edge_cases: ValidatedResult[];
+  atomic_claims?: AtomicClaim[];
+  claim_groups?: Record<string, unknown>[];
+  reconciliation_edge_cases?: ReconciliationEdgeCase[];
 }
 
 export interface SupplementVerification {

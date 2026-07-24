@@ -232,22 +232,73 @@ export default function PulseExplainer({
               </p>
               <BreakdownBar
                 label="Finding corroboration"
-                weight="45%"
+                weight={`${Math.round((bd.weights?.cross_validation_density ?? 0.45) * 100)}%`}
                 value={bd.cross_validation_density}
                 detail="Share of papers whose claims matched another database"
               />
               <BreakdownBar
                 label="Source coverage"
-                weight="30%"
+                weight={`${Math.round((bd.weights?.source_coverage ?? 0.30) * 100)}%`}
                 value={bd.source_coverage}
                 detail="How many databases returned results"
               />
               <BreakdownBar
                 label="Theme agreement"
-                weight="25%"
+                weight={`${Math.round((bd.weights?.source_agreement ?? 0.25) * 100)}%`}
                 value={bd.source_agreement}
-                detail="Sources sharing consensus keywords"
+                detail="Sources sharing consensus themes"
               />
+              {(bd.contradiction_penalty > 0 || bd.edge_case_penalty > 0) && (
+                <div className="pt-1 text-[10px] text-slate-500 space-y-0.5">
+                  {bd.edge_case_penalty > 0 && (
+                    <p>Edge-case penalty applied: {Math.round(bd.edge_case_penalty * 100)}%</p>
+                  )}
+                  {bd.contradiction_penalty > 0 && (
+                    <p>Contradiction penalty applied: {Math.round(bd.contradiction_penalty * 100)}%</p>
+                  )}
+                  {bd.coverage_factor != null && (
+                    <p>Coverage factor: {bd.coverage_factor}</p>
+                  )}
+                </div>
+              )}
+              {bd.status_thresholds && bd.status_thresholds.length > 0 && (
+                <p className="text-[10px] text-slate-400 pt-1">
+                  Status thresholds:{' '}
+                  {bd.status_thresholds
+                    .map(t => `${t.status} ≥ ${Math.round(t.min_confidence * 100)}%`)
+                    .join(' · ')}
+                </p>
+              )}
+            </div>
+          )}
+
+          {/* Real edge cases: contradiction / temporal supersession only */}
+          {(report.reconciliation_edge_cases?.length ?? 0) > 0 && (
+            <div>
+              <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">
+                Edge cases
+              </p>
+              <ul className="space-y-2">
+                {report.reconciliation_edge_cases!.slice(0, 5).map((edge, i) => (
+                  <li
+                    key={edge.group_id || i}
+                    className="rounded-2xl bg-white border border-amber-200/70 px-3 py-2.5 text-xs leading-relaxed"
+                  >
+                    <p className="font-semibold text-amber-800 mb-1">
+                      {edge.divergence_type || edge.classification}: {edge.reason}
+                    </p>
+                    {(edge.claims || []).slice(0, 2).map((c, j) => (
+                      <p key={c.claim_id || j} className="text-slate-600 mt-1">
+                        <span className="text-slate-400">
+                          [{(c.source_ids || []).map(formatSourceName).join(', ')}
+                          {c.year ? `, ${c.year}` : ''}]
+                        </span>{' '}
+                        {c.span || c.text}
+                      </p>
+                    ))}
+                  </li>
+                ))}
+              </ul>
             </div>
           )}
 
@@ -295,12 +346,15 @@ export default function PulseExplainer({
             </div>
           )}
 
-          {/* Themes */}
-          {report.consensus_keywords.length > 0 && (
+          {/* Themes — only multi-word clusters; omit raw token lists */}
+          {report.consensus_keywords.filter(kw => kw.includes(' ') || kw.includes('-')).length > 0 && (
             <div>
               <p className="text-[11px] font-semibold text-slate-500 uppercase tracking-wider mb-2">Consensus themes</p>
               <div className="flex flex-wrap gap-1.5">
-                {report.consensus_keywords.slice(0, 10).map(kw => (
+                {report.consensus_keywords
+                  .filter(kw => kw.includes(' ') || kw.includes('-'))
+                  .slice(0, 10)
+                  .map(kw => (
                   <span
                     key={kw}
                     className="px-2 py-0.5 rounded-full bg-slate-100 text-[11px] font-medium text-slate-600"

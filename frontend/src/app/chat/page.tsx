@@ -1479,8 +1479,11 @@ function generateSummary(result: SearchResponse): string {
     summary += `, ${pulse_report.edge_case_count} edge case${pulse_report.edge_case_count !== 1 ? 's' : ''}`;
   }
 
-  if (pulse_report.consensus_keywords.length > 0) {
-    summary += `\n\nKey themes: ${pulse_report.consensus_keywords.slice(0, 5).join(', ')}`;
+  const themeClusters = (pulse_report.consensus_keywords || []).filter(
+    (kw) => kw.includes(' ') || kw.includes('-'),
+  );
+  if (themeClusters.length > 0) {
+    summary += `\n\nKey themes: ${themeClusters.slice(0, 5).join(', ')}`;
   }
 
   return summary;

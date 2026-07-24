@@ -456,6 +456,16 @@ class PULSEReport:
             "coverage_factor": round(coverage_factor, 2),
             "edge_case_penalty": round(edge_penalty, 2),
             "contradiction_penalty": round(contradiction_penalty, 2),
+            "weights": {
+                "cross_validation_density": 0.45,
+                "source_coverage": 0.30,
+                "source_agreement": 0.25,
+            },
+            "evidence_tier_weights": dict(EVIDENCE_WEIGHTS),
+            "status_thresholds": [
+                {"min_confidence": t, "status": s.value}
+                for t, s in CONFIDENCE_STATUS_THRESHOLDS
+            ],
         }
 
     def to_dict(self) -> dict:
@@ -825,27 +835,27 @@ async def run_pulse_validation(
     report.refresh_status()
 
     # ── Step 8: Build consensus summary ──────────────────────────────
-    if consensus_keywords or report.total_cross_validations > 0:
+    if report.consensus_keywords or report.total_cross_validations > 0 or report.reconciliation_edge_cases:
         parts = []
-        sources_agreeing = [sa.source_name for sa in report.source_agreements if sa.is_consensus]
+        sources_agreeing = [
+            sa.source_name
+            for sa in report.source_agreements
+            if sa.keyword_overlap_score >= edge_case_threshold or sa.cross_validation_count > 0
+        ]
 
         if report.total_cross_validations > 0:
             parts.append(
                 f"{report.total_cross_validations} cross-validated finding(s) "
                 f"identified across {len(sources_agreeing)} source(s)."
             )
-        if consensus_keywords:
-            top_terms = report.consensus_keywords[:8]
-            parts.append(f"Key themes: {', '.join(top_terms)}.")
-        if edge_sources:
-            parts.append(
-                f"{len(edge_sources)} source(s) diverge: {', '.join(sorted(edge_sources))}."
-            )
-        if report.total_contradictions > 0:
-            parts.append(
-                f"{report.total_contradictions} contradicting finding(s) detected — "
-                "evidence is not uniform."
-            )
+        # Only surface multi-word theme clusters (omit raw token lists)
+        theme_clusters = [t for t in report.consensus_keywords if " " in t or "-" in t]
+        if theme_clusters:
+            parts.append(f"Key themes: {', '.join(theme_clusters[:8])}.")
+        for e in report.reconciliation_edge_cases[:4]:
+            dtype = e.get("divergence_type") or e.get("classification") or "CONFLICT"
+            reason = e.get("reason") or "sources diverge"
+            parts.append(f"{dtype}: {reason}.")
         report.consensus_summary = " ".join(parts)
 
     return report
