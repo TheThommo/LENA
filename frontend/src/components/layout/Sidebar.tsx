@@ -5,9 +5,10 @@ import { BrandMark } from '@/components/brand/BrandMark';
 import { branding } from '@/config/branding';
 import { useProjects } from '@/contexts/ProjectsContext';
 import { useAuth } from '@/contexts/AuthContext';
-import { LenaUpgradeRequiredError, listProjectSearches, type Project } from '@/lib/api';
+import { listProjectSearches, type Project } from '@/lib/api';
 import { defaultContactHandler } from '@/components/chat/UpgradeCTACard';
 import { type RecentSessionRecord, formatSessionSubtitle, getSessionDisplayTitle } from '@/lib/sessionTime';
+import { isUpgradeRequiredError, openSupportMail } from '@/lib/supportContact';
 
 interface SidebarProps {
   activeView: string;
@@ -18,7 +19,7 @@ interface SidebarProps {
    *  fallback query (used only if the cached thread can't be restored). */
   onSearchClick: (sessionId: string, fallbackQuery: string) => void;
   onDeleteSession?: (sessionId: string) => void;
-  onRenameSession?: (sessionId: string, title: string) => void;
+  onRenameSession?: (sessionId: string, title: string, seed?: RecentSessionRecord) => void;
   userName?: string;
   userEmail?: string;
   isAuthenticated?: boolean;
@@ -269,7 +270,7 @@ export function Sidebar({
                     type="button"
                     onClick={() => {
                       setMenuOpen(false);
-                      window.location.href = 'mailto:hello@lena-app.com?subject=LENA%20Support%20request';
+                      openSupportMail('LENA Support request');
                     }}
                     className="w-full flex items-center gap-3 px-4 py-2.5 text-left hover:bg-gray-50 transition-colors group"
                   >
@@ -561,7 +562,7 @@ function SessionRow({
   variant: 'recent' | 'project';
   onOpen: () => void;
   onDelete?: (sessionId: string) => void;
-  onRename?: (sessionId: string, title: string) => void;
+  onRename?: (sessionId: string, title: string, seed?: RecentSessionRecord) => void;
 }) {
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState('');
@@ -580,7 +581,7 @@ function SessionRow({
   };
 
   const commitEdit = () => {
-    onRename?.(session.id, draft);
+    onRename?.(session.id, draft, session);
     setEditing(false);
   };
 
@@ -598,8 +599,14 @@ function SessionRow({
             value={draft}
             onChange={e => setDraft(e.target.value)}
             onKeyDown={e => {
-              if (e.key === 'Enter') commitEdit();
-              if (e.key === 'Escape') cancelEdit();
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                commitEdit();
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                cancelEdit();
+              }
             }}
             onBlur={commitEdit}
             placeholder="Session name"
@@ -696,26 +703,54 @@ function ProjectRow({
   onOpenProject: (projectId: string) => void;
   onSearchClick?: (sessionId: string, fallbackQuery: string) => void;
   onDeleteSession?: (sessionId: string) => void;
-  onRenameSession?: (sessionId: string, title: string) => void;
+  onRenameSession?: (sessionId: string, title: string, seed?: RecentSessionRecord) => void;
 }) {
   const { setActiveProjectId, rename, archive, unarchive, remove } = useProjects();
-  const { token } = useAuth();
+  const { token, user } = useAuth();
   const [menuOpen, setMenuOpen] = useState(false);
   const [remoteFiled, setRemoteFiled] = useState<RecentSessionRecord[]>([]);
   const [editing, setEditing] = useState(false);
   const [draft, setDraft] = useState(project.name);
   const [busy, setBusy] = useState(false);
+  const [collapsed, setCollapsed] = useState(false);
   const menuRef = useRef<HTMLDivElement>(null);
+  const collapseKey = user?.id ? `lena_project_collapsed_${user.id}` : 'lena_project_collapsed';
 
   const displayFiled = useMemo(() => {
     const byId = new Map<string, RecentSessionRecord>();
-    for (const s of [...filed, ...remoteFiled]) {
-      if (!byId.has(s.id)) byId.set(s.id, s);
+    // Prefer local (filed) records so renamed titles win over remote list rows.
+    for (const s of remoteFiled) byId.set(s.id, s);
+    for (const s of filed) {
+      const prev = byId.get(s.id);
+      byId.set(s.id, prev ? { ...prev, ...s, title: s.title ?? prev.title } : s);
     }
     return Array.from(byId.values()).sort(
       (a, b) => new Date(b.lastActivityAt).getTime() - new Date(a.lastActivityAt).getTime(),
     );
   }, [filed, remoteFiled]);
+
+  useEffect(() => {
+    try {
+      const raw = localStorage.getItem(collapseKey);
+      if (!raw) return;
+      const map = JSON.parse(raw) as Record<string, boolean>;
+      if (map[project.id]) setCollapsed(true);
+    } catch { /* ignore */ }
+  }, [collapseKey, project.id]);
+
+  const toggleCollapsed = (e: React.MouseEvent) => {
+    e.stopPropagation();
+    setCollapsed(prev => {
+      const next = !prev;
+      try {
+        const raw = localStorage.getItem(collapseKey);
+        const map = raw ? JSON.parse(raw) as Record<string, boolean> : {};
+        map[project.id] = next;
+        localStorage.setItem(collapseKey, JSON.stringify(map));
+      } catch { /* ignore */ }
+      return next;
+    });
+  };
 
   useEffect(() => {
     if (!token || isArchived) return;
@@ -795,6 +830,17 @@ function ProjectRow({
   return (
     <li>
       <div className="flex items-center gap-0.5 group/proj">
+        {!isArchived && displayFiled.length > 0 && (
+          <button
+            type="button"
+            onClick={toggleCollapsed}
+            className="flex-shrink-0 touch-target flex items-center justify-center rounded-md text-gray-400 hover:text-gray-600 hover:bg-gray-100 transition-colors"
+            aria-label={collapsed ? 'Expand project chats' : 'Collapse project chats'}
+            title={collapsed ? 'Expand' : 'Collapse'}
+          >
+            <ChevronIcon className={`w-3.5 h-3.5 transition-transform ${collapsed ? '' : 'rotate-90'}`} />
+          </button>
+        )}
         <button
           type="button"
           onClick={() => { setActiveProjectId(project.id); onOpenProject(project.id); }}
@@ -860,7 +906,7 @@ function ProjectRow({
           )}
         </div>
       </div>
-      {!isArchived && displayFiled.length > 0 && onSearchClick && (
+      {!isArchived && !collapsed && displayFiled.length > 0 && onSearchClick && (
         <ul className="ml-6 mt-0.5 mb-1 space-y-0.5 border-l border-gray-100 pl-2">
           {displayFiled.slice(0, 12).map(sess => (
             <SessionRow
@@ -882,6 +928,14 @@ function MoreIcon({ className }: { className?: string }) {
   return (
     <svg className={className} viewBox="0 0 24 24" fill="currentColor">
       <circle cx="5" cy="12" r="2" /><circle cx="12" cy="12" r="2" /><circle cx="19" cy="12" r="2" />
+    </svg>
+  );
+}
+
+function ChevronIcon({ className }: { className?: string }) {
+  return (
+    <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 6l6 6-6 6" />
     </svg>
   );
 }
@@ -913,13 +967,14 @@ function ProjectsSection({
   recentSessions?: RecentSessionRecord[];
   onSearchClick?: (sessionId: string, fallbackQuery: string) => void;
   onDeleteSession?: (sessionId: string) => void;
-  onRenameSession?: (sessionId: string, title: string) => void;
+  onRenameSession?: (sessionId: string, title: string, seed?: RecentSessionRecord) => void;
 }) {
   const { projects, activeProjectId, setActiveProjectId, createNew, limits, error } = useProjects();
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [upgradeCta, setUpgradeCta] = useState<string | null>(null);
+  const [createError, setCreateError] = useState<string | null>(null);
   const [showArchived, setShowArchived] = useState(false);
   const inputRef = useRef<HTMLInputElement>(null);
 
@@ -932,9 +987,10 @@ function ProjectsSection({
 
   const submit = async () => {
     const name = newName.trim();
-    if (!name) return;
+    if (!name || submitting) return;
     setSubmitting(true);
     setUpgradeCta(null);
+    setCreateError(null);
     try {
       const p = await createNew({ name });
       setActiveProjectId(p.id);
@@ -946,13 +1002,13 @@ function ProjectsSection({
       setNewName('');
       setCreating(false);
     } catch (e) {
-      if (e instanceof LenaUpgradeRequiredError) {
-        setUpgradeCta(e.message);
+      if (isUpgradeRequiredError(e)) {
+        setUpgradeCta(e.message || 'Upgrade to create more projects.');
         setCreating(false);
         setNewName('');
       } else {
-        setUpgradeCta(null);
-        defaultContactHandler();
+        // Never open mailto on create failure — show the error inline.
+        setCreateError(e instanceof Error ? e.message : 'Could not create project. Try again.');
       }
     } finally {
       setSubmitting(false);
@@ -970,7 +1026,7 @@ function ProjectsSection({
         </div>
         {isAuthenticated && !creating && (
           <button
-            onClick={() => { setUpgradeCta(null); setCreating(true); }}
+            onClick={() => { setUpgradeCta(null); setCreateError(null); setCreating(true); }}
             className="p-1 text-gray-400 hover:text-lena-500 rounded transition-colors"
             title="New project"
           >
@@ -1032,14 +1088,29 @@ function ProjectsSection({
             value={newName}
             onChange={e => setNewName(e.target.value)}
             onKeyDown={e => {
-              if (e.key === 'Enter') submit();
-              if (e.key === 'Escape') { setCreating(false); setNewName(''); setUpgradeCta(null); }
+              if (e.key === 'Enter') {
+                e.preventDefault();
+                e.stopPropagation();
+                void submit();
+              }
+              if (e.key === 'Escape') {
+                e.preventDefault();
+                setCreating(false);
+                setNewName('');
+                setUpgradeCta(null);
+                setCreateError(null);
+              }
             }}
             placeholder="e.g. SGLT2 in HFpEF"
             disabled={submitting}
             className="w-full input-touch border border-lena-300 rounded-md px-2 py-2 focus:outline-none focus:ring-2 focus:ring-lena-200 bg-white"
           />
-          <span className="text-[10px] text-gray-400 block mt-1.5">Enter to save · Esc to cancel</span>
+          <span className="text-[10px] text-gray-400 block mt-1.5">
+            {submitting ? 'Saving…' : 'Enter to save · Esc to cancel'}
+          </span>
+          {createError && (
+            <p className="text-[11px] text-red-600 mt-1.5 leading-snug">{createError}</p>
+          )}
         </div>
       )}
 

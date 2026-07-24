@@ -7,7 +7,8 @@ import { branding } from '@/config/branding';
 import type { SearchResponse, ValidatedResult, ResultMode, SupplementVerification } from '@/lib/api';
 import { copyTextToClipboard } from '@/lib/clipboard';
 import { formatVancouverCitation } from '@/lib/citations';
-import { logShareEvent, LenaUpgradeRequiredError } from '@/lib/api';
+import { logShareEvent } from '@/lib/api';
+import { isUpgradeRequiredError } from '@/lib/supportContact';
 import { buildResearchSharePayload } from '@/lib/shareResearch';
 import SupplementVerificationCard from './SupplementVerificationCard';
 import ShareModal from './ShareModal';
@@ -1081,12 +1082,16 @@ export default function ChatMessage({
                   setCreatingProject(false);
                   setNewProjectName('');
                 } catch (err) {
-                  if (err instanceof LenaUpgradeRequiredError) {
+                  if (isUpgradeRequiredError(err)) {
                     setCreateUpgradeCta(err.message);
                     setCreatingProject(false);
                     setNewProjectName('');
                   } else {
-                    window.location.href = 'mailto:hello@lena-app.com?subject=LENA%20Support%20request';
+                    setCreateUpgradeCta(
+                      err instanceof Error
+                        ? err.message
+                        : 'Could not create project. Try again.',
+                    );
                   }
                 } finally {
                   setCreatingBusy(false);

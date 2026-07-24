@@ -229,7 +229,7 @@ export default function ProfileSettings() {
                   <span className="text-[10px] text-slate-400 bg-slate-100 px-1.5 py-0.5 rounded">read-only</span>
                 </div>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  To change your email, contact <a href="mailto:hello@lena-app.com" className="text-lena-600 hover:underline">hello@lena-app.com</a>.
+                  To change your email, contact <a href="mailto:mark@cero-international.com" className="text-lena-600 hover:underline">mark@cero-international.com</a>.
                 </p>
               </div>
 

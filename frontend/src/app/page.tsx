@@ -1,6 +1,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { branding, product } from '@/config/branding';
+import { supportMailto } from '@/lib/supportContact';
 
 const FEATURES = [
   {
@@ -67,7 +68,7 @@ const PRICING = [
       'Dedicated support & SLA',
     ],
     cta: 'Contact us',
-    href: 'mailto:hello@lena-app.com?subject=LENA%20Enterprise',
+    href: supportMailto('LENA Enterprise'),
   },
 ];
 
@@ -265,7 +266,7 @@ export default function LandingPage() {
           <div className="flex gap-6">
             <Link href="/chat" className="hover:text-lena-700">App</Link>
             <Link href="/login" className="hover:text-lena-700">Sign in</Link>
-            <a href="mailto:hello@lena-app.com" className="hover:text-lena-700">Contact</a>
+            <a href={supportMailto()} className="hover:text-lena-700">Contact</a>
           </div>
         </div>
       </footer>
