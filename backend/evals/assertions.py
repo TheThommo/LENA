@@ -432,23 +432,32 @@ def approvals_not_called_guidelines(
     """
     Fail if marketing authorisation / FDA approval is labelled as a 'guideline'
     in the same clause (advisory vs legal force).
+    Distinguishing language (advisory / distinct / separate) is allowed.
     """
     text = brief or ""
-    # approval/authorisation near "guideline(s)" without distinguishing language
-    bad = re.search(
-        r"(?:FDA|EMA|CHMP|marketing authori[sz]ation|approv(?:al|ed))"
-        r"[^.?\n]{0,40}\bguidelines?\b"
-        r"|"
-        r"\bguidelines?\b[^.?\n]{0,40}"
-        r"(?:FDA|EMA|CHMP|marketing authori[sz]ation|approv(?:al|ed))",
+    for m in re.finditer(
+        r"([^.?\n]{0,90}\bguidelines?\b[^.?\n]{0,90})",
         text,
         re.I,
-    )
-    if bad:
+    ):
+        window = m.group(1)
+        if not re.search(
+            r"(?:FDA|EMA|CHMP|marketing authori[sz]ation|approv(?:al|ed))",
+            window,
+            re.I,
+        ):
+            continue
+        if re.search(
+            r"(?:advisor(?:y|ily)|distinct|different from|not (?:themselves|the same)|"
+            r"separat(?:e|ely)|legal(?:ly)? binding|do not (?:themselves )?confer)",
+            window,
+            re.I,
+        ):
+            continue
         return AssertionResult(
             name="approvals_not_called_guidelines",
             passed=False,
-            detail=f"approvals conflated with guidelines: …{bad.group(0)}…",
+            detail=f"approvals conflated with guidelines: …{window.strip()}…",
             defect_id=defect_id,
         )
     return AssertionResult(

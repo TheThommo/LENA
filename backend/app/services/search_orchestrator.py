@@ -1167,16 +1167,35 @@ async def run_search(
         _tag_result_modes(r)
         _prioritize_display_keywords(r, query_subjects)
 
-    # Step 7: Generate LLM summary (non-blocking, best-effort)
-    # Pass source coverage so the LLM can acknowledge evidence gaps honestly
+    # Step 7: Claim-bound brief (extract → reconcile → compose → verify).
+    # Qualifiers are immutable; free-form LLM paraphrase must not be the sole
+    # source of Key Findings / Bottom Line (precision failure mode).
     all_queried = list(raw_results_by_source.keys()) + list(errors.keys())
-    llm_summary, llm_usage = await _generate_llm_summary(
-        query, pulse_report, persona,
-        sources_failed=errors,
-        sources_queried=all_queried,
-        profile_context=profile_context,
-        attached_context=attached_context_text or None,
-    )
+    llm_usage = None
+    llm_summary = None
+    try:
+        from app.core.claim_pipeline import run_claim_pipeline
+
+        claim_bundle = run_claim_pipeline(
+            list(pulse_report.validated_results) + list(pulse_report.edge_cases),
+            query=query,
+        )
+        pulse_report.atomic_claims = claim_bundle.get("composable_claims") or claim_bundle.get("claims") or []
+        pulse_report.reconciliation_edge_cases = claim_bundle.get("edge_cases") or []
+        pulse_report.claim_groups = claim_bundle.get("groups") or []
+        llm_summary = claim_bundle.get("brief")
+    except Exception:
+        logger.warning("Claim pipeline failed; falling back to LLM summary", exc_info=True)
+        llm_summary = None
+
+    if not llm_summary:
+        llm_summary, llm_usage = await _generate_llm_summary(
+            query, pulse_report, persona,
+            sources_failed=errors,
+            sources_queried=all_queried,
+            profile_context=profile_context,
+            attached_context=attached_context_text or None,
+        )
 
     # Step 7b: Auto-verify supplement if query touches supplement keywords.
     # Runs in parallel with the LLM summary (both are post-PULSE) to add
