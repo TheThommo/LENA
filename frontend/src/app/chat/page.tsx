@@ -436,6 +436,20 @@ export default function Home() {
     });
   }, [isAuthenticated, sessionsKey]);
 
+  // Stamp backend search id onto the local thread so sidebar merge can alias
+  // local Date.now rows with remote search_logs rows without collapsing
+  // distinct searches that share the same query text.
+  const stampSessionSearchId = useCallback((sessionId: string, searchId: string) => {
+    if (!isAuthenticated || !sessionsKey || !searchId) return;
+    setRecentSessions(prev => {
+      const next = prev.map(s =>
+        s.id === sessionId ? { ...s, searchId, projectId: s.projectId ?? activeProjectId ?? null } : s,
+      );
+      try { localStorage.setItem(sessionsKey, JSON.stringify(next)); } catch {}
+      return next;
+    });
+  }, [isAuthenticated, sessionsKey, activeProjectId]);
+
   // Update a recent session's projectId in-place (after user clicks
   // "Add to Project" on a result). Lets the sidebar move it from top-
   // level Recent Sessions into the project's nested list without a reload.
@@ -563,6 +577,9 @@ export default function Home() {
           /* sidebar still updates via setSessionProject */
         }
       }
+      if (isAuthenticated && result.search_id) {
+        stampSessionSearchId(currentSessionIdRef.current, result.search_id);
+      }
       // Update the project's search_count badge in the sidebar
       if (isAuthenticated && activeProjectId) {
         setSessionProject(currentSessionIdRef.current, activeProjectId);
@@ -627,7 +644,9 @@ export default function Home() {
     restoringThreadRef.current = true;
     setHistoryNotice(null);
 
-    const saved = recentSessions.find(s => s.id === sessionId);
+    const saved = recentSessions.find(
+      s => s.id === sessionId || s.searchId === sessionId,
+    );
     const resolvedProjectId =
       projectId !== undefined
         ? projectId
@@ -635,18 +654,20 @@ export default function Home() {
     setActiveProjectId(resolvedProjectId);
 
     let thread = loadSessionThread(sessionId);
+    if ((!thread || thread.length === 0) && saved) {
+      thread = loadSessionThread(saved.id);
+    }
 
-    // If the session id doesn't match (e.g. remote search id), find a cached
-    // thread whose first user message matches the query — still no network search.
-    if ((!thread || thread.length === 0) && threadsKey && fallbackQuery) {
+    // Prefer an exact search_id hit in cached threads (distinct from same-query peers).
+    if ((!thread || thread.length === 0) && threadsKey) {
       try {
         const raw = localStorage.getItem(threadsKey);
         if (raw) {
           const all: Record<string, Message[]> = JSON.parse(raw);
+          const targetSearchId = saved?.searchId || sessionId;
           for (const [sid, msgs] of Object.entries(all)) {
             if (!Array.isArray(msgs) || msgs.length === 0) continue;
-            const firstUser = msgs.find(m => m.type === 'user');
-            if (firstUser && firstUser.content.trim() === fallbackQuery.trim()) {
+            if (msgs.some(m => m.response?.search_id === targetSearchId)) {
               thread = msgs.map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
               currentSessionIdRef.current = sid;
               setMessages(thread);
@@ -657,6 +678,36 @@ export default function Home() {
               }
               return;
             }
+          }
+        }
+      } catch { /* ignore */ }
+    }
+
+    // Fallback: match first user message only when a single candidate exists.
+    if ((!thread || thread.length === 0) && threadsKey && fallbackQuery) {
+      try {
+        const raw = localStorage.getItem(threadsKey);
+        if (raw) {
+          const all: Record<string, Message[]> = JSON.parse(raw);
+          const matches: { sid: string; msgs: Message[] }[] = [];
+          for (const [sid, msgs] of Object.entries(all)) {
+            if (!Array.isArray(msgs) || msgs.length === 0) continue;
+            const firstUser = msgs.find(m => m.type === 'user');
+            if (firstUser && firstUser.content.trim() === fallbackQuery.trim()) {
+              matches.push({ sid, msgs });
+            }
+          }
+          if (matches.length === 1) {
+            const only = matches[0];
+            thread = only.msgs.map(m => ({ ...m, timestamp: new Date(m.timestamp) }));
+            currentSessionIdRef.current = only.sid;
+            setMessages(thread);
+            setClientNotice(null);
+            setActiveView('chat');
+            if (activeSessionKey) {
+              try { localStorage.setItem(activeSessionKey, only.sid); } catch {}
+            }
+            return;
           }
         }
       } catch { /* ignore */ }
@@ -703,9 +754,12 @@ export default function Home() {
       } catch {}
     }
     const sess = recentSessions.find(
-      s => s.projectId === activeProjectId && (
-        s.queries.includes(search.query) || s.firstQuery === search.query
-      ),
+      s =>
+        s.searchId === search.id ||
+        s.id === search.id ||
+        (s.projectId === activeProjectId && (
+          s.queries.includes(search.query) || s.firstQuery === search.query
+        )),
     );
     if (sess) {
       handleRecentSessionClick(sess.id, search.query);

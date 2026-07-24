@@ -6,13 +6,17 @@ import {
 } from '../src/lib/sessionTime';
 
 /**
- * Project sidebar smoke — collapse, rename, restore-without-research, no dupes.
+ * Project sidebar smoke — collapse, rename, restore-without-research,
+ * distinct searches with the same query text stay distinct.
  * Seeds auth + local history and mocks project APIs so we never hit production.
  */
 
 const USER_ID = 'smoke-user-1';
 const PROJECT_ID = 'proj-energy';
-const SESSION_ID = '1700000000001';
+const SESSION_A = '1700000000001';
+const SESSION_B = '1700000000002';
+const SEARCH_A = 'search-aaa-111';
+const SEARCH_B = 'search-bbb-222';
 const QUERY = 'Energy levels are low in the morning';
 
 function fakeJwt(): string {
@@ -24,10 +28,12 @@ function fakeJwt(): string {
   return `${header}.${payload}.smoke`;
 }
 
-function seedSession(): RecentSessionRecord {
+function seedSession(id: string, searchId: string, title?: string): RecentSessionRecord {
   return {
-    id: SESSION_ID,
+    id,
+    searchId,
     firstQuery: QUERY,
+    title,
     queries: [QUERY],
     projectId: PROJECT_ID,
     createdAt: new Date().toISOString(),
@@ -36,27 +42,58 @@ function seedSession(): RecentSessionRecord {
 }
 
 test.describe('Project sidebar UX', () => {
-  test('unit: merge + rename do not duplicate', () => {
-    const local = [seedSession()];
-    const remote = [{
-      ...seedSession(),
-      id: 'uuid-from-api',
-    }];
-    const merged = mergeProjectSessions(local, remote);
-    expect(merged).toHaveLength(1);
-    expect(merged[0].id).toBe(SESSION_ID);
+  test('unit: same query stays two rows; searchId aliases local+remote', () => {
+    const localA = seedSession(SESSION_A, SEARCH_A, 'Test 1');
+    const localB = seedSession(SESSION_B, SEARCH_B);
+    const remoteA = {
+      id: SEARCH_A,
+      searchId: SEARCH_A,
+      firstQuery: QUERY,
+      queries: [QUERY],
+      projectId: PROJECT_ID,
+      createdAt: localA.createdAt,
+      lastActivityAt: localA.lastActivityAt,
+    };
+    const remoteB = {
+      id: SEARCH_B,
+      searchId: SEARCH_B,
+      firstQuery: QUERY,
+      queries: [QUERY],
+      projectId: PROJECT_ID,
+      createdAt: localB.createdAt,
+      lastActivityAt: localB.lastActivityAt,
+    };
+
+    const merged = mergeProjectSessions([localA, localB], [remoteA, remoteB]);
+    expect(merged).toHaveLength(2);
+    expect(merged.some(s => s.title === 'Test 1')).toBe(true);
+    expect(merged.every(s => (s.firstQuery || '').toLowerCase() === QUERY.toLowerCase())).toBe(true);
+
+    // True alias: local Date.now id later stamped with searchId matches remote search id
+    const localOnly: RecentSessionRecord = {
+      id: SESSION_A,
+      firstQuery: QUERY,
+      queries: [QUERY],
+      projectId: PROJECT_ID,
+      searchId: SEARCH_A,
+      createdAt: new Date().toISOString(),
+      lastActivityAt: new Date().toISOString(),
+    };
+    const aliased = mergeProjectSessions([localOnly], [remoteA]);
+    expect(aliased).toHaveLength(1);
 
     const renamed = applySessionRename(
-      [...local, remote[0]],
-      'uuid-from-api',
+      [localA, localB],
+      SESSION_A,
       'Morning energy',
-      remote[0],
+      localA,
     );
-    expect(renamed).toHaveLength(1);
-    expect(renamed[0].title).toBe('Morning energy');
+    expect(renamed).toHaveLength(2);
+    expect(renamed.find(s => s.id === SESSION_A)?.title).toBe('Morning energy');
+    expect(renamed.find(s => s.id === SESSION_B)?.title).toBeUndefined();
   });
 
-  test('browser: collapse, rename, open past chat without new search', async ({ page }) => {
+  test('browser: two same-query searches both listed; rename; open without re-search', async ({ page }) => {
     const token = fakeJwt();
     const user = {
       id: USER_ID,
@@ -77,9 +114,8 @@ test.describe('Project sidebar UX', () => {
       updated_at: new Date().toISOString(),
       search_count: 2,
     };
-    const session = seedSession();
-    // Deliberate duplicate remote id for same query — UI must show one row.
-    const remoteDuplicate = { ...session, id: 'uuid-dup-search' };
+    const sessionA = seedSession(SESSION_A, SEARCH_A, 'Test 1');
+    const sessionB = seedSession(SESSION_B, SEARCH_B);
 
     let searchPosts = 0;
 
@@ -101,17 +137,17 @@ test.describe('Project sidebar UX', () => {
           project_id: PROJECT_ID,
           searches: [
             {
-              id: 'uuid-dup-search',
+              id: SEARCH_B,
               query: QUERY,
-              created_at: session.createdAt,
+              created_at: sessionB.createdAt,
               session_id: null,
               project_id: PROJECT_ID,
             },
             {
-              id: 'uuid-dup-search-2',
+              id: SEARCH_A,
               query: QUERY,
-              created_at: session.createdAt,
-              session_id: SESSION_ID,
+              created_at: sessionA.createdAt,
+              session_id: SESSION_A,
               project_id: PROJECT_ID,
             },
           ],
@@ -141,17 +177,17 @@ test.describe('Project sidebar UX', () => {
       });
     });
 
-    await page.addInitScript(({ token, user, session, remoteDuplicate, projectId, userId }) => {
+    await page.addInitScript(({ token, user, sessionA, sessionB, projectId, userId }) => {
       localStorage.setItem('lena_token', token);
       localStorage.setItem('lena_user', JSON.stringify(user));
-      localStorage.setItem(`lena_recent_sessions_${userId}`, JSON.stringify([session, remoteDuplicate]));
+      localStorage.setItem(`lena_recent_sessions_${userId}`, JSON.stringify([sessionA, sessionB]));
       localStorage.setItem(`lena_active_project_id_${userId}`, projectId);
       localStorage.setItem(`lena_session_threads_${userId}`, JSON.stringify({
-        [session.id]: [
+        [sessionA.id]: [
           {
             id: 'm1',
             type: 'user',
-            content: session.firstQuery,
+            content: sessionA.firstQuery,
             timestamp: new Date().toISOString(),
           },
           {
@@ -161,8 +197,8 @@ test.describe('Project sidebar UX', () => {
             timestamp: new Date().toISOString(),
             response: {
               llm_summary: 'Cached PULSE summary — should restore without a new search.',
-              search_id: 'search-cached-1',
-              query: session.firstQuery,
+              search_id: sessionA.searchId,
+              query: sessionA.firstQuery,
               total_results: 1,
               sources_queried: ['pubmed'],
               sources_failed: {},
@@ -182,14 +218,15 @@ test.describe('Project sidebar UX', () => {
           },
         ],
       }));
-    }, { token, user, session, remoteDuplicate, projectId: PROJECT_ID, userId: USER_ID });
+    }, { token, user, sessionA, sessionB, projectId: PROJECT_ID, userId: USER_ID });
 
     await page.goto('/chat');
     await expect(page.getByText('Energy').first()).toBeVisible({ timeout: 20_000 });
 
-    // Deduped: only one nested chat label for the query (not two).
+    // Two distinct searches with the same query must both appear under the project.
     const chatButtons = page.locator(`[data-testid^="open-session-"]`);
-    await expect(chatButtons).toHaveCount(1);
+    await expect(chatButtons).toHaveCount(2);
+    await expect(page.getByText('Test 1')).toBeVisible();
 
     // Collapse via project title
     await page.getByTestId(`project-title-${PROJECT_ID}`).click();
@@ -199,20 +236,18 @@ test.describe('Project sidebar UX', () => {
     // Expand again
     await page.getByTestId(`project-title-${PROJECT_ID}`).click();
     await expect(page.getByTestId(`project-chats-${PROJECT_ID}`)).toBeVisible();
+    await expect(chatButtons).toHaveCount(2);
 
-    // Rename
-    const openBtn = page.locator(`[data-testid^="open-session-"]`).first();
-    const sessionTestId = await openBtn.getAttribute('data-testid');
-    const sid = sessionTestId!.replace('open-session-', '');
-    await page.getByTestId(`rename-session-${sid}`).click();
-    await page.getByTestId(`rename-input-${sid}`).fill('Morning energy notes');
-    await page.getByTestId(`rename-input-${sid}`).press('Enter');
+    // Rename one row only
+    await page.getByTestId(`rename-session-${SESSION_A}`).click();
+    await page.getByTestId(`rename-input-${SESSION_A}`).fill('Morning energy notes');
+    await page.getByTestId(`rename-input-${SESSION_A}`).press('Enter');
     await expect(page.getByText('Morning energy notes')).toBeVisible();
-    await expect(chatButtons).toHaveCount(1);
+    await expect(chatButtons).toHaveCount(2);
 
     // Open past chat — must restore cache, no POST /search
     searchPosts = 0;
-    await page.getByTestId(`open-session-${sid}`).click();
+    await page.getByTestId(`open-session-${SESSION_A}`).click();
     await expect(page.getByText('Cached PULSE summary — should restore without a new search.')).toBeVisible({
       timeout: 10_000,
     });
