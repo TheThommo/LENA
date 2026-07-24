@@ -32,6 +32,7 @@ import {
   type RecentSessionRecord,
   normalizeRecentSession,
   sessionNeedsTimestampMigration,
+  applySessionRename,
 } from '@/lib/sessionTime';
 import { resolvePulseConfidencePercent } from '@/lib/pulseLabels';
 import { copyTextToClipboard } from '@/lib/clipboard';
@@ -428,35 +429,8 @@ export default function Home() {
     seed?: RecentSessionRecord,
   ) => {
     if (!isAuthenticated || !sessionsKey) return;
-    const trimmed = title.trim();
     setRecentSessions(prev => {
-      const idx = prev.findIndex(s => s.id === sessionId);
-      let next: RecentSessionRecord[];
-      if (idx >= 0) {
-        next = prev.map(s => {
-          if (s.id !== sessionId) return s;
-          if (!trimmed || trimmed === s.firstQuery) {
-            const { title: _drop, ...rest } = s;
-            return rest;
-          }
-          return { ...s, title: trimmed };
-        });
-      } else if (seed) {
-        // Upsert remote/project-only rows so rename persists in sidebar history.
-        const base: RecentSessionRecord = {
-          ...seed,
-          id: sessionId,
-          title: trimmed && trimmed !== seed.firstQuery ? trimmed : undefined,
-        };
-        if (!trimmed || trimmed === seed.firstQuery) {
-          const { title: _drop, ...rest } = base;
-          next = [rest, ...prev];
-        } else {
-          next = [base, ...prev];
-        }
-      } else {
-        return prev;
-      }
+      const next = applySessionRename(prev, sessionId, title, seed);
       try { localStorage.setItem(sessionsKey, JSON.stringify(next)); } catch {}
       return next;
     });
@@ -644,13 +618,21 @@ export default function Home() {
 
   // Restore a prior session's thread from localStorage without re-hitting the
   // backend. NEVER auto-runs a search — opening history must not burn tokens.
-  const handleRecentSessionClick = useCallback((sessionId: string, fallbackQuery: string) => {
+  const handleRecentSessionClick = useCallback((
+    sessionId: string,
+    fallbackQuery: string,
+    projectId?: string | null,
+  ) => {
+    // Always guard the project-switch effect before any setState.
+    restoringThreadRef.current = true;
     setHistoryNotice(null);
+
     const saved = recentSessions.find(s => s.id === sessionId);
-    if (saved) {
-      restoringThreadRef.current = true;
-      setActiveProjectId(saved.projectId || null);
-    }
+    const resolvedProjectId =
+      projectId !== undefined
+        ? projectId
+        : (saved?.projectId ?? null);
+    setActiveProjectId(resolvedProjectId);
 
     let thread = loadSessionThread(sessionId);
 
@@ -1313,7 +1295,10 @@ export default function Home() {
           onViewChange={(v) => { setActiveView(v); if (window.innerWidth < 1024) setSidebarOpen(false); }}
           onNewSearch={() => { handleNewSearch(); if (window.innerWidth < 1024) setSidebarOpen(false); }}
           recentSessions={recentSessions}
-          onSearchClick={(sid, q) => { handleRecentSessionClick(sid, q); if (window.innerWidth < 1024) setSidebarOpen(false); }}
+          onSearchClick={(sid, q, pid) => {
+            handleRecentSessionClick(sid, q, pid);
+            if (window.innerWidth < 1024) setSidebarOpen(false);
+          }}
           onDeleteSession={deleteRecentSession}
           onRenameSession={renameRecentSession}
           onUpgrade={() => handleUpgrade('pro_monthly')}

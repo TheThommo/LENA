@@ -16,6 +16,10 @@ const nextConfig = {
   output: 'standalone',
 
   async headers() {
+    // upgrade-insecure-requests breaks local http://localhost Playwright/smoke.
+    if (process.env.NODE_ENV === 'development') {
+      return [];
+    }
     return [
       {
         source: '/(.*)',
