@@ -2,9 +2,23 @@
 
 **Test material only. Not product code. No per-drug logic.**
 
-Status: Owner keys ingested 2026-07-25.  
-Pins for G4 / G5 / G13 filled from `docs/PULSE_EVAL_BATTERY_V2.md`.  
-Keys marked `[VERIFY]` still need owner primary-source confirmation before Checkpoint 2 baseline.
+Status: Owner keys ingested 2026-07-25. Owner spot-check findings incorporated same day.  
+Pins for G4 / G5 / G13 filled from `docs/PULSE_EVAL_BATTERY_V2.md`.
+
+### Spot-check links that work (use these — not DailyMed site search)
+
+DailyMed’s **search box often returns 0 results** even when the label exists. Use **direct setid / Drugs@FDA / ClinicalTrials.gov** URLs instead. Mayo Clinic and Drugs.com are useful *patient* secondary reading; they are **not** substitutes for the G10 label-routing test (E8), which requires DailyMed / openFDA class sources.
+
+| Case | Working primary link |
+|------|----------------------|
+| **G10** | https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=70c09984-2b36-424f-8b27-3fd0cd4e833d |
+| **G10** (alternate display) | https://www.dailymed.nlm.nih.gov/dailymed/fda/fdaDrugXsl.cfm?setid=70c09984-2b36-424f-8b27-3fd0cd4e833d&type=display |
+| **G11** USPSTF | https://www.uspreventiveservicestaskforce.org/uspstf/recommendation/aspirin-to-prevent-cardiovascular-disease-preventive-medication |
+| **G5** | https://clinicaltrials.gov/study/NCT06307652 |
+| **G1** Leqembi (lecanemab) DailyMed | https://dailymed.nlm.nih.gov/dailymed/getFile.cfm?setid=9d1ff786-e577-410a-a273-c4d7d0e4e975&type=pdf |
+| **G1** Kisunla (donanemab) EMA | https://www.ema.europa.eu/en/medicines/human/EPAR/kisunla |
+
+**Product note (not Phase 2):** LENA already queries **DailyMed + openFDA + ODS DSLD** in the shared pipeline. A broken DailyMed *website search UI* ≠ missing DB. Mayo/Drugs.com are aggregators, not labels — adding them is a separate product decision and must not replace label routing for G10.
 
 ---
 
@@ -36,7 +50,7 @@ A stale key will cause the repair loop to “fix” the pipeline toward a wrong 
 ## G1 — Regulatory / US–EU divergence
 
 **Personas:** Pharmacist, Clinician  
-**Valid as of:** `[VERIFY]` · **Review:** quarterly  
+**Valid as of:** 2026-07-25 (owner spot-check; re-confirm lecanemab EU SmPC wording on run day) · **Review:** quarterly  
 **Query:** How do eligible patient populations for lecanemab and donanemab differ between US and European approvals, and what does the evidence say about ApoE4 status and ARIA risk?
 
 ### Sub-questions
@@ -46,10 +60,10 @@ A stale key will cause the repair loop to “fix” the pipeline toward a wrong 
 4. What the evidence says about ARIA risk and how it relates to that difference  
 
 ### Correct answer
-- Both agents hold US approval for early symptomatic Alzheimer's disease (MCI or mild dementia due to AD). The US indication is not restricted by ApoE genotype; genotype testing is recommended before initiation and labelling carries ARIA warnings.
-- Both are authorised in the EU for the same disease stage but with a narrower population that excludes ApoE ε4 homozygotes. Heterozygotes and non-carriers remain eligible.
-- ARIA risk follows a genotype gradient — highest in ε4/ε4, intermediate in heterozygotes, lowest in non-carriers — and this gradient is the stated basis for the EU restriction.
-- The EU route for both agents involved an initial negative CHMP opinion followed by re-examination and reversal; the timing of that sequence differs between the two drugs.
+- Both agents hold US approval for early symptomatic Alzheimer's disease (MCI or mild dementia due to AD with confirmed amyloid pathology). The US indication is **not** genotype-excluded; ApoE ε4 testing is **recommended** before initiation to inform ARIA risk; labelling carries strong ARIA warnings. ε4/ε4 patients may still be treated in the US.
+- **EU (donanemab / Kisunla, verified):** indication restricted to early symptomatic AD patients who are ApoE ε4 **non-carriers or heterozygotes** (one or no ε4 allele) — i.e. **ε4/ε4 homozygotes are excluded**; ApoE testing is mandatory for that restriction. Confirm current lecanemab (Leqembi) EU SmPC separately on run day — same genotype-narrowing pattern is expected but must not be asserted without the live SmPC.
+- ARIA risk follows a genotype gradient — highest in ε4/ε4, intermediate in heterozygotes, lowest in non-carriers — and this gradient is the stated basis for EU genotype restriction.
+- Do not treat US accelerated→traditional approval sequence, or CHMP re-examination history, as an unresolved CONTRADICTION; label supersession/sequence where relevant.
 
 ### Required qualifiers
 - ε4/ε4 / homozygote — MUST NOT become “ApoE4 carriers”
@@ -103,7 +117,7 @@ A stale key will cause the repair loop to “fix” the pipeline toward a wrong 
 ## G3 — Clinical guideline
 
 **Personas:** Clinician  
-**Valid as of:** `[VERIFY — guidance updated during 2025]` · **Review:** quarterly  
+**Valid as of:** 2026-07-25 (owner spot-check vs ACC/AHA + ESC/ESH comparative summaries) · **Review:** quarterly  
 **Query:** What is first-line pharmacologic therapy for hypertension in adults without compelling indications, according to current major guidelines?
 
 ### Sub-questions
@@ -112,10 +126,10 @@ A stale key will cause the repair loop to “fix” the pipeline toward a wrong 
 3. Where major guideline bodies differ, and why  
 
 ### Correct answer
-- Four classes are first-line for hypertension without compelling indications: thiazide/thiazide-like diuretics, ACE inhibitors, ARBs, and dihydropyridine calcium channel blockers.
-- Beta-blockers are not first-line absent a compelling indication such as post-MI, heart failure, or specified arrhythmias.
+- Four classes are first-line for hypertension without compelling indications under ACC/AHA and most non-ESH European framing: thiazide/thiazide-like diuretics, ACE inhibitors, ARBs, and dihydropyridine calcium channel blockers.
+- Under **ACC/AHA**, beta-blockers are **not** first-line absent a compelling indication (e.g. post-MI, heart failure, specified arrhythmias / CAD). **ESH/ESC** may list beta-blockers among first-line options — that is a **jurisdictional/scope difference**, not an unresolved contradiction.
 - ACE inhibitors and ARBs must not be combined.
-- Guideline bodies differ in initiation strategy rather than in drug class: some stratify initial choice by age and ethnicity, some favour initial low-dose combination therapy for most patients. This is a jurisdictional and methodological scope difference, not a contradiction.
+- Guideline bodies also differ in initiation strategy (age/ethnicity stratification vs initial low-dose combination). Attach body + year to every stance.
 
 ### Required qualifiers
 - The population qualifier “without compelling indications” must be preserved
@@ -168,10 +182,10 @@ A stale key will cause the repair loop to “fix” the pipeline toward a wrong 
 ## G5 — Trial pipeline *(PINNED)*
 
 **Personas:** Researcher  
-**Valid as of:** 2026-07-24 (status read) · **Review:** monthly  
+**Valid as of:** 2026-07-25 (owner + ClinicalTrials.gov: Recruiting, Phase 3) · **Review:** monthly  
 **Query:** What is the phase, recruitment status, and primary endpoint family of ClinicalTrials.gov study NCT06307652 (balcinrenone/dapagliflozin versus dapagliflozin in heart failure with impaired kidney function)?
 
-**Pinned subject:** NCT06307652 — Phase 3; Recruiting (as of 2026-07-24); chronic HF + impaired kidney function after recent HF event; balcinrenone/dapagliflozin vs dapagliflozin.
+**Pinned subject:** NCT06307652 (BALANCED-HF) — Phase 3; Recruiting; ~4800; AstraZeneca; chronic HF + impaired kidney function (eGFR ≥20 to <60) after recent HF event; balcinrenone/dapagliflozin vs dapagliflozin; estimated completion ~Jun 2027.
 
 ### Sub-questions
 1. What is the current phase and recruitment status  
@@ -179,9 +193,9 @@ A stale key will cause the repair loop to “fix” the pipeline toward a wrong 
 3. What is the sponsor, population, and expected completion  
 
 ### Correct answer
-- Phase **3**; recruitment status **Recruiting** as of **2026-07-24** (status without a read date is a fail).
-- Primary endpoint family (registry-authoritative): time to cardiovascular death and/or heart-failure events comparing balcinrenone/dapagliflozin vs dapagliflozin alone — report in substance without altering meaning.
-- Sponsor: AstraZeneca. Population: chronic heart failure with impaired kidney function and a recent HF event. Report registered completion estimates if present.
+- Phase **3**; recruitment status **Recruiting** as of **2026-07-25** (status without a read date is a fail). Re-check on every battery run.
+- Primary endpoint family (registry-authoritative): time to CV death and/or HF events comparing balcinrenone/dapagliflozin vs dapagliflozin alone — report in substance without altering meaning.
+- Sponsor: AstraZeneca. Population: symptomatic chronic HF with impaired kidney function and a recent HF event. Report registered completion estimates if present (~Jun 2027).
 - Where registry data and published literature disagree: **registry is authoritative for design and status**; literature for results. Do not invent efficacy results.
 
 ### Required qualifiers
@@ -299,7 +313,7 @@ A stale key will cause the repair loop to “fix” the pipeline toward a wrong 
 ## G9 — Genotype qualifier trap
 
 **Personas:** Neuroscientist, Pharmacist  
-**Valid as of:** `[VERIFY]` · **Review:** quarterly  
+**Valid as of:** 2026-07-25 (gradient + US label risk wording verified; absolute % still attach to named trial if cited) · **Review:** quarterly  
 **Query:** How does ARIA risk under anti-amyloid monoclonal antibodies differ for ApoE ε4/ε4 homozygotes versus heterozygotes or non-carriers?
 
 ### Sub-questions
@@ -330,8 +344,11 @@ A stale key will cause the repair loop to “fix” the pipeline toward a wrong 
 ## G10 — Label-sourced safety information *(run early)*
 
 **Personas:** Pharmacist  
-**Valid as of:** `[VERIFY — labels are revised]` · **Review:** quarterly  
+**Valid as of:** 2026-07-25 (DailyMed setid `70c09984-2b36-424f-8b27-3fd0cd4e833d`) · **Review:** quarterly  
 **Query:** What are the FDA-labelled boxed warnings and dosing limits for methotrexate tablets, including the once-weekly versus daily medication-error risk, citing label sources?
+
+**Primary label (use this URL, not DailyMed search):**  
+https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=70c09984-2b36-424f-8b27-3fd0cd4e833d
 
 ### Sub-questions
 1. What boxed warnings the label carries  
@@ -362,7 +379,7 @@ A stale key will cause the repair loop to “fix” the pipeline toward a wrong 
 ## G11 — Temporal supersession *(run early)*
 
 **Personas:** Clinician  
-**Valid as of:** `[VERIFY]` · **Review:** quarterly  
+**Valid as of:** 2026-07-25 (USPSTF 2022 Grade D ≥60 + ASPREE; primary ≠ secondary) · **Review:** quarterly  
 **Query:** Does aspirin for primary prevention reduce cardiovascular mortality in adults over 70, and how should older benefit claims be read against later trial and guideline evidence? Distinguish primary from secondary prevention.
 
 ### Sub-questions
@@ -373,8 +390,8 @@ A stale key will cause the repair loop to “fix” the pipeline toward a wrong 
 
 ### Correct answer
 - Older evidence and earlier guidance supported aspirin for primary cardiovascular prevention in some older adults.
-- A large randomised trial in adults aged 70 and over found no improvement in disability-free or cardiovascular disease-free survival, an increase in major haemorrhage, and an unexpected increase in all-cause mortality driven largely by cancer.
-- Guidance subsequently changed: major US bodies now recommend against initiating aspirin for primary prevention in older adults, with the specific age threshold varying by body.
+- ASPREE (healthy older adults, largely ≥70, **primary** prevention) found no meaningful CV benefit and increased major haemorrhage (with additional mortality signal in trial reports); these findings informed later guidance.
+- **USPSTF (2022):** recommend **against initiating** low-dose aspirin for primary prevention in adults **≥60** (Grade D). Age thresholds differ by body (e.g. ACC/AHA language around >70 / select 40–70) — attach body + year. Recommendation does **not** apply to secondary prevention.
 - The correct characterisation is **TEMPORAL SUPERSESSION** — newer higher-quality evidence superseded older guidance — not an unresolved contradiction between equally current sources.
 
 ### Required qualifiers
@@ -575,14 +592,13 @@ A stale key will cause the repair loop to “fix” the pipeline toward a wrong 
 
 ## OWNER CHECKLIST BEFORE PHASE 2 BASELINE
 
-- [ ] Verify G1 against current FDA/EMA labelling  
-- [ ] Verify G3 against current major HTN guidelines (2025 updates)  
-- [ ] Re-read NCT06307652 status on run day (G5)  
-- [ ] Verify G9 absolute ARIA figures if quoted in fixtures  
-- [ ] Verify G10 against current DailyMed setid (weekly-not-daily + boxed warnings)  
-- [ ] Verify G11 against ASPREE + current USPSTF/ACC positions  
-- [ ] Spot-check G14/G15 teaching facts still current  
-- [ ] Stamp `valid_as_of` dates after verification  
-- [ ] Approve pins for G4 / G5 / G13 as filled above  
+- [x] G10 — DailyMed label (direct setid); once-weekly + boxed warnings confirmed 2026-07-25  
+- [x] G11 — USPSTF + ASPREE; primary ≠ secondary confirmed 2026-07-25  
+- [x] G5 — NCT06307652 Phase 3 Recruiting confirmed 2026-07-25 (re-check on run day)  
+- [x] G3 — ACC/AHA core four; BB not first-line under ACC/AHA; ESH scope difference noted 2026-07-25  
+- [x] G1 / G9 — US no genotype exclusion + EU Kisunla genotype restriction confirmed 2026-07-25  
+- [ ] Optional: confirm **lecanemab EU SmPC** genotype wording on run day (donanemab/Kisunla already solid)  
+- [ ] Optional: G14 / G15 teaching facts (stable; lower urgency)  
+- [x] Pins for G4 / G5 / G13 filled  
 
-Then: implement Phase 2 harness (grader + mechanical floor + fixtures) → run baseline on current code → **Checkpoint 2 STOP**.
+**Ready for Phase 2** once you say go (merge #36 / this verify PR first if you want keys on `main`).
