@@ -292,6 +292,46 @@ def _token_set(text: str) -> set[str]:
     }
 
 
+_PROPOSITION_STOP = {
+    "show", "shows", "showed", "similar", "versus", "vs", "including", "among",
+    "participants", "patients", "study", "studies", "trial", "trials",
+    "protocols", "protocol", "outcomes", "outcome", "evidence", "using",
+    "based", "from", "into", "over", "after", "before", "than", "more",
+    "most", "some", "any", "both", "also", "such", "may", "can", "could",
+}
+
+
+def _proposition_tokens(text: str) -> set[str]:
+    """Content tokens for shared-proposition checks (drop generic glue)."""
+    return {t for t in _token_set(text) if t not in _PROPOSITION_STOP and len(t) > 2}
+
+
+def _same_proposition(a: str, b: str, *, min_shared: int = 3) -> bool:
+    """
+    True when two spans address the same proposition closely enough to
+    allow contradiction / supersession (E5: no token-fragment conflicts).
+    """
+    sa, sb = _proposition_tokens(a), _proposition_tokens(b)
+    if not sa or not sb:
+        return False
+    shared = sa & sb
+    if len(shared) >= min_shared:
+        return True
+    union = sa | sb
+    if len(shared) >= 2 and (len(shared) / len(union)) >= 0.28:
+        return True
+    return False
+
+
+def _shared_proposition_topic(a: str, b: str) -> str:
+    shared = sorted(_proposition_tokens(a) & _proposition_tokens(b))
+    if len(shared) >= 2:
+        return " ".join(shared[:6])
+    # Fallback: prefer multi-word content overlap from raw tokens
+    raw = sorted(_token_set(a) & _token_set(b))
+    return " ".join(raw[:6])
+
+
 def _claim_similarity(a: AtomicClaim, b: AtomicClaim) -> float:
     ta, tb = _token_set(a.text), _token_set(b.text)
     if not ta or not tb:
@@ -311,21 +351,33 @@ def _qualifier_conflict(a: Qualifiers, b: Qualifiers) -> bool:
 
 
 def _polarity_conflict(a: str, b: str) -> bool:
-    """Crude negation / opposite-outcome detector for true contradictions."""
+    """
+    Opposing outcome detector for true contradictions.
+
+    Bare "without" is NOT negation ("without graft failure" ≠ denies benefit).
+    Prefer explicit did-not / no-benefit / exclude vs positive outcome language.
+    """
     neg = re.compile(
-        r"\b(?:did not|does not|no significant|not significantly|"
-        r"failed to|without|declined|exclude[sd]?|contraindicat|"
-        r"no (?:mortality )?benefit|not reduce)\b",
+        r"\b(?:did not|does not|do not|was not|were not|"
+        r"no significant|not significantly|failed to|"
+        r"declined(?:\s+to)?|exclude[sd]?|contraindicat|"
+        r"recommends? against|recommend against|"
+        r"no (?:mortality )?benefit|not reduce[sd]?|"
+        r"without (?:benefit|improvement|effect|efficacy|reduction))\b",
         re.I,
     )
     pos = re.compile(
-        r"\b(?:reduced|reduce[sd]?|improved|benefit|effective|"
-        r"approv(?:ed|al)|positive opinion|significantly reduced)\b",
+        r"\b(?:reduced|reduce[sd]?|improved|improves|benefit|benefits|"
+        r"effective|efficacy|approv(?:ed|al)|positive opinion|"
+        r"significantly reduced|supported|supports|permits?|allow(?:s|ed)?)\b",
         re.I,
     )
     a_neg, b_neg = bool(neg.search(a)), bool(neg.search(b))
     a_pos, b_pos = bool(pos.search(a)), bool(pos.search(b))
-    return (a_neg and b_pos) or (b_neg and a_pos)
+    if not ((a_neg and b_pos) or (b_neg and a_pos)):
+        return False
+    # Require a shared proposition so unrelated pos/neg claims do not conflict
+    return _same_proposition(a, b, min_shared=2)
 
 
 def reconcile_claims(claims: list[AtomicClaim]) -> list[ClaimGroup]:
@@ -333,15 +385,22 @@ def reconcile_claims(claims: list[AtomicClaim]) -> list[ClaimGroup]:
     Group semantically related claims and classify each group.
     ABSENCE is never emitted here — absence is lack of a claim, not a group.
     Domain-general: works for clinical and non-clinical research findings.
+
+    E5: only same-proposition groups may become CONTRADICTION /
+    TEMPORAL_SUPERSESSION; weak token overlap is not divergence.
     """
     unused = list(claims)
     groups: list[ClaimGroup] = []
     gid = 0
+    # Stricter than legacy 0.22 — prefer coherent proposition clusters
+    group_sim_threshold = 0.30
 
     def _classify_members(members: list[AtomicClaim]) -> tuple[ReconcileClass, str, Optional[str], str]:
         classification = ReconcileClass.AGREEMENT
         reason = "independent sources agree"
-        topic = " ".join(sorted(_token_set(members[0].text))[:4])
+        topic = " ".join(sorted(_proposition_tokens(members[0].text))[:4]) or (
+            " ".join(sorted(_token_set(members[0].text))[:4])
+        )
         superseded_by = None
 
         if len(members) < 2:
@@ -355,32 +414,49 @@ def reconcile_claims(claims: list[AtomicClaim]) -> list[ClaimGroup]:
             older, newer = dated_sorted[0], dated_sorted[-1]
             supersede_lang = bool(
                 re.search(
-                    r"supersede|revers(?:e|ing|ed)|replaced by|updated by",
+                    r"supersede|revers(?:e|ing|ed)|replaced by|updated by|"
+                    r"recommends? against|no longer (?:recommend|support)",
                     " ".join(m.text for m in members),
                     re.I,
                 )
             )
             year_newer = bool(older.year and newer.year and newer.year > older.year)
-            if (year_newer or supersede_lang) and _polarity_conflict(older.text, newer.text):
-                shared = sorted(_token_set(older.text) & _token_set(newer.text))
+            if (
+                year_newer
+                and _same_proposition(older.text, newer.text)
+                and _polarity_conflict(older.text, newer.text)
+            ):
                 return (
                     ReconcileClass.TEMPORAL_SUPERSESSION,
                     f"newer source ({newer.year}) supersedes older source ({older.year})",
                     newer.claim_id,
-                    " ".join(shared[:6]) or topic,
+                    _shared_proposition_topic(older.text, newer.text) or topic,
+                )
+            if supersede_lang and _same_proposition(older.text, newer.text) and (
+                _polarity_conflict(older.text, newer.text) or year_newer
+            ):
+                return (
+                    ReconcileClass.TEMPORAL_SUPERSESSION,
+                    f"newer source ({newer.year}) supersedes older source ({older.year})",
+                    newer.claim_id,
+                    _shared_proposition_topic(older.text, newer.text) or topic,
                 )
 
         for i, ca in enumerate(members):
             for cb in members[i + 1 :]:
+                if not _same_proposition(ca.text, cb.text):
+                    continue
+                # Same database row / same paper claims are not independent conflict
+                if set(ca.source_ids) == set(cb.source_ids) and ca.source_ids:
+                    continue
                 if _polarity_conflict(ca.text, cb.text) and not _qualifier_conflict(
                     ca.qualifiers, cb.qualifiers
                 ):
-                    shared = sorted(_token_set(ca.text) & _token_set(cb.text))
                     return (
                         ReconcileClass.CONTRADICTION,
                         "sources assert opposing outcomes on the same topic",
                         None,
-                        " ".join(shared[:6]) or topic,
+                        _shared_proposition_topic(ca.text, cb.text) or topic,
                     )
 
         for i, ca in enumerate(members):
@@ -399,7 +475,7 @@ def reconcile_claims(claims: list[AtomicClaim]) -> list[ClaimGroup]:
         members = [seed]
         rest: list[AtomicClaim] = []
         for other in unused:
-            if _claim_similarity(seed, other) >= 0.22:
+            if _claim_similarity(seed, other) >= group_sim_threshold:
                 members.append(other)
             else:
                 rest.append(other)
@@ -417,33 +493,41 @@ def reconcile_claims(claims: list[AtomicClaim]) -> list[ClaimGroup]:
             )
         )
 
-    # Global conflict pass: opposing polarity + shared topic tokens across ALL claims.
-    # Catches paraphrased contradictions / supersessions that similarity grouping missed.
+    # Global conflict pass: opposing polarity + shared proposition across ALL claims.
     conflicted_ids: set[str] = set()
     conflict_groups: list[ClaimGroup] = []
     for i, ca in enumerate(claims):
         for cb in claims[i + 1 :]:
             if ca.claim_id in conflicted_ids and cb.claim_id in conflicted_ids:
                 continue
-            ta, tb = _token_set(ca.text), _token_set(cb.text)
-            if not ta or not tb:
+            if set(ca.source_ids) == set(cb.source_ids) and ca.source_ids:
                 continue
-            overlap = len(ta & tb) / len(ta | tb)
-            if overlap < 0.08:
+            if not _same_proposition(ca.text, cb.text, min_shared=3):
                 continue
             if not _polarity_conflict(ca.text, cb.text):
                 continue
             members = [ca, cb]
             classification, reason, superseded_by, topic = _classify_members(members)
+            if classification == ReconcileClass.SCOPE_DIFFERENCE:
+                # Qualifier-scope divergence is not a surfaced conflict (E5)
+                continue
             if classification not in (
                 ReconcileClass.CONTRADICTION,
                 ReconcileClass.TEMPORAL_SUPERSESSION,
             ):
-                # Force contradiction when polarity opposes on shared topic
+                if _qualifier_conflict(ca.qualifiers, cb.qualifiers):
+                    continue
+                if not _polarity_conflict(ca.text, cb.text):
+                    continue
                 classification = ReconcileClass.CONTRADICTION
                 reason = "sources assert opposing outcomes on the same topic"
-                shared = sorted(ta & tb)
-                topic = " ".join(shared[:6]) or topic
+                topic = _shared_proposition_topic(ca.text, cb.text) or topic
+            # Reject token-fragment topics (E5 wellformed floor)
+            topic_tokens = [t for t in (topic or "").split() if t]
+            if len(topic_tokens) < 2 or (
+                len(topic_tokens) <= 3 and all(len(t) <= 4 for t in topic_tokens)
+            ):
+                continue
             gid += 1
             conflict_groups.append(
                 ClaimGroup(
@@ -466,6 +550,27 @@ def reconcile_claims(claims: list[AtomicClaim]) -> list[ClaimGroup]:
             if not remaining:
                 continue
             if len(remaining) == len(g.claims):
+                # Drop false conflict classifications from the first pass
+                if g.classification in (
+                    ReconcileClass.CONTRADICTION,
+                    ReconcileClass.TEMPORAL_SUPERSESSION,
+                ):
+                    # Re-validate
+                    classification, reason, superseded_by, topic = _classify_members(
+                        g.claims
+                    )
+                    if classification not in (
+                        ReconcileClass.CONTRADICTION,
+                        ReconcileClass.TEMPORAL_SUPERSESSION,
+                    ):
+                        g = ClaimGroup(
+                            group_id=g.group_id,
+                            classification=classification,
+                            claims=g.claims,
+                            topic=topic,
+                            reason=reason,
+                            superseded_by=superseded_by,
+                        )
                 kept.append(g)
             else:
                 classification, reason, superseded_by, topic = _classify_members(remaining)
@@ -482,7 +587,35 @@ def reconcile_claims(claims: list[AtomicClaim]) -> list[ClaimGroup]:
                 )
         return kept + conflict_groups
 
-    return groups
+    # Final pass: demote any residual false conflict groups lacking a real proposition
+    cleaned: list[ClaimGroup] = []
+    for g in groups:
+        if g.classification in (
+            ReconcileClass.CONTRADICTION,
+            ReconcileClass.TEMPORAL_SUPERSESSION,
+        ):
+            classification, reason, superseded_by, topic = _classify_members(g.claims)
+            topic_tokens = [t for t in (topic or "").split() if t]
+            if classification not in (
+                ReconcileClass.CONTRADICTION,
+                ReconcileClass.TEMPORAL_SUPERSESSION,
+            ) or len(topic_tokens) < 2:
+                classification = ReconcileClass.AGREEMENT
+                reason = "independent sources agree"
+                superseded_by = None
+            cleaned.append(
+                ClaimGroup(
+                    group_id=g.group_id,
+                    classification=classification,
+                    claims=g.claims,
+                    topic=topic or g.topic,
+                    reason=reason,
+                    superseded_by=superseded_by,
+                )
+            )
+        else:
+            cleaned.append(g)
+    return cleaned
 
 
 def surfaceable_edge_cases(groups: list[ClaimGroup]) -> list[dict[str, Any]]:
