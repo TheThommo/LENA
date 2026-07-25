@@ -33,8 +33,8 @@ async def test_golden_suite_runs_and_is_strict():
 
 
 @pytest.mark.asyncio
-async def test_g01_e1_e2_e3_floor_asserts():
-    """G01: E1 dedup, E2 lead, E3 no verbatim dump all pass floor asserts."""
+async def test_g01_e1_e2_e3_e4_pass():
+    """G01: E1–E4 floor/rubric path — full case pass under offline rubric."""
     from evals.runner import run_suite
 
     results = await run_suite("golden", force_offline_rubric=True, case_filter="G01")
@@ -42,11 +42,9 @@ async def test_g01_e1_e2_e3_floor_asserts():
     for r in results:
         by_name = {a.name: a for a in r.assertion_results}
         assert by_name["dedup_correct"].passed, by_name["dedup_correct"].detail
-        assert by_name["distinct_source_count_accurate"].passed, by_name[
-            "distinct_source_count_accurate"
-        ].detail
         assert by_name["relevance_lead"].passed, by_name["relevance_lead"].detail
         assert by_name["no_verbatim_dump"].passed, by_name["no_verbatim_dump"].detail
+        assert r.passed, f"{r.case_id} should fully pass after E4; rubric={r.rubric}"
 
 
 @pytest.mark.asyncio

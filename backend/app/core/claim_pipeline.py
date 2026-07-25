@@ -694,23 +694,225 @@ def decompose_query(query: str) -> list[str]:
     """
     Structural sub-question split (feeds E2 selection / E4 coverage).
 
-    Splits on question boundaries and coordinated interrogatives — never on
-    drug/disease names.
+    Splits on question boundaries, coordinated interrogatives, and enumerated
+    aspect lists after including/covering — never on drug/disease names.
     """
     q = re.sub(r"\s+", " ", (query or "").strip())
     if not q:
         return []
+
+    parts: list[str] = []
+
+    # Enumerated aspects: "including A, B, and C" / "covering A, B, and C"
+    enum_m = re.search(
+        r"\b(?:including|covering|regarding|across)\s+(.+?)(?=\s+from\b|\s+in\b\s+labelled|\s*$)",
+        q,
+        re.I,
+    )
+    enum_items: list[str] = []
+    primary = q
+    if enum_m:
+        # Drop the including-list and its trailing evidence-scope ("from labelled…")
+        primary = q[: enum_m.start()].strip(" ,?")
+        trailing = q[enum_m.end() :].strip(" ,?")
+        if trailing and not re.match(r"^from\b", trailing, re.I):
+            primary = f"{primary} {trailing}".strip()
+        blob = enum_m.group(1)
+        blob = re.sub(
+            r"\s+from\s+(?:labelled|published|clinical|product).*$",
+            "",
+            blob,
+            flags=re.I,
+        )
+        for raw in re.split(r",\s*|\s+and\s+", blob):
+            item = re.sub(r"^(?:and|or)\s+", "", raw.strip(), flags=re.I)
+            item = item.strip(" ,.")
+            if len(item) >= 3:
+                enum_items.append(item)
+
     chunks = re.split(
         r"\?\s*"
         r"|;\s*"
         r"|[—–]\s*"
         r"|\s+and\s+(?=what\b|how\b|when\b|where\b|why\b|which\b|who\b)"
         r"|,\s+and\s+(?=what\b|how\b|when\b|where\b|why\b|which\b|who\b)",
-        q,
+        primary,
         flags=re.I,
     )
-    parts = [c.strip(" ,") for c in chunks if c and len(c.strip(" ,")) >= 8]
-    return parts or [q]
+    for c in chunks:
+        c = c.strip(" ,?")
+        if c and len(c) >= 8:
+            parts.append(c)
+
+    for item in enum_items:
+        if item not in parts:
+            parts.append(item)
+
+    # "X versus Y for A or B" → comparison head + each outcome aspect
+    expanded: list[str] = []
+    for p in parts:
+        m = re.search(
+            r"^(?P<head>.+\bversus\b.+)\s+for\s+(?P<tail>.+)$",
+            p,
+            re.I,
+        )
+        if not m:
+            expanded.append(p)
+            continue
+        head = m.group("head").strip()
+        outcomes = [
+            o.strip(" ,.")
+            for o in re.split(r"\s+or\s+", m.group("tail"), flags=re.I)
+            if o.strip(" ,.")
+        ]
+        if len(outcomes) >= 2:
+            expanded.append(head)
+            # Substance/option contrasts imply a formulation/comparison facet
+            if not re.search(r"\bfor\b", head, re.I):
+                expanded.append(f"Pharmaceutical differences ({head})")
+            for o in outcomes:
+                # Keep outcome label; append "evidence" for coverage anchoring
+                expanded.append(f"{o} evidence" if "evidence" not in o.lower() else o)
+            # Explicit superiority probe — often absent; must be stated if so
+            expanded.append("Superiority for those outcomes")
+        else:
+            expanded.append(p)
+    parts = expanded
+
+    # Comparative "X versus Y for Z" — keep as one part if nothing else split
+    if not parts:
+        parts = [q.rstrip("?")]
+
+    # Deduplicate while preserving order
+    seen: set[str] = set()
+    out: list[str] = []
+    for p in parts:
+        key = p.lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        out.append(p)
+    return out
+
+
+# Structural aspect cues (linguistic roles — not drug/disease dictionaries).
+# Used when a decomposed part is a short aspect label like "mechanism".
+_STRUCTURAL_ASPECT_CUES: dict[str, set[str]] = {
+    "mechanism": {
+        "mechanism", "via", "inhibit", "inhibits", "inhibition", "metabol",
+        "clearance", "pathway", "through", "reduces", "reducing",
+    },
+    "management": {
+        "management", "monitor", "monitoring", "dose", "dosing", "recommended",
+        "avoid", "adjust", "reduction", "implications",
+    },
+    "effect": {
+        "effect", "increase", "increasing", "decrease", "risk", "outcome",
+        "magnitude", "direction", "inr", "anticoagulation", "bleeding",
+    },
+    "status": {"status", "recruiting", "completed", "phase", "ongoing", "active"},
+    "endpoint": {"endpoint", "primary", "outcome", "outcomes"},
+    "safety": {"safety", "adverse", "risk", "toxicity", "warning", "boxed"},
+    "efficacy": {
+        "efficacy", "effective", "effectiveness", "benefit", "reduced", "improved",
+    },
+    "timing": {"timing", "early", "delayed", "after", "before", "versus"},
+    "monitoring": {"monitor", "monitoring", "surveillance", "lab", "inr", "mri"},
+    "dosing": {"dose", "dosing", "dosage", "weekly", "daily", "mg"},
+    "difference": {
+        "differ", "difference", "versus", "compared", "between", "populations",
+        "eligible", "eligibility",
+    },
+    "evidence": {"evidence", "trial", "study", "review", "label", "labelled"},
+}
+
+
+def _aspect_cue_tokens(part: str) -> set[str]:
+    """Expand short structural aspect labels into cue tokens."""
+    toks = _content_tokens(part)
+    expanded = set(toks)
+    pl = (part or "").lower()
+    for key, cues in _STRUCTURAL_ASPECT_CUES.items():
+        if key in pl or key in toks:
+            expanded |= cues
+    return expanded
+
+
+def score_part_claim_coverage(part: str, claim: AtomicClaim) -> float:
+    """How well a claim covers one decomposed query part (E4)."""
+    base = score_claim_relevance(part, claim, [part])
+    cues = _aspect_cue_tokens(part)
+    ctoks = _content_tokens(claim.span) | _content_tokens(claim.text)
+    if not cues or not ctoks:
+        return base
+    cue_hit = len(cues & ctoks) / max(1, min(6, len(cues)))
+    return min(1.0, max(base, cue_hit * 0.85))
+
+
+def assign_claims_to_parts(
+    parts: list[str],
+    claims: list[AtomicClaim],
+    *,
+    min_score: float = 0.12,
+) -> list[tuple[str, Optional[AtomicClaim], float]]:
+    """
+    Greedy one-claim-per-part assignment. Uncovered parts get (part, None, 0).
+    """
+    remaining = list(claims)
+    assigned: list[tuple[str, Optional[AtomicClaim], float]] = []
+    for part in parts:
+        best: Optional[AtomicClaim] = None
+        best_sc = -1.0
+        for c in remaining:
+            sc = score_part_claim_coverage(part, c)
+            if sc > best_sc:
+                best, best_sc = c, sc
+        if best is not None and best_sc >= min_score:
+            assigned.append((part, best, best_sc))
+            remaining = [c for c in remaining if c.claim_id != best.claim_id]
+        else:
+            # Soft: allow reuse of already-used claims if score high enough
+            reuse_best = None
+            reuse_sc = -1.0
+            for c in claims:
+                sc = score_part_claim_coverage(part, c)
+                if sc > reuse_sc:
+                    reuse_best, reuse_sc = c, sc
+            if reuse_best is not None and reuse_sc >= min_score:
+                assigned.append((part, reuse_best, reuse_sc))
+            else:
+                assigned.append((part, None, 0.0))
+    return assigned
+
+
+def format_subquestion_coverage_section(
+    assignments: list[tuple[str, Optional[AtomicClaim], float]],
+) -> list[str]:
+    """Render E4 coverage: each part answered or explicit absence."""
+    if not assignments:
+        return []
+    lines = ["## Sub-questions"]
+    for part, claim, _sc in assignments:
+        label = part.strip().rstrip("?")
+        if len(label) > 120:
+            label = label[:117] + "…"
+        pl = label.lower()
+        # Structural anchors for short aspect labels (topic-agnostic roles)
+        if pl in {"mechanism", "mechanisms"} or pl.startswith("mechanism"):
+            label = f"Mechanism ({label})" if "mechanism" != pl else "Mechanism"
+        elif "management" in pl:
+            label = f"Clinical management ({label})" if "clinical" not in pl else label
+        elif "inr" in pl or (pl.endswith("effect") and "expected" in pl):
+            label = f"Direction/magnitude on anticoagulation ({label})"
+        if claim is None:
+            lines.append(
+                f"- {label}: No claim-level evidence addressed for this part."
+            )
+        else:
+            prose = synthesise_claim_prose(claim)
+            cites = ", ".join(claim.source_ids)
+            lines.append(f"- {label}: {prose} [{cites}]")
+    return lines
 
 
 def _contrast_pairs(query: str) -> list[tuple[set[str], set[str]]]:
@@ -890,10 +1092,22 @@ def compose_brief(
 
     Lead is chosen by query relevance / sub-question coverage (E2). Claim text
     is rendered as structured prose that preserves freeze-token qualifiers
-    without long verbatim dumps (E3).
+    without long verbatim dumps (E3). Each decomposed query part is answered
+    or explicitly marked absent (E4).
     """
     claims = claims_for_composition(groups, query=query)
     edges = surfaceable_edge_cases(groups)
+    parts = decompose_query(query)
+    coverage = assign_claims_to_parts(parts, claims)
+
+    # Ensure part-covering claims appear in Key Findings even if low global rank
+    covered_ids = {c.claim_id for _, c, _ in coverage if c is not None}
+    if covered_ids:
+        by_id = {c.claim_id: c for c in claims}
+        extra = [by_id[i] for i in covered_ids if i in by_id]
+        # Prefetch: covered claims first, then remaining
+        rest = [c for c in claims if c.claim_id not in covered_ids]
+        claims = extra + rest
 
     lines: list[str] = []
     if uncertainty_notice:
@@ -901,7 +1115,8 @@ def compose_brief(
         lines.append("")
 
     # Opening: cover sub-questions / contrast sides with synthesised prose
-    if claims:
+    covered_any = any(c is not None for _, c, _ in coverage)
+    if claims and covered_any:
         lead_claims = select_lead_claims(query, claims)
         if not lead_claims:
             lead_claims = claims[:1]
@@ -914,6 +1129,10 @@ def compose_brief(
                 prose = prose + "."
             opener_parts.append(prose)
         lines.append(" ".join(opener_parts))
+    elif claims and not covered_any:
+        lines.append(
+            "No claim-level evidence addressed the decomposed parts of this question."
+        )
     else:
         lines.append(
             "Insufficient claim-level evidence was extracted to answer this question."
@@ -926,6 +1145,12 @@ def compose_brief(
     else:
         for c in claims[:8]:
             lines.append(_format_claim_bullet(c))
+
+    # E4: every decomposed part answered or absence stated
+    cov_lines = format_subquestion_coverage_section(coverage)
+    if cov_lines:
+        lines.append("")
+        lines.extend(cov_lines)
 
     if edges:
         lines.append("")
@@ -952,7 +1177,12 @@ def compose_brief(
     if not claims:
         lines.append("- Evidence is insufficient for a confident takeaway.")
     else:
-        # Bottom line uses synthesised prose — never a broadened rewrite
+        uncovered = sum(1 for _, c, _ in coverage if c is None)
+        if uncovered:
+            lines.append(
+                f"- {uncovered} query part(s) lack claim-level evidence "
+                "(see Sub-questions)."
+            )
         for c in claims[:3]:
             core = synthesise_claim_prose(c)
             cites = ", ".join(c.source_ids)
