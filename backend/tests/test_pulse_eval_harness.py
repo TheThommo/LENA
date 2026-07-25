@@ -33,20 +33,19 @@ async def test_golden_suite_runs_and_is_strict():
 
 
 @pytest.mark.asyncio
-async def test_g01_e1_dedup_resolved_e2_lead_still_fails():
-    """E1 fixed: cross-DB same work collapses. E2 relevance lead still open."""
+async def test_g01_e1_and_e2_lead_resolved():
+    """E1 dedup + E2 relevance lead resolved for G01; rubric may still fail."""
     from evals.runner import run_suite
 
     results = await run_suite("golden", force_offline_rubric=True, case_filter="G01")
     assert results, "G01 missing"
     for r in results:
-        assert r.rubric and not r.rubric.passed, f"{r.case_id} rubric should fail"
         dedup = [a for a in r.assertion_results if a.name == "dedup_correct"]
         assert dedup and dedup[0].passed, f"{r.case_id} dedup_correct should pass after E1"
         distinct = [a for a in r.assertion_results if a.name == "distinct_source_count_accurate"]
         assert distinct and distinct[0].passed, f"{r.case_id} distinct_source_count_accurate should pass"
         lead = [a for a in r.assertion_results if a.name == "relevance_lead"]
-        assert lead and not lead[0].passed, f"{r.case_id} relevance_lead should still fail (E2)"
+        assert lead and lead[0].passed, f"{r.case_id} relevance_lead should pass after E2: {lead[0].detail if lead else ''}"
 
 
 @pytest.mark.asyncio
