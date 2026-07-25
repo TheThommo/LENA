@@ -301,17 +301,108 @@ class SourceResult:
     summary: str = ""
     url: str = ""
     doi: Optional[str] = None
+    pmid: Optional[str] = None
     year: Optional[int] = None
     relevance_score: float = 0.0
     keywords: list[str] = field(default_factory=list)
     authors: list[str] = field(default_factory=list)
     matched_modes: list[str] = field(default_factory=list)
     is_retracted: bool = False
+    # Distinct-work identity (DOI → PMID → normalized title). Set by dedup.
+    work_id: str = ""
+    # Every database where this same work was retrieved (dedup audit trail).
+    database_locations: list[str] = field(default_factory=list)
     # Dynamic PULSE fields (populated during validation)
     study_type: str = "unknown"
     claims: list[str] = field(default_factory=list)
-    cross_validations: int = 0  # how many papers from OTHER sources corroborate
+    cross_validations: int = 0  # how many DISTINCT other works corroborate
     contradictions: int = 0     # how many papers from OTHER sources contradict
+
+
+def normalize_title_for_dedup(title: str) -> str:
+    """Topic-agnostic title key for work identity."""
+    t = re.sub(r"[^a-z0-9]+", " ", (title or "").lower()).strip()
+    return re.sub(r"\s+", " ", t)
+
+
+def work_identity(result: "SourceResult") -> str:
+    """
+    Distinct-work key: DOI, then PMID, then normalized title.
+    Never uses drug/disease names — identity fields only.
+    """
+    doi = (result.doi or "").strip().lower()
+    if doi:
+        # Strip resolver prefixes if present
+        doi = re.sub(r"^https?://(dx\.)?doi\.org/", "", doi)
+        return f"doi:{doi}"
+    pmid = (result.pmid or "").strip().lower()
+    if not pmid and result.url:
+        m = re.search(r"pubmed\.ncbi\.nlm\.nih\.gov/(\d+)", result.url or "", re.I)
+        if m:
+            pmid = m.group(1)
+        else:
+            m = re.search(r"europepmc\.org/article/MED/(\d+)", result.url or "", re.I)
+            if m:
+                pmid = m.group(1)
+    if pmid:
+        return f"pmid:{pmid}"
+    title_key = normalize_title_for_dedup(result.title)
+    if title_key and len(title_key) >= 12:
+        return f"title:{title_key}"
+    # Last resort: unstable unique — do not collapse unknown empties together
+    return f"row:{result.source_name}:{id(result)}"
+
+
+def deduplicate_results_by_work(
+    results_by_source: dict[str, list["SourceResult"]],
+) -> dict[str, list["SourceResult"]]:
+    """
+    Collapse the same scholarly work seen in multiple databases into one
+    SourceResult BEFORE cross-validation / counting.
+
+    Primary source_name is the first location encountered (stable dict order);
+    database_locations lists every DB that returned the work.
+    """
+    groups: dict[str, list[SourceResult]] = {}
+    order: list[str] = []
+    for source_name, results in results_by_source.items():
+        for r in results:
+            r.source_name = source_name or r.source_name
+            wid = work_identity(r)
+            r.work_id = wid
+            if wid not in groups:
+                groups[wid] = []
+                order.append(wid)
+            groups[wid].append(r)
+
+    merged_by_source: dict[str, list[SourceResult]] = {}
+    for wid in order:
+        members = groups[wid]
+        locations: list[str] = []
+        for m in members:
+            loc = m.source_name or ""
+            if loc and loc not in locations:
+                locations.append(loc)
+        # Prefer the member with the longest summary as the canonical record
+        primary = max(members, key=lambda x: len(x.summary or ""))
+        primary.work_id = wid
+        primary.database_locations = locations
+        # Keep primary source_name as first location for bucketing; locations
+        # retain the full audit trail of databases.
+        if locations:
+            primary.source_name = locations[0]
+        merged_by_source.setdefault(primary.source_name, []).append(primary)
+
+    raw_n = sum(len(v) for v in results_by_source.values())
+    merged_n = sum(len(v) for v in merged_by_source.values())
+    if merged_n < raw_n:
+        logger.info(
+            "PULSE dedup: %d raw results → %d distinct works (collapsed %d duplicates)",
+            raw_n,
+            merged_n,
+            raw_n - merged_n,
+        )
+    return merged_by_source
 
 
 @dataclass
@@ -514,13 +605,20 @@ class PULSEReport:
                 }
                 for xv in self.cross_validations[:20]  # Top 20 strongest
             ],
+            "distinct_work_count": getattr(
+                self, "_distinct_work_count", len(self.validated_results) + len(self.edge_cases)
+            ),
+            "raw_result_count_before_dedup": getattr(self, "_raw_result_count_before_dedup", None),
             "validated_results": [
                 {
                     "source": r.source_name,
                     "title": r.title,
                     "url": r.url,
                     "doi": r.doi,
+                    "pmid": r.pmid,
                     "year": r.year,
+                    "work_id": r.work_id,
+                    "database_locations": list(r.database_locations or [r.source_name]),
                     "relevance_score": round(r.relevance_score, 2),
                     "keywords": r.keywords[:10],
                     "authors": r.authors[:6],
@@ -538,7 +636,10 @@ class PULSEReport:
                     "title": r.title,
                     "url": r.url,
                     "doi": r.doi,
+                    "pmid": r.pmid,
                     "year": r.year,
+                    "work_id": r.work_id,
+                    "database_locations": list(r.database_locations or [r.source_name]),
                     "keywords": r.keywords[:10],
                     "authors": r.authors[:6],
                     "matched_modes": r.matched_modes,
@@ -590,12 +691,21 @@ async def run_pulse_validation(
     7. Determine overall validation status
     """
     report = PULSEReport(query=query)
-    report.source_count = len(results_by_source)
     query_terms = [t.lower() for t in (subject_terms or []) if t]
 
-    if report.source_count == 0:
+    if not results_by_source:
+        report.source_count = 0
         report.status = ValidationStatus.PENDING
         return report
+
+    # ── Step 0: Dedup by distinct work (DOI → PMID → title) ───────────
+    # Must run BEFORE any cross-validation counting. Same paper in PubMed
+    # and Europe PMC is ONE work, not two independent corroborating sources.
+    raw_before = sum(len(v) for v in results_by_source.values())
+    results_by_source = deduplicate_results_by_work(results_by_source)
+    report.source_count = len(results_by_source)
+    report._raw_result_count_before_dedup = raw_before
+    report._distinct_work_count = sum(len(v) for v in results_by_source.values())
 
     # ── Step 1: Extract keywords AND claims for every result ──────────
     source_keyword_profiles: dict[str, set[str]] = {}
@@ -610,6 +720,10 @@ async def run_pulse_validation(
             r.claims = extract_claims(r.summary)
             r.study_type = detect_study_type(r.summary, source_name)
             r.source_name = source_name
+            if not r.work_id:
+                r.work_id = work_identity(r)
+            if not r.database_locations:
+                r.database_locations = [source_name]
             source_keywords.update(r.keywords)
             all_papers.append(r)
             all_claims_flat.extend(r.claims)
@@ -634,16 +748,25 @@ async def run_pulse_validation(
     }
     report.consensus_keywords = sorted(consensus_keywords)
 
-    # ── Step 3: Cross-validate claims between papers from DIFFERENT sources ──
-    # This is the core intelligence: do independent papers find the same things?
+    # ── Step 3: Cross-validate claims between DISTINCT works ───────────
+    # Independent corroboration requires a different work_id. Same work seen
+    # in two databases must never increment cross_validations.
     for i, paper_a in enumerate(all_papers):
         if not paper_a.claims:
             continue
         for paper_b in all_papers[i + 1:]:
             if not paper_b.claims:
                 continue
-            # Only cross-validate between DIFFERENT sources
+            # Same distinct work (post-dedup safety net)
+            if paper_a.work_id and paper_b.work_id and paper_a.work_id == paper_b.work_id:
+                continue
+            # Same database bucket — not independent
             if paper_a.source_name == paper_b.source_name:
+                continue
+            # Also reject if location sets are identical single-DB mirrors
+            loc_a = set(paper_a.database_locations or [paper_a.source_name])
+            loc_b = set(paper_b.database_locations or [paper_b.source_name])
+            if loc_a == loc_b and len(loc_a) == 1:
                 continue
 
             # Compare every claim pair

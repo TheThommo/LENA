@@ -20,6 +20,7 @@ class EuropePMCArticle:
     doi: Optional[str]
     url: str
     source: str
+    pmid: Optional[str] = None
 
 
 async def search_europe_pmc(query: str, max_results: int = 10) -> list[EuropePMCArticle]:
@@ -60,6 +61,7 @@ async def search_europe_pmc(query: str, max_results: int = 10) -> list[EuropePMC
                 doi=doi,
                 url=url,
                 source=item.get("source") or "MED",
+                pmid=str(pmid) if pmid else None,
             )
         )
     return articles

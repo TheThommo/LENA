@@ -65,6 +65,7 @@ def _sources_to_results(raw: dict[str, list[dict]]) -> dict[str, list]:
                 summary=item.get("summary") or item.get("abstract") or "",
                 url=item.get("url") or "",
                 doi=item.get("doi"),
+                pmid=item.get("pmid"),
                 year=item.get("year"),
                 authors=list(item.get("authors") or []),
             )

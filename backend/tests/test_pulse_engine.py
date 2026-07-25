@@ -15,6 +15,8 @@ from app.core.pulse_engine import (
     SourceResult,
     ValidationStatus,
     status_for_confidence,
+    work_identity,
+    deduplicate_results_by_work,
 )
 
 
@@ -425,3 +427,94 @@ class TestPULSEValidation:
         assert "source_count" in report_dict
         assert "consensus_keywords" in report_dict
         assert report_dict["status"] in ["validated", "edge_case", "insufficient_validation", "pending"]
+
+
+class TestWorkDedup:
+    """Distinct-work identity before cross-validation (E1)."""
+
+    def test_work_identity_prefers_doi_then_pmid(self):
+        a = SourceResult(source_name="pubmed", title="T", doi="10.1000/X", pmid="1")
+        b = SourceResult(source_name="europe_pmc", title="Other", pmid="99")
+        assert work_identity(a) == "doi:10.1000/x"
+        assert work_identity(b) == "pmid:99"
+
+    def test_deduplicate_collapses_cross_db_same_doi(self):
+        results = {
+            "pubmed": [
+                SourceResult(
+                    source_name="pubmed",
+                    title="Same Work",
+                    summary="Abstract A " * 20,
+                    doi="10.1000/pulse-eval-same",
+                    pmid="111",
+                )
+            ],
+            "europe_pmc": [
+                SourceResult(
+                    source_name="europe_pmc",
+                    title="Same Work",
+                    summary="Abstract B longer " * 30,
+                    doi="10.1000/pulse-eval-same",
+                    pmid="111",
+                ),
+                SourceResult(
+                    source_name="europe_pmc",
+                    title="Different Work Entirely Here",
+                    summary="Unique abstract",
+                    doi="10.1000/pulse-eval-other",
+                ),
+            ],
+        }
+        merged = deduplicate_results_by_work(results)
+        flat = [r for rs in merged.values() for r in rs]
+        assert len(flat) == 2
+        same = next(r for r in flat if r.doi == "10.1000/pulse-eval-same")
+        assert set(same.database_locations) == {"pubmed", "europe_pmc"}
+        assert same.work_id == "doi:10.1000/pulse-eval-same"
+
+    @pytest.mark.asyncio
+    async def test_pulse_does_not_cross_validate_same_work_across_dbs(self):
+        claim = (
+            "Dapagliflozin reduced the risk of worsening heart failure or "
+            "cardiovascular death in patients with reduced ejection fraction."
+        )
+        results = {
+            "pubmed": [
+                SourceResult(
+                    source_name="pubmed",
+                    title="Dapagliflozin in HFrEF",
+                    summary=claim,
+                    doi="10.1000/pulse-eval-dapa-hf",
+                    pmid="31535829",
+                )
+            ],
+            "europe_pmc": [
+                SourceResult(
+                    source_name="europe_pmc",
+                    title="Dapagliflozin in HFrEF",
+                    summary=claim,
+                    doi="10.1000/pulse-eval-dapa-hf",
+                    pmid="31535829",
+                )
+            ],
+            "openalex": [
+                SourceResult(
+                    source_name="openalex",
+                    title="Empagliflozin in HFrEF EMPEROR",
+                    summary=(
+                        "Empagliflozin reduced the combined risk of cardiovascular "
+                        "death or hospitalisation for heart failure in HFrEF."
+                    ),
+                    doi="10.1000/pulse-eval-emperor-reduced",
+                )
+            ],
+        }
+        report = await run_pulse_validation(query="SGLT2 HFrEF", results_by_source=results)
+        papers = report.validated_results + report.edge_cases
+        assert len(papers) == 2
+        assert getattr(report, "_raw_result_count_before_dedup", None) == 3
+        assert getattr(report, "_distinct_work_count", None) == 2
+        # Same work must never appear as a cross-validation pair
+        for xv in report.cross_validations:
+            assert {xv.paper_a_source, xv.paper_b_source} != {"pubmed", "europe_pmc"}
+            assert xv.paper_a_title != xv.paper_b_title or xv.paper_a_source == xv.paper_b_source

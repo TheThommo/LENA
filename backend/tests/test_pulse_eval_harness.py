@@ -33,8 +33,8 @@ async def test_golden_suite_runs_and_is_strict():
 
 
 @pytest.mark.asyncio
-async def test_g01_fails_rubric_dedup_and_relevance_lead():
-    """Known production failure signature for the US/EU lecanemab case."""
+async def test_g01_e1_dedup_resolved_e2_lead_still_fails():
+    """E1 fixed: cross-DB same work collapses. E2 relevance lead still open."""
     from evals.runner import run_suite
 
     results = await run_suite("golden", force_offline_rubric=True, case_filter="G01")
@@ -42,9 +42,11 @@ async def test_g01_fails_rubric_dedup_and_relevance_lead():
     for r in results:
         assert r.rubric and not r.rubric.passed, f"{r.case_id} rubric should fail"
         dedup = [a for a in r.assertion_results if a.name == "dedup_correct"]
-        assert dedup and not dedup[0].passed, f"{r.case_id} dedup_correct should fail"
+        assert dedup and dedup[0].passed, f"{r.case_id} dedup_correct should pass after E1"
+        distinct = [a for a in r.assertion_results if a.name == "distinct_source_count_accurate"]
+        assert distinct and distinct[0].passed, f"{r.case_id} distinct_source_count_accurate should pass"
         lead = [a for a in r.assertion_results if a.name == "relevance_lead"]
-        assert lead and not lead[0].passed, f"{r.case_id} relevance_lead should fail"
+        assert lead and not lead[0].passed, f"{r.case_id} relevance_lead should still fail (E2)"
 
 
 @pytest.mark.asyncio
