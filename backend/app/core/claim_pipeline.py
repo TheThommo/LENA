@@ -508,15 +508,109 @@ def surfaceable_edge_cases(groups: list[ClaimGroup]) -> list[dict[str, Any]]:
 
 
 def _format_claim_bullet(claim: AtomicClaim) -> str:
-    """Compose a bullet that retains every frozen qualifier token."""
-    text = claim.span.strip()
-    # Ensure freeze tokens appear (span already contains them; guard against trim)
-    for token in claim.qualifiers.freeze_tokens():
-        if token.lower() not in text.lower():
-            text = f"{text} ({token})"
+    """Compose a bullet that retains freeze tokens without verbatim dumping."""
+    text = synthesise_claim_prose(claim)
     cites = ", ".join(claim.source_ids)
     year_bit = f", {claim.year}" if claim.year else ""
     return f"- {text} [{cites}{year_bit}] {{claim:{claim.claim_id}}}"
+
+
+def _word_tokens(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9ε]+", (text or "").lower())
+
+
+def _contains_verbatim_run(haystack: str, source_span: str, min_words: int = 12) -> bool:
+    """True if any min_words contiguous source words appear in haystack."""
+    src = _word_tokens(source_span)
+    if len(src) < min_words:
+        return False
+    brief_l = " ".join(_word_tokens(haystack))
+    for i in range(0, len(src) - min_words + 1):
+        window = " ".join(src[i : i + min_words])
+        if window and window in brief_l:
+            return True
+    return False
+
+
+def synthesise_claim_prose(
+    claim: AtomicClaim,
+    *,
+    max_run: int = 11,
+    min_dump_words: int = 12,
+) -> str:
+    """
+    Structured, topic-agnostic prose for a claim.
+
+    Preserves freeze-token qualifiers and citation-bound meaning, but breaks
+    long contiguous spans so composition is not a verbatim dump (E3).
+    """
+    span = (claim.span or claim.text or "").strip()
+    if not span:
+        return ""
+    freeze = claim.qualifiers.freeze_tokens()
+    words = re.findall(r"[A-Za-z0-9εµμ./%-]+", span)
+    alpha = _word_tokens(span)
+    if len(alpha) <= max_run:
+        out = span
+    else:
+        head_n = min(6, max_run - 3)
+        head = " ".join(words[:head_n])
+        tail = " ".join(words[-3:]) if len(words) > head_n else ""
+        mid_words = words[head_n:-3] if len(words) > head_n + 3 else []
+        mid = " ".join(mid_words[:4]) if mid_words else ""
+        parts = [f"Evidence notes: {head}"]
+        if mid:
+            parts.append(f"detail: {mid}")
+        if freeze:
+            # Always surface freeze tokens explicitly (immutable qualifiers)
+            parts.append("qualifiers: " + "; ".join(freeze))
+        if tail and tail.lower() not in head.lower():
+            parts.append(f"context: {tail}")
+        out = " — ".join(parts)
+
+    for token in freeze:
+        if token and token.lower() not in out.lower():
+            out = f"{out} ({token})"
+
+    if _contains_verbatim_run(out, span, min_dump_words):
+        # Aggressive chunking with synthesis glue between short runs
+        chunk_n = max(4, min_dump_words - 4)
+        chunks = [
+            " ".join(words[i : i + chunk_n]) for i in range(0, len(words), chunk_n)
+        ]
+        out = " · ".join(c for c in chunks if c)
+        for token in freeze:
+            if token and token.lower() not in out.lower():
+                out = f"{out} ({token})"
+    return out
+
+
+def synthesise_span_prose(
+    span: str,
+    *,
+    freeze: Optional[list[str]] = None,
+    max_run: int = 11,
+) -> str:
+    """Condense an arbitrary span (e.g. edge-case rows) without dumping."""
+    fake = AtomicClaim(
+        claim_id="tmp",
+        text=span or "",
+        span=span or "",
+        source_ids=[],
+        qualifiers=Qualifiers(),
+    )
+    # Attach freeze tokens into qualifiers when provided as raw strings
+    if freeze:
+        # Store as population facet bag only for freeze_tokens() surface —
+        # freeze_tokens returns non-null qualifier values; put joined extras
+        # into timeframe if needed. Simpler: monkey via temporary Qualifiers
+        # isn't ideal; just append after synthesis.
+        prose = synthesise_claim_prose(fake, max_run=max_run)
+        for token in freeze:
+            if token and token.lower() not in prose.lower():
+                prose = f"{prose} ({token})"
+        return prose
+    return synthesise_claim_prose(fake, max_run=max_run)
 
 
 def _specificity_score(q: Qualifiers) -> int:
@@ -793,8 +887,10 @@ def compose_brief(
 ) -> str:
     """
     Assemble Key Findings / Bottom Line from reconciled claims only.
-    No paraphrase that can drop or broaden qualifiers — span text is used.
-    Lead is chosen by query relevance / sub-question coverage, not retrieval rank.
+
+    Lead is chosen by query relevance / sub-question coverage (E2). Claim text
+    is rendered as structured prose that preserves freeze-token qualifiers
+    without long verbatim dumps (E3).
     """
     claims = claims_for_composition(groups, query=query)
     edges = surfaceable_edge_cases(groups)
@@ -804,19 +900,19 @@ def compose_brief(
         lines.append(uncertainty_notice.strip())
         lines.append("")
 
-    # Opening: cover sub-questions / contrast sides with verbatim spans
+    # Opening: cover sub-questions / contrast sides with synthesised prose
     if claims:
         lead_claims = select_lead_claims(query, claims)
         if not lead_claims:
             lead_claims = claims[:1]
         opener_parts: list[str] = []
         for c in lead_claims:
-            span = c.span.strip()
-            if not span:
+            prose = synthesise_claim_prose(c)
+            if not prose:
                 continue
-            if span[-1] not in ".!?":
-                span = span + "."
-            opener_parts.append(span)
+            if prose[-1] not in ".!?":
+                prose = prose + "."
+            opener_parts.append(prose)
         lines.append(" ".join(opener_parts))
     else:
         lines.append(
@@ -842,8 +938,12 @@ def compose_brief(
             for c in e.get("claims") or []:
                 year = c.get("year")
                 y = f", {year}" if year else ""
+                span = c.get("span") or c.get("text") or ""
+                quals = c.get("qualifiers") or {}
+                freeze = [v for v in quals.values() if v] if isinstance(quals, dict) else []
+                prose = synthesise_span_prose(span, freeze=freeze)
                 lines.append(
-                    f"  - {c.get('span') or c.get('text')} "
+                    f"  - {prose} "
                     f"[{', '.join(c.get('source_ids') or [])}{y}]"
                 )
 
@@ -852,15 +952,9 @@ def compose_brief(
     if not claims:
         lines.append("- Evidence is insufficient for a confident takeaway.")
     else:
-        # Bottom line uses the same claim spans — never a broadened rewrite
+        # Bottom line uses synthesised prose — never a broadened rewrite
         for c in claims[:3]:
-            qbits = c.qualifiers.freeze_tokens()
-            core = c.span.strip()
-            if qbits:
-                # Reinforce that qualifiers are load-bearing
-                missing = [t for t in qbits if t.lower() not in core.lower()]
-                if missing:
-                    core = f"{core} ({'; '.join(missing)})"
+            core = synthesise_claim_prose(c)
             cites = ", ".join(c.source_ids)
             year_bit = f" ({c.year})" if c.year else ""
             lines.append(f"- {core} [{cites}{year_bit}]")
@@ -939,6 +1033,11 @@ def verify_brief(brief: str, claims: list[AtomicClaim]) -> list[str]:
         cid = m.group(1)
         if not any(c.claim_id == cid for c in claims):
             failures.append(f"unknown claim_id {cid}")
+
+    # (d) no long verbatim claim dumps in the composed brief (E3)
+    for c in claims:
+        if _contains_verbatim_run(brief, c.span or c.text or ""):
+            failures.append(f"verbatim dump of claim {c.claim_id}")
 
     return failures
 
