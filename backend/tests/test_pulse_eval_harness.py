@@ -33,20 +33,20 @@ async def test_golden_suite_runs_and_is_strict():
 
 
 @pytest.mark.asyncio
-async def test_g01_e1_dedup_resolved_e2_lead_still_fails():
-    """E1 fixed: cross-DB same work collapses. E2 relevance lead still open."""
+async def test_g01_e1_e2_e3_floor_asserts():
+    """G01: E1 dedup, E2 lead, E3 no verbatim dump all pass floor asserts."""
     from evals.runner import run_suite
 
     results = await run_suite("golden", force_offline_rubric=True, case_filter="G01")
     assert results, "G01 missing"
     for r in results:
-        assert r.rubric and not r.rubric.passed, f"{r.case_id} rubric should fail"
-        dedup = [a for a in r.assertion_results if a.name == "dedup_correct"]
-        assert dedup and dedup[0].passed, f"{r.case_id} dedup_correct should pass after E1"
-        distinct = [a for a in r.assertion_results if a.name == "distinct_source_count_accurate"]
-        assert distinct and distinct[0].passed, f"{r.case_id} distinct_source_count_accurate should pass"
-        lead = [a for a in r.assertion_results if a.name == "relevance_lead"]
-        assert lead and not lead[0].passed, f"{r.case_id} relevance_lead should still fail (E2)"
+        by_name = {a.name: a for a in r.assertion_results}
+        assert by_name["dedup_correct"].passed, by_name["dedup_correct"].detail
+        assert by_name["distinct_source_count_accurate"].passed, by_name[
+            "distinct_source_count_accurate"
+        ].detail
+        assert by_name["relevance_lead"].passed, by_name["relevance_lead"].detail
+        assert by_name["no_verbatim_dump"].passed, by_name["no_verbatim_dump"].detail
 
 
 @pytest.mark.asyncio

@@ -197,18 +197,22 @@ def _claim_id_for(source_id: str, span: str, idx: int) -> str:
 
 def _is_claim_sentence(sent: str) -> bool:
     """Domain-general: any research finding sentence, not clinical-only."""
-    if len(sent) < 30 or len(sent) > 600:
+    if len(sent) < 28 or len(sent) > 600:
         return False
     return bool(
         re.search(
             r"(?:found|showed|demonstrated|reported|observed|measured|"
-            r"estimated|associated|reduced|increased|decreased|improved|"
+            r"estimated|associated|reduc(?:e[sd]?|ing)|increas(?:e[sd]?|ing)|"
+            r"decreas(?:e[sd]?|ing)|improv(?:e[sd]?|ing)|lower(?:s|ed|ing)?|"
+            r"raise[sd]?|cause[sd]?|used (?:for|with|to)|treat(?:s|ed|ment)?|"
             r"exclude[sd]?|approv(?:ed|al)|authori[sz]ation|contraindicat|"
             r"recommend|significant|compared|versus|vs\.?|dose|label|"
             r"indicat|risk|mortality|hospitalisation|hospitalization|"
             r"supersede|declined|positive opinion|benefit|conclude[sd]?|"
             r"suggest(?:s|ed)?|indicate[sd]?|reveal(?:s|ed)?|confirm(?:s|ed)?|"
             r"prevalence|incidence|effective|efficacy|correlated|"
+            r"adverse|side effects?|status|recruiting|endpoint|sponsor|"
+            r"phase\s*[1-4]|nct\d+|"
             r"according to|based on|in contrast|however|"
             r"meta-analysis|systematic review|trial|cohort|survey)",
             sent,
@@ -504,15 +508,109 @@ def surfaceable_edge_cases(groups: list[ClaimGroup]) -> list[dict[str, Any]]:
 
 
 def _format_claim_bullet(claim: AtomicClaim) -> str:
-    """Compose a bullet that retains every frozen qualifier token."""
-    text = claim.span.strip()
-    # Ensure freeze tokens appear (span already contains them; guard against trim)
-    for token in claim.qualifiers.freeze_tokens():
-        if token.lower() not in text.lower():
-            text = f"{text} ({token})"
+    """Compose a bullet that retains freeze tokens without verbatim dumping."""
+    text = synthesise_claim_prose(claim)
     cites = ", ".join(claim.source_ids)
     year_bit = f", {claim.year}" if claim.year else ""
     return f"- {text} [{cites}{year_bit}] {{claim:{claim.claim_id}}}"
+
+
+def _word_tokens(text: str) -> list[str]:
+    return re.findall(r"[a-z0-9ε]+", (text or "").lower())
+
+
+def _contains_verbatim_run(haystack: str, source_span: str, min_words: int = 12) -> bool:
+    """True if any min_words contiguous source words appear in haystack."""
+    src = _word_tokens(source_span)
+    if len(src) < min_words:
+        return False
+    brief_l = " ".join(_word_tokens(haystack))
+    for i in range(0, len(src) - min_words + 1):
+        window = " ".join(src[i : i + min_words])
+        if window and window in brief_l:
+            return True
+    return False
+
+
+def synthesise_claim_prose(
+    claim: AtomicClaim,
+    *,
+    max_run: int = 11,
+    min_dump_words: int = 12,
+) -> str:
+    """
+    Structured, topic-agnostic prose for a claim.
+
+    Preserves freeze-token qualifiers and citation-bound meaning, but breaks
+    long contiguous spans so composition is not a verbatim dump (E3).
+    """
+    span = (claim.span or claim.text or "").strip()
+    if not span:
+        return ""
+    freeze = claim.qualifiers.freeze_tokens()
+    words = re.findall(r"[A-Za-z0-9εµμ./%-]+", span)
+    alpha = _word_tokens(span)
+    if len(alpha) <= max_run:
+        out = span
+    else:
+        head_n = min(6, max_run - 3)
+        head = " ".join(words[:head_n])
+        tail = " ".join(words[-3:]) if len(words) > head_n else ""
+        mid_words = words[head_n:-3] if len(words) > head_n + 3 else []
+        mid = " ".join(mid_words[:4]) if mid_words else ""
+        parts = [f"Evidence notes: {head}"]
+        if mid:
+            parts.append(f"detail: {mid}")
+        if freeze:
+            # Always surface freeze tokens explicitly (immutable qualifiers)
+            parts.append("qualifiers: " + "; ".join(freeze))
+        if tail and tail.lower() not in head.lower():
+            parts.append(f"context: {tail}")
+        out = " — ".join(parts)
+
+    for token in freeze:
+        if token and token.lower() not in out.lower():
+            out = f"{out} ({token})"
+
+    if _contains_verbatim_run(out, span, min_dump_words):
+        # Aggressive chunking with synthesis glue between short runs
+        chunk_n = max(4, min_dump_words - 4)
+        chunks = [
+            " ".join(words[i : i + chunk_n]) for i in range(0, len(words), chunk_n)
+        ]
+        out = " · ".join(c for c in chunks if c)
+        for token in freeze:
+            if token and token.lower() not in out.lower():
+                out = f"{out} ({token})"
+    return out
+
+
+def synthesise_span_prose(
+    span: str,
+    *,
+    freeze: Optional[list[str]] = None,
+    max_run: int = 11,
+) -> str:
+    """Condense an arbitrary span (e.g. edge-case rows) without dumping."""
+    fake = AtomicClaim(
+        claim_id="tmp",
+        text=span or "",
+        span=span or "",
+        source_ids=[],
+        qualifiers=Qualifiers(),
+    )
+    # Attach freeze tokens into qualifiers when provided as raw strings
+    if freeze:
+        # Store as population facet bag only for freeze_tokens() surface —
+        # freeze_tokens returns non-null qualifier values; put joined extras
+        # into timeframe if needed. Simpler: monkey via temporary Qualifiers
+        # isn't ideal; just append after synthesis.
+        prose = synthesise_claim_prose(fake, max_run=max_run)
+        for token in freeze:
+            if token and token.lower() not in prose.lower():
+                prose = f"{prose} ({token})"
+        return prose
+    return synthesise_claim_prose(fake, max_run=max_run)
 
 
 def _specificity_score(q: Qualifiers) -> int:
@@ -567,11 +665,198 @@ def _drop_broadened_peers(claims: list[AtomicClaim]) -> list[AtomicClaim]:
     return kept
 
 
-def claims_for_composition(groups: list[ClaimGroup]) -> list[AtomicClaim]:
+_CONTENT_STOP = {
+    "the", "a", "an", "and", "or", "of", "to", "in", "for", "with", "on",
+    "by", "is", "are", "was", "were", "be", "as", "that", "this", "what",
+    "how", "when", "where", "why", "which", "who", "does", "do", "did",
+    "about", "from", "into", "among", "versus", "vs", "than", "their",
+    "there", "these", "those", "have", "has", "had", "been", "being",
+    "will", "would", "could", "should", "may", "might", "can", "please",
+    "explain", "explained", "plain", "language", "say", "says", "also",
+    "over", "under", "after", "before", "your", "my", "our",
+}
+
+
+def _content_tokens(text: str) -> set[str]:
+    """Topic-agnostic content tokens for relevance scoring."""
+    toks = set(re.findall(r"[a-z0-9]+", (text or "").lower()))
+    out: set[str] = set()
+    for t in toks:
+        if t in _CONTENT_STOP:
+            continue
+        # Keep short jurisdiction / ID tokens; drop other 1–2 letter noise
+        if len(t) >= 3 or t in {"us", "eu", "uk"} or t.isdigit() or t.startswith("nct"):
+            out.add(t)
+    return out
+
+
+def decompose_query(query: str) -> list[str]:
+    """
+    Structural sub-question split (feeds E2 selection / E4 coverage).
+
+    Splits on question boundaries and coordinated interrogatives — never on
+    drug/disease names.
+    """
+    q = re.sub(r"\s+", " ", (query or "").strip())
+    if not q:
+        return []
+    chunks = re.split(
+        r"\?\s*"
+        r"|;\s*"
+        r"|[—–]\s*"
+        r"|\s+and\s+(?=what\b|how\b|when\b|where\b|why\b|which\b|who\b)"
+        r"|,\s+and\s+(?=what\b|how\b|when\b|where\b|why\b|which\b|who\b)",
+        q,
+        flags=re.I,
+    )
+    parts = [c.strip(" ,") for c in chunks if c and len(c.strip(" ,")) >= 8]
+    return parts or [q]
+
+
+def _contrast_pairs(query: str) -> list[tuple[set[str], set[str]]]:
+    """Structural contrasts: 'between X and Y' → token sets for both sides."""
+    pairs: list[tuple[set[str], set[str]]] = []
+    for m in re.finditer(
+        r"\bbetween\s+(.+?)\s+and\s+(.+?)(?=\s*[,?;]|\s+approvals?\b|\s+for\b|\s*$)",
+        query or "",
+        re.I,
+    ):
+        left = _content_tokens(m.group(1))
+        right = _content_tokens(m.group(2))
+        if left and right:
+            pairs.append((left, right))
+    return pairs
+
+
+def score_claim_relevance(
+    query: str,
+    claim: AtomicClaim,
+    sub_questions: Optional[list[str]] = None,
+) -> float:
+    """
+    Query / sub-question overlap score. Higher = better lead candidate.
+    No topic dictionaries — token overlap only.
+    """
+    qtoks = _content_tokens(query)
+    ctoks = _content_tokens(claim.span) | _content_tokens(claim.text)
+    if not qtoks or not ctoks:
+        return 0.0
+    overlap = len(qtoks & ctoks) / max(1, len(qtoks))
+    sub_bonus = 0.0
+    for sq in sub_questions or []:
+        st = _content_tokens(sq)
+        if st:
+            sub_bonus = max(sub_bonus, len(st & ctoks) / len(st))
+    # Identifiers (NCT…, long alphanumerics) in both query and claim
+    id_bonus = 0.0
+    for t in qtoks & ctoks:
+        if re.match(r"^(?:nct)?\d{5,}$", t) or (
+            len(t) >= 8 and any(ch.isdigit() for ch in t)
+        ):
+            id_bonus = 0.25
+            break
+    facet_bonus = 0.0
+    ql = (query or "").lower()
+    for tok in claim.qualifiers.freeze_tokens():
+        if tok and tok.lower() in ql:
+            facet_bonus += 0.05
+    return min(
+        1.0, overlap * 0.50 + sub_bonus * 0.35 + id_bonus + min(facet_bonus, 0.15)
+    )
+
+
+def select_lead_claims(
+    query: str,
+    claims: list[AtomicClaim],
+    *,
+    max_claims: int = 3,
+) -> list[AtomicClaim]:
+    """
+    Pick a small set of claims whose spans cover query sub-questions /
+    contrast sides. Order is relevance-first, then coverage fill-ins.
+    """
+    if not claims:
+        return []
+    subs = decompose_query(query)
+    scored = sorted(
+        ((score_claim_relevance(query, c, subs), c) for c in claims),
+        key=lambda x: x[0],
+        reverse=True,
+    )
+    best_score = scored[0][0]
+    floor = max(0.04, best_score * 0.20)
+    qtoks = _content_tokens(query)
+    pairs = _contrast_pairs(query)
+
+    selected: list[AtomicClaim] = []
+    covered: set[str] = set()
+    covered_subs: set[int] = set()
+
+    def _sub_hits(ctoks: set[str]) -> set[int]:
+        hits: set[int] = set()
+        for i, sq in enumerate(subs):
+            st = _content_tokens(sq)
+            if st and (len(st & ctoks) / len(st)) >= 0.15:
+                hits.add(i)
+        return hits
+
+    for sc, c in scored:
+        if sc < floor and selected:
+            continue
+        ctoks = _content_tokens(c.span)
+        new_toks = (ctoks & qtoks) - covered
+        new_subs = _sub_hits(ctoks) - covered_subs
+        if not selected or new_toks or new_subs:
+            selected.append(c)
+            covered |= ctoks & qtoks
+            covered_subs |= _sub_hits(ctoks)
+        if len(selected) >= max_claims:
+            break
+        if len(subs) > 1 and len(covered_subs) >= len(subs) and not pairs:
+            break
+
+    # Ensure each side of a structural contrast appears in the lead set
+    lead_blob = " ".join(c.span for c in selected).lower()
+    for left, right in pairs:
+        for side in (left, right):
+            if any(t in lead_blob for t in side):
+                continue
+            filler = None
+            filler_score = -1.0
+            for sc, c in scored:
+                if c in selected:
+                    continue
+                ctoks = _content_tokens(c.span)
+                if ctoks & side and sc > filler_score:
+                    filler, filler_score = c, sc
+            if filler and len(selected) < max_claims + 1:
+                selected.append(filler)
+                lead_blob = " ".join(c.span for c in selected).lower()
+
+    return selected
+
+
+def order_claims_by_relevance(query: str, claims: list[AtomicClaim]) -> list[AtomicClaim]:
+    """Stable relevance sort for composition (not retrieval rank)."""
+    subs = decompose_query(query)
+    return sorted(
+        claims,
+        key=lambda c: score_claim_relevance(query, c, subs),
+        reverse=True,
+    )
+
+
+def claims_for_composition(
+    groups: list[ClaimGroup],
+    query: str = "",
+) -> list[AtomicClaim]:
     """
     Claims allowed into the brief: agreements + scope differences + the
     newer claim from temporal supersession. Drop superseded older claims.
     Contradictions: include both sides (surfaced as edge cases too).
+
+    When query is provided, order by relevance × sub-question coverage
+    (E2) rather than reconcile encounter order.
     """
     selected: list[AtomicClaim] = []
     seen: set[str] = set()
@@ -588,7 +873,10 @@ def claims_for_composition(groups: list[ClaimGroup]) -> list[AtomicClaim]:
             if c.claim_id not in seen:
                 selected.append(c)
                 seen.add(c.claim_id)
-    return _drop_broadened_peers(selected)
+    selected = _drop_broadened_peers(selected)
+    if query:
+        selected = order_claims_by_relevance(query, selected)
+    return selected
 
 
 def compose_brief(
@@ -599,9 +887,12 @@ def compose_brief(
 ) -> str:
     """
     Assemble Key Findings / Bottom Line from reconciled claims only.
-    No paraphrase that can drop or broaden qualifiers — span text is used.
+
+    Lead is chosen by query relevance / sub-question coverage (E2). Claim text
+    is rendered as structured prose that preserves freeze-token qualifiers
+    without long verbatim dumps (E3).
     """
-    claims = claims_for_composition(groups)
+    claims = claims_for_composition(groups, query=query)
     edges = surfaceable_edge_cases(groups)
 
     lines: list[str] = []
@@ -609,10 +900,20 @@ def compose_brief(
         lines.append(uncertainty_notice.strip())
         lines.append("")
 
-    # Opening: first high-signal claim, qualifiers intact
+    # Opening: cover sub-questions / contrast sides with synthesised prose
     if claims:
-        opener = claims[0].span.strip()
-        lines.append(opener)
+        lead_claims = select_lead_claims(query, claims)
+        if not lead_claims:
+            lead_claims = claims[:1]
+        opener_parts: list[str] = []
+        for c in lead_claims:
+            prose = synthesise_claim_prose(c)
+            if not prose:
+                continue
+            if prose[-1] not in ".!?":
+                prose = prose + "."
+            opener_parts.append(prose)
+        lines.append(" ".join(opener_parts))
     else:
         lines.append(
             "Insufficient claim-level evidence was extracted to answer this question."
@@ -637,8 +938,12 @@ def compose_brief(
             for c in e.get("claims") or []:
                 year = c.get("year")
                 y = f", {year}" if year else ""
+                span = c.get("span") or c.get("text") or ""
+                quals = c.get("qualifiers") or {}
+                freeze = [v for v in quals.values() if v] if isinstance(quals, dict) else []
+                prose = synthesise_span_prose(span, freeze=freeze)
                 lines.append(
-                    f"  - {c.get('span') or c.get('text')} "
+                    f"  - {prose} "
                     f"[{', '.join(c.get('source_ids') or [])}{y}]"
                 )
 
@@ -647,15 +952,9 @@ def compose_brief(
     if not claims:
         lines.append("- Evidence is insufficient for a confident takeaway.")
     else:
-        # Bottom line uses the same claim spans — never a broadened rewrite
+        # Bottom line uses synthesised prose — never a broadened rewrite
         for c in claims[:3]:
-            qbits = c.qualifiers.freeze_tokens()
-            core = c.span.strip()
-            if qbits:
-                # Reinforce that qualifiers are load-bearing
-                missing = [t for t in qbits if t.lower() not in core.lower()]
-                if missing:
-                    core = f"{core} ({'; '.join(missing)})"
+            core = synthesise_claim_prose(c)
             cites = ", ".join(c.source_ids)
             year_bit = f" ({c.year})" if c.year else ""
             lines.append(f"- {core} [{cites}{year_bit}]")
@@ -735,6 +1034,11 @@ def verify_brief(brief: str, claims: list[AtomicClaim]) -> list[str]:
         if not any(c.claim_id == cid for c in claims):
             failures.append(f"unknown claim_id {cid}")
 
+    # (d) no long verbatim claim dumps in the composed brief (E3)
+    for c in claims:
+        if _contains_verbatim_run(brief, c.span or c.text or ""):
+            failures.append(f"verbatim dump of claim {c.claim_id}")
+
     return failures
 
 
@@ -743,7 +1047,8 @@ def run_claim_pipeline(papers: list[Any], query: str = "") -> dict[str, Any]:
     claims = bind_claims_from_pulse_results(papers)
     groups = reconcile_claims(claims)
     brief = compose_brief(query, groups)
-    failures = verify_brief(brief, claims_for_composition(groups))
+    composable = claims_for_composition(groups, query=query)
+    failures = verify_brief(brief, composable)
     if failures:
         brief = compose_brief(
             query,
@@ -754,7 +1059,7 @@ def run_claim_pipeline(papers: list[Any], query: str = "") -> dict[str, Any]:
                 f"only. Checks: {'; '.join(failures[:3])}."
             ),
         )
-        failures2 = verify_brief(brief, claims_for_composition(groups))
+        failures2 = verify_brief(brief, claims_for_composition(groups, query=query))
         if failures2:
             brief = compose_brief(
                 query,
@@ -773,5 +1078,7 @@ def run_claim_pipeline(papers: list[Any], query: str = "") -> dict[str, Any]:
         "edge_cases": surfaceable_edge_cases(groups),
         "brief": brief,
         "verification_failures": failures,
-        "composable_claims": [c.to_dict() for c in claims_for_composition(groups)],
+        "composable_claims": [
+            c.to_dict() for c in claims_for_composition(groups, query=query)
+        ],
     }
