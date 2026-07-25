@@ -1,0 +1,114 @@
+{
+  "id": "G11",
+  "defect_ids": [
+    "E6"
+  ],
+  "query": "Does aspirin for primary prevention reduce cardiovascular mortality in adults over 70, and how should older benefit claims be read against later trial and guideline evidence? Distinguish primary from secondary prevention.",
+  "persona": "clinician",
+  "personas": [
+    "clinician"
+  ],
+  "subject_terms": [
+    "aspirin",
+    "primary prevention",
+    "ASPREE",
+    "USPSTF"
+  ],
+  "valid_as_of": "2026-07-25",
+  "review_by": "2026-10-25",
+  "review_cadence": "quarterly",
+  "sources_attempted": 11,
+  "answer_key": {
+    "sub_questions": [
+      "Older evidence",
+      "Later trials",
+      "Current guidance",
+      "How they relate"
+    ],
+    "correct_answer": [
+      "Older guidance supported aspirin in some older adults for primary prevention.",
+      "ASPREE: no CV benefit, more major haemorrhage in healthy elderly primary prevention.",
+      "USPSTF against initiating aspirin for primary prevention \u226560; primary \u2260 secondary.",
+      "TEMPORAL SUPERSESSION not unresolved contradiction."
+    ],
+    "required_qualifiers": [
+      "primary vs secondary",
+      "initiating vs continuing",
+      "age threshold with body"
+    ],
+    "traps": [
+      "Unresolved contradiction framing",
+      "Conflating primary/secondary"
+    ]
+  },
+  "sources": {
+    "pubmed": [
+      {
+        "title": "ASPREE: aspirin in healthy elderly primary prevention",
+        "year": 2018,
+        "summary": "In ASPREE, low-dose aspirin for primary prevention in adults \u226570 did not reduce cardiovascular disease and increased major haemorrhage versus placebo."
+      },
+      {
+        "title": "Older meta-analyses supporting aspirin primary prevention",
+        "year": 2009,
+        "summary": "Earlier evidence and guidance supported aspirin for primary cardiovascular prevention in some older adults based on reductions in nonfatal events."
+      }
+    ],
+    "cdc": [
+      {
+        "title": "USPSTF communication: aspirin primary prevention",
+        "year": 2022,
+        "summary": "USPSTF recommends against initiating low-dose aspirin for primary prevention of CVD in adults 60 years or older (Grade D). This does not apply to secondary prevention."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "relevance_lead",
+      "lead_must_include": [
+        "aspirin",
+        "primary",
+        "prevention",
+        "ASPREE",
+        "USPSTF",
+        "70",
+        "60"
+      ],
+      "defect_id": "E2"
+    },
+    {
+      "type": "qualifier_preserved",
+      "term": "primary prevention",
+      "variants": [
+        "=primary-prevention",
+        "secondary prevention"
+      ],
+      "scope": "all",
+      "defect_id": "E6"
+    },
+    {
+      "type": "key_not_stale",
+      "valid_as_of": "2026-07-25",
+      "review_by": "2026-10-25",
+      "defect_id": "STALE"
+    },
+    {
+      "type": "claim_provenance_complete",
+      "defect_id": "E9"
+    },
+    {
+      "type": "confidence_status_coherent",
+      "defect_id": "E9"
+    },
+    {
+      "type": "divergence_wellformed",
+      "defect_id": "E5"
+    },
+    {
+      "type": "no_verbatim_dump",
+      "min_words": 12,
+      "defect_id": "E3"
+    }
+  ],
+  "use_recorded_brief": false
+}

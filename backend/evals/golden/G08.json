@@ -1,0 +1,94 @@
+{
+  "id": "G08",
+  "defect_ids": [
+    "E2"
+  ],
+  "query": "What does metformin do for type 2 diabetes, and what side effects are common \u2014 explained in plain language?",
+  "persona": "patient",
+  "personas": [
+    "patient"
+  ],
+  "subject_terms": [
+    "metformin",
+    "type 2 diabetes",
+    "side effects"
+  ],
+  "valid_as_of": "2026-07-25",
+  "review_by": "2027-07-25",
+  "review_cadence": "annual",
+  "sources_attempted": 11,
+  "answer_key": {
+    "sub_questions": [
+      "What it does",
+      "Common side effects",
+      "Serious risks",
+      "Monitoring"
+    ],
+    "correct_answer": [
+      "Lowers blood sugar; on its own usually does not cause low blood sugar.",
+      "Common digestive side effects.",
+      "Rare lactic acidosis mainly with poor kidney function; B12 may fall long-term."
+    ],
+    "required_qualifiers": [
+      "on its own",
+      "rare AND risk-factor dependent lactic acidosis",
+      "plain language"
+    ],
+    "traps": [
+      "Clinical jargon to patient",
+      "Personal advice"
+    ]
+  },
+  "sources": {
+    "pubmed": [
+      {
+        "title": "Metformin for type 2 diabetes: effects and safety",
+        "year": 2019,
+        "summary": "Metformin lowers blood glucose mainly by reducing hepatic glucose output and improving insulin sensitivity. Alone it rarely causes hypoglycaemia. Common adverse effects are gastrointestinal. Lactic acidosis is rare and mainly occurs with significant renal impairment. Vitamin B12 may decline with long-term use."
+      }
+    ],
+    "dailymed": [
+      {
+        "title": "Metformin hydrochloride tablets \u2014 patient information",
+        "year": 2024,
+        "summary": "Metformin is used with diet and exercise for type 2 diabetes. Take with food. Tell your doctor about kidney problems. Lactic acidosis is rare but serious."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "relevance_lead",
+      "lead_must_include": [
+        "metformin",
+        "blood sugar",
+        "diabetes",
+        "side"
+      ],
+      "defect_id": "E2"
+    },
+    {
+      "type": "key_not_stale",
+      "valid_as_of": "2026-07-25",
+      "review_by": "2027-07-25",
+      "defect_id": "STALE"
+    },
+    {
+      "type": "claim_provenance_complete",
+      "defect_id": "E9"
+    },
+    {
+      "type": "confidence_status_coherent",
+      "defect_id": "E9"
+    },
+    {
+      "type": "divergence_wellformed",
+      "defect_id": "E5"
+    },
+    {
+      "type": "no_verbatim_dump",
+      "min_words": 12,
+      "defect_id": "E3"
+    }
+  ],
+  "use_recorded_brief": false
+}

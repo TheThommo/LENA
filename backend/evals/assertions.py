@@ -533,6 +533,320 @@ def status_is(
     )
 
 
+def _norm_title(title: str) -> str:
+    t = re.sub(r"[^a-z0-9]+", " ", (title or "").lower()).strip()
+    return re.sub(r"\s+", " ", t)
+
+
+def _work_key(item: dict[str, Any] | Any) -> str:
+    if isinstance(item, dict):
+        doi = (item.get("doi") or "").strip().lower()
+        pmid = (item.get("pmid") or "").strip().lower()
+        title = _norm_title(item.get("title") or "")
+    else:
+        doi = (getattr(item, "doi", None) or "").strip().lower()
+        pmid = (getattr(item, "pmid", None) or "").strip().lower()
+        title = _norm_title(getattr(item, "title", "") or "")
+    if doi:
+        return f"doi:{doi}"
+    if pmid:
+        return f"pmid:{pmid}"
+    if title:
+        return f"title:{title}"
+    return ""
+
+
+def dedup_correct(
+    papers: list[Any],
+    defect_id: str = "E1",
+) -> AssertionResult:
+    """
+    No DOI/PMID/normalized-title may appear on more than one counted paper
+    under different database source_names without being treated as one work.
+    Fail when the same work key is present under >=2 source_names in the corpus.
+    """
+    by_key: dict[str, set[str]] = {}
+    for p in papers or []:
+        key = _work_key(p)
+        if not key:
+            continue
+        src = ""
+        if isinstance(p, dict):
+            src = (p.get("source_name") or p.get("source") or "").lower()
+        else:
+            src = (getattr(p, "source_name", "") or "").lower()
+        by_key.setdefault(key, set()).add(src)
+    dupes = {k: sorted(v) for k, v in by_key.items() if len(v) >= 2}
+    if dupes:
+        sample = list(dupes.items())[:3]
+        return AssertionResult(
+            name="dedup_correct",
+            passed=False,
+            detail=f"same work under multiple databases (not deduped): {sample}",
+            defect_id=defect_id,
+        )
+    return AssertionResult(
+        name="dedup_correct",
+        passed=True,
+        detail=f"{len(by_key)} distinct work keys; no cross-DB duplicates",
+        defect_id=defect_id,
+    )
+
+
+def distinct_source_count_accurate(
+    pulse: Any,
+    papers: list[Any],
+    defect_id: str = "E1",
+) -> AssertionResult:
+    """
+    Cross-validation / corroboration must not treat duplicate works as independent.
+    If the same work appears in >=2 DBs and total_cross_validations credits that
+    pair, fail. Also fail when narrative claims N sources but distinct works < N
+    for the duplicated set.
+    """
+    by_key: dict[str, list[Any]] = {}
+    for p in papers or []:
+        key = _work_key(p)
+        if key:
+            by_key.setdefault(key, []).append(p)
+    multi = {k: v for k, v in by_key.items() if len(v) >= 2}
+    if not multi:
+        return AssertionResult(
+            name="distinct_source_count_accurate",
+            passed=True,
+            detail="no multi-DB duplicate works in corpus",
+            defect_id=defect_id,
+        )
+
+    # If pulse recorded cross-validations between same-title different sources, fail
+    xv = list(getattr(pulse, "cross_validations", None) or [])
+    bad = []
+    for x in xv:
+        ta = _norm_title(getattr(x, "paper_a_title", "") or "")
+        tb = _norm_title(getattr(x, "paper_b_title", "") or "")
+        if ta and ta == tb and getattr(x, "paper_a_source", None) != getattr(x, "paper_b_source", None):
+            bad.append((ta[:60], getattr(x, "paper_a_source", ""), getattr(x, "paper_b_source", "")))
+    raw_count = len(papers or [])
+    distinct = len(by_key)
+    if bad or (raw_count > distinct and getattr(pulse, "total_cross_validations", 0) > 0):
+        return AssertionResult(
+            name="distinct_source_count_accurate",
+            passed=False,
+            detail=(
+                f"distinct_works={distinct} raw_papers={raw_count}; "
+                f"duplicate-title cross-validations={bad[:3]}; "
+                f"total_cross_validations={getattr(pulse, 'total_cross_validations', 0)}"
+            ),
+            defect_id=defect_id,
+        )
+    return AssertionResult(
+        name="distinct_source_count_accurate",
+        passed=True,
+        detail=f"distinct_works={distinct} raw_papers={raw_count}; no dupe xv pairs",
+        defect_id=defect_id,
+    )
+
+
+def relevance_lead(
+    brief: str,
+    lead_must_include: Optional[list[str]] = None,
+    lead_must_not_include: Optional[list[str]] = None,
+    lead_must_include_all_groups: Optional[list[list[str]]] = None,
+    defect_id: str = "E2",
+) -> AssertionResult:
+    """
+    First substantive paragraph/sentence must match a query sub-question cue
+    and must not lead with forbidden off-topic cues.
+
+    lead_must_include: any-of tokens
+    lead_must_include_all_groups: each inner list is an any-of group; ALL groups
+    must match (e.g. US territory AND EU territory for a comparative query).
+    """
+    text = (brief or "").strip()
+    if not text:
+        return AssertionResult(
+            name="relevance_lead",
+            passed=False,
+            detail="empty brief",
+            defect_id=defect_id,
+        )
+    # Skip uncertainty notices
+    lines = [ln.strip() for ln in text.splitlines() if ln.strip()]
+    while lines and lines[0].lower().startswith("**uncertainty"):
+        lines = lines[1:]
+    lead = lines[0] if lines else ""
+    # If first line is a header, take next
+    if lead.startswith("#"):
+        lead = lines[1] if len(lines) > 1 else lead
+    lead_l = lead.lower()
+    # Also inspect the first ~400 chars for early off-topic prevalence dumps
+    head = text[:400].lower()
+    for bad in lead_must_not_include or []:
+        if bad.lower() in lead_l or bad.lower() in head:
+            return AssertionResult(
+                name="relevance_lead",
+                passed=False,
+                detail=f"lead/head contains forbidden off-topic {bad!r}: {lead[:180]!r}",
+                defect_id=defect_id,
+            )
+    if lead_must_include_all_groups:
+        missing_groups = []
+        for group in lead_must_include_all_groups:
+            if not any(tok.lower() in lead_l for tok in group):
+                missing_groups.append(group)
+        if missing_groups:
+            return AssertionResult(
+                name="relevance_lead",
+                passed=False,
+                detail=(
+                    f"lead missing required cue groups {missing_groups!r}: {lead[:180]!r}"
+                ),
+                defect_id=defect_id,
+            )
+    if lead_must_include:
+        if not any(tok.lower() in lead_l for tok in lead_must_include):
+            return AssertionResult(
+                name="relevance_lead",
+                passed=False,
+                detail=(
+                    f"lead missing sub-question cues {lead_must_include!r}: {lead[:180]!r}"
+                ),
+                defect_id=defect_id,
+            )
+    return AssertionResult(
+        name="relevance_lead",
+        passed=True,
+        detail=f"lead ok: {lead[:160]!r}",
+        defect_id=defect_id,
+    )
+
+
+def no_verbatim_dump(
+    brief: str,
+    claims: list[dict[str, Any]],
+    min_words: int = 12,
+    defect_id: str = "E3",
+) -> AssertionResult:
+    """
+    Fail if >= min_words contiguous words from a single claim span appear in the brief
+    as a near-verbatim dump (composition must synthesise, not concatenate).
+    """
+    brief_l = re.sub(r"\s+", " ", (brief or "").lower()).strip()
+    if not brief_l:
+        return AssertionResult(
+            name="no_verbatim_dump",
+            passed=False,
+            detail="empty brief",
+            defect_id=defect_id,
+        )
+    for c in claims or []:
+        span = (c.get("span") or c.get("text") or "").strip()
+        if not span:
+            continue
+        words = re.findall(r"[a-z0-9ε]+", span.lower())
+        if len(words) < min_words:
+            continue
+        window = " ".join(words[:min_words])
+        # also try mid-span window
+        windows = [window]
+        if len(words) >= min_words + 4:
+            windows.append(" ".join(words[2 : 2 + min_words]))
+        for w in windows:
+            if w and w in brief_l:
+                return AssertionResult(
+                    name="no_verbatim_dump",
+                    passed=False,
+                    detail=f">={min_words} contiguous claim words dumped: {w!r}",
+                    defect_id=defect_id,
+                )
+    return AssertionResult(
+        name="no_verbatim_dump",
+        passed=True,
+        detail=f"no >={min_words}-word verbatim claim dump detected",
+        defect_id=defect_id,
+    )
+
+
+def divergence_wellformed(
+    divergence_flags: list[dict[str, Any]],
+    defect_id: str = "E5",
+) -> AssertionResult:
+    """
+    Any surfaced divergence must name a real shared proposition (multi-word topic),
+    not a token fragment, and must be CONTRADICTION or TEMPORAL_SUPERSESSION.
+    """
+    if not divergence_flags:
+        return AssertionResult(
+            name="divergence_wellformed",
+            passed=True,
+            detail="no divergences surfaced",
+            defect_id=defect_id,
+        )
+    bad = []
+    for d in divergence_flags:
+        klass = (d.get("classification") or d.get("divergence_type") or "").upper()
+        topic = (d.get("topic") or "").strip()
+        tokens = topic.split()
+        if klass not in ("CONTRADICTION", "TEMPORAL_SUPERSESSION"):
+            # Absence / keyword edges should not appear as divergences
+            bad.append(f"non-conflict class={klass!r} topic={topic!r}")
+            continue
+        if len(tokens) < 2 or (len(tokens) <= 3 and all(len(t) <= 4 for t in tokens)):
+            bad.append(f"token-fragment topic={topic!r}")
+    if bad:
+        return AssertionResult(
+            name="divergence_wellformed",
+            passed=False,
+            detail="; ".join(bad[:4]),
+            defect_id=defect_id,
+        )
+    return AssertionResult(
+        name="divergence_wellformed",
+        passed=True,
+        detail=f"{len(divergence_flags)} divergence(s) well-formed",
+        defect_id=defect_id,
+    )
+
+
+def key_not_stale(
+    valid_as_of: str = "",
+    review_by: str = "",
+    defect_id: str = "STALE",
+) -> AssertionResult:
+    """Fail case as STALE when review_by is past (not a pipeline defect)."""
+    from datetime import date
+
+    if not review_by:
+        return AssertionResult(
+            name="key_not_stale",
+            passed=True,
+            detail=f"no review_by (valid_as_of={valid_as_of or 'n/a'})",
+            defect_id=defect_id,
+        )
+    try:
+        due = date.fromisoformat(review_by[:10])
+    except ValueError:
+        return AssertionResult(
+            name="key_not_stale",
+            passed=False,
+            detail=f"invalid review_by={review_by!r}",
+            defect_id=defect_id,
+        )
+    if date.today() > due:
+        return AssertionResult(
+            name="key_not_stale",
+            passed=False,
+            detail=f"STALE key: review_by={review_by} valid_as_of={valid_as_of}",
+            defect_id=defect_id,
+        )
+    return AssertionResult(
+        name="key_not_stale",
+        passed=True,
+        detail=f"key fresh through {review_by}",
+        defect_id=defect_id,
+    )
+
+
 ASSERTION_DISPATCH = {
     "qualifier_preserved": lambda args, ctx: qualifier_preserved(ctx["brief"], **args),
     "forbidden_unqualified": lambda args, ctx: forbidden_unqualified(ctx["brief"], **args),
@@ -549,6 +863,16 @@ ASSERTION_DISPATCH = {
     "approvals_not_called_guidelines": lambda args, ctx: approvals_not_called_guidelines(ctx["brief"], **args),
     "top_source_not_irrelevant": lambda args, ctx: top_source_not_irrelevant(ctx.get("ranked_titles") or [], **args),
     "status_is": lambda args, ctx: status_is(ctx["status"], **args),
+    "dedup_correct": lambda args, ctx: dedup_correct(ctx.get("papers") or [], **args),
+    "distinct_source_count_accurate": lambda args, ctx: distinct_source_count_accurate(
+        ctx.get("pulse"), ctx.get("papers") or [], **args
+    ),
+    "relevance_lead": lambda args, ctx: relevance_lead(ctx["brief"], **args),
+    "no_verbatim_dump": lambda args, ctx: no_verbatim_dump(ctx["brief"], ctx.get("claims") or [], **args),
+    "divergence_wellformed": lambda args, ctx: divergence_wellformed(
+        ctx.get("divergence_flags") or [], **args
+    ),
+    "key_not_stale": lambda args, ctx: key_not_stale(**args),
 }
 
 

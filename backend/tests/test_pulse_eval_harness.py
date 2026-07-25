@@ -1,5 +1,5 @@
 """
-Pytest entry for the GOLDEN suite only.
+Pytest entry for the GOLDEN suite only (Phase 2 answer-quality eval).
 
 Holdout is intentionally not collected here — Phase 6 runs it via:
   python -m evals.runner --suite holdout --allow-holdout
@@ -18,14 +18,33 @@ if str(BACKEND_ROOT) not in sys.path:
 
 
 @pytest.mark.asyncio
-async def test_golden_suite_runs():
+async def test_golden_suite_runs_and_is_strict():
+    """Baseline: current pipeline must not fully pass the answer-quality battery."""
     from evals.runner import format_report, run_suite
 
-    results = await run_suite("golden")
+    results = await run_suite("golden", force_offline_rubric=True)
     report = format_report(results, "golden")
     print("\n" + report)
     assert results, "golden suite produced no cases"
-    assert len(results) >= 12
+    # 16 cases; some expand to multiple personas
+    assert len(results) >= 16
+    # Phase 2 checkpoint: battery must catch current failures (not all-green)
+    assert not all(r.passed for r in results), "eval is too weak if current code fully passes"
+
+
+@pytest.mark.asyncio
+async def test_g01_fails_rubric_dedup_and_relevance_lead():
+    """Known production failure signature for the US/EU lecanemab case."""
+    from evals.runner import run_suite
+
+    results = await run_suite("golden", force_offline_rubric=True, case_filter="G01")
+    assert results, "G01 missing"
+    for r in results:
+        assert r.rubric and not r.rubric.passed, f"{r.case_id} rubric should fail"
+        dedup = [a for a in r.assertion_results if a.name == "dedup_correct"]
+        assert dedup and not dedup[0].passed, f"{r.case_id} dedup_correct should fail"
+        lead = [a for a in r.assertion_results if a.name == "relevance_lead"]
+        assert lead and not lead[0].passed, f"{r.case_id} relevance_lead should fail"
 
 
 @pytest.mark.asyncio
@@ -35,22 +54,3 @@ async def test_holdout_not_imported_by_default():
 
     rc = main(["--suite", "holdout"])
     assert rc == 2
-
-
-@pytest.mark.asyncio
-async def test_d1_qualifier_assertions_pass():
-    """D1: dosage/genotype qualifiers preserved product-wide (not query-specific)."""
-    from evals.runner import run_suite
-
-    results = await run_suite("golden")
-    by_id = {r.case_id: r for r in results}
-    for case_id in ("GOLD-001", "GOLD-002"):
-        case = by_id[case_id]
-        d1 = [
-            a
-            for a in case.assertion_results
-            if a.defect_id == "D1" or a.name in ("qualifier_preserved", "forbidden_unqualified")
-        ]
-        assert d1, f"{case_id} missing D1 assertions"
-        failed = [a for a in d1 if not a.passed]
-        assert not failed, f"{case_id} D1 failures: {[a.detail for a in failed]}"

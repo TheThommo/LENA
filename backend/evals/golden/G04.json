@@ -1,0 +1,94 @@
+{
+  "id": "G04",
+  "defect_ids": [
+    "E2"
+  ],
+  "query": "What does the July 2026 medRxiv preprint on bivalent RSVpreF (Abrysvo) vaccine effectiveness across three RSV seasons report for adults \u226560 years, and which estimates remain provisional?",
+  "persona": "researcher",
+  "personas": [
+    "researcher"
+  ],
+  "subject_terms": [
+    "RSV",
+    "Abrysvo",
+    "RSVpreF",
+    "vaccine effectiveness",
+    "preprint"
+  ],
+  "valid_as_of": "2026-07-25",
+  "review_by": "2026-08-25",
+  "review_cadence": "monthly",
+  "sources_attempted": 11,
+  "answer_key": {
+    "sub_questions": [
+      "What does the preprint claim",
+      "Peer-review status and confidence implications",
+      "What remains unverified"
+    ],
+    "correct_answer": [
+      "VE ~80%/70%/51% seasons 1\u20133; third-season CI includes null; adults \u226560 KPSC.",
+      "Explicitly a preprint not peer-reviewed.",
+      "Third-season estimate provisional; no independent replication yet."
+    ],
+    "required_qualifiers": [
+      "preprint",
+      "not peer-reviewed",
+      "confidence intervals"
+    ],
+    "traps": [
+      "Treat 51% as definitive",
+      "Label preprint-only as validated"
+    ]
+  },
+  "sources": {
+    "pubmed": [
+      {
+        "title": "Bivalent RSVpreF effectiveness across three RSV seasons (medRxiv preprint)",
+        "year": 2026,
+        "summary": "This medRxiv preprint (not peer-reviewed) reports adjusted vaccine effectiveness of bivalent RSVpreF (Abrysvo) against RSV-related LRTD hospitalisation/ED visits in adults \u226560 years of 80% (95% CI 68\u201387), 70% (53\u201381), and 51% (\u221212\u201378) in seasons one, two, and three after vaccination at Kaiser Permanente Southern California."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "relevance_lead",
+      "lead_must_include": [
+        "RSV",
+        "Abrysvo",
+        "preprint",
+        "vaccine",
+        "effectiveness"
+      ],
+      "defect_id": "E2"
+    },
+    {
+      "type": "status_is",
+      "expected": "insufficient_validation",
+      "defect_id": "E9"
+    },
+    {
+      "type": "key_not_stale",
+      "valid_as_of": "2026-07-25",
+      "review_by": "2026-08-25",
+      "defect_id": "STALE"
+    },
+    {
+      "type": "claim_provenance_complete",
+      "defect_id": "E9"
+    },
+    {
+      "type": "confidence_status_coherent",
+      "defect_id": "E9"
+    },
+    {
+      "type": "divergence_wellformed",
+      "defect_id": "E5"
+    },
+    {
+      "type": "no_verbatim_dump",
+      "min_words": 12,
+      "defect_id": "E3"
+    }
+  ],
+  "use_recorded_brief": false
+}

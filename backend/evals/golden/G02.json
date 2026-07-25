@@ -1,0 +1,99 @@
+{
+  "id": "G02",
+  "defect_ids": [
+    "E4"
+  ],
+  "query": "What is the interaction between warfarin and fluconazole, including mechanism, expected INR effect, and management implications from labelled / published evidence?",
+  "persona": "pharmacist",
+  "personas": [
+    "pharmacist"
+  ],
+  "subject_terms": [
+    "warfarin",
+    "fluconazole",
+    "INR",
+    "CYP2C9"
+  ],
+  "valid_as_of": "2026-07-25",
+  "review_by": "2027-07-25",
+  "review_cadence": "annual",
+  "sources_attempted": 11,
+  "answer_key": {
+    "sub_questions": [
+      "Mechanism",
+      "Direction/magnitude on anticoagulation",
+      "Clinical management"
+    ],
+    "correct_answer": [
+      "Fluconazole inhibits CYP2C9 reducing S-warfarin clearance.",
+      "INR increases; bleeding risk rises; dose-related.",
+      "Avoid or reduce warfarin with closer INR monitoring through discontinuation."
+    ],
+    "required_qualifiers": [
+      "CYP2C9",
+      "INR increases",
+      "post-discontinuation monitoring"
+    ],
+    "traps": [
+      "Directionless may affect INR",
+      "Universal dose %"
+    ]
+  },
+  "sources": {
+    "pubmed": [
+      {
+        "title": "Fluconazole\u2013warfarin interaction via CYP2C9",
+        "year": 2019,
+        "summary": "Fluconazole inhibits CYP2C9 and reduces clearance of S-warfarin, increasing INR and bleeding risk. Empiric warfarin dose reduction and intensified INR monitoring are recommended around initiation and for several days after fluconazole stops."
+      }
+    ],
+    "dailymed": [
+      {
+        "title": "Warfarin sodium tablets \u2014 drug interactions",
+        "year": 2024,
+        "summary": "Azole antifungals including fluconazole may increase warfarin effect via CYP2C9 inhibition. Monitor INR closely when starting or stopping fluconazole."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "source_class_present",
+      "source_class": "regulatory",
+      "defect_id": "E8"
+    },
+    {
+      "type": "relevance_lead",
+      "lead_must_include": [
+        "warfarin",
+        "fluconazole",
+        "INR",
+        "CYP"
+      ],
+      "defect_id": "E2"
+    },
+    {
+      "type": "key_not_stale",
+      "valid_as_of": "2026-07-25",
+      "review_by": "2027-07-25",
+      "defect_id": "STALE"
+    },
+    {
+      "type": "claim_provenance_complete",
+      "defect_id": "E9"
+    },
+    {
+      "type": "confidence_status_coherent",
+      "defect_id": "E9"
+    },
+    {
+      "type": "divergence_wellformed",
+      "defect_id": "E5"
+    },
+    {
+      "type": "no_verbatim_dump",
+      "min_words": 12,
+      "defect_id": "E3"
+    }
+  ],
+  "use_recorded_brief": false
+}

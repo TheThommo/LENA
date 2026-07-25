@@ -1,0 +1,100 @@
+{
+  "id": "G05",
+  "defect_ids": [
+    "E8"
+  ],
+  "query": "What is the phase, recruitment status, and primary endpoint family of ClinicalTrials.gov study NCT06307652 (balcinrenone/dapagliflozin versus dapagliflozin in heart failure with impaired kidney function)?",
+  "persona": "researcher",
+  "personas": [
+    "researcher"
+  ],
+  "subject_terms": [
+    "NCT06307652",
+    "balcinrenone",
+    "dapagliflozin",
+    "heart failure"
+  ],
+  "valid_as_of": "2026-07-25",
+  "review_by": "2026-08-25",
+  "review_cadence": "monthly",
+  "sources_attempted": 11,
+  "answer_key": {
+    "sub_questions": [
+      "Phase and recruitment status",
+      "Primary endpoint",
+      "Sponsor/population/completion"
+    ],
+    "correct_answer": [
+      "Phase 3; Recruiting as of 2026-07-25.",
+      "Primary: time to CV death and/or HF events vs dapagliflozin alone.",
+      "AstraZeneca; HF with impaired kidney function; completion ~2027."
+    ],
+    "required_qualifiers": [
+      "NCT06307652",
+      "status with as-of date",
+      "Phase 3"
+    ],
+    "traps": [
+      "Invent results",
+      "Confuse with NCT06677060"
+    ]
+  },
+  "sources": {
+    "clinical_trials": [
+      {
+        "title": "BALANCED-HF: balcinrenone/dapagliflozin vs dapagliflozin (NCT06307652)",
+        "year": 2024,
+        "summary": "ClinicalTrials.gov NCT06307652. Phase 3. Status: Recruiting as of 2026-07-25. Sponsor: AstraZeneca. Population: chronic heart failure with impaired kidney function and recent HF event. Primary endpoint family: time to cardiovascular death and/or heart-failure events comparing balcinrenone/dapagliflozin versus dapagliflozin. Estimated completion June 2027. No efficacy results are available."
+      }
+    ],
+    "pubmed": [
+      {
+        "title": "SGLT2 inhibitors in heart failure \u2014 background literature",
+        "year": 2022,
+        "summary": "SGLT2 inhibitors reduce hospitalisation for heart failure in HFrEF trials."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "source_class_present",
+      "source_class": "trial_registry",
+      "defect_id": "E8"
+    },
+    {
+      "type": "relevance_lead",
+      "lead_must_include": [
+        "NCT06307652",
+        "Phase",
+        "Recruiting",
+        "balcinrenone",
+        "endpoint"
+      ],
+      "defect_id": "E2"
+    },
+    {
+      "type": "key_not_stale",
+      "valid_as_of": "2026-07-25",
+      "review_by": "2026-08-25",
+      "defect_id": "STALE"
+    },
+    {
+      "type": "claim_provenance_complete",
+      "defect_id": "E9"
+    },
+    {
+      "type": "confidence_status_coherent",
+      "defect_id": "E9"
+    },
+    {
+      "type": "divergence_wellformed",
+      "defect_id": "E5"
+    },
+    {
+      "type": "no_verbatim_dump",
+      "min_words": 12,
+      "defect_id": "E3"
+    }
+  ],
+  "use_recorded_brief": false
+}

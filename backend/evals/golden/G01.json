@@ -1,0 +1,173 @@
+{
+  "id": "G01",
+  "defect_ids": [
+    "E1",
+    "E2",
+    "E3",
+    "E4"
+  ],
+  "query": "How do eligible patient populations for lecanemab and donanemab differ between US and European approvals, and what does the evidence say about ApoE4 status and ARIA risk?",
+  "persona": "pharmacist",
+  "personas": [
+    "pharmacist",
+    "clinician"
+  ],
+  "subject_terms": [
+    "lecanemab",
+    "donanemab",
+    "ApoE",
+    "ARIA",
+    "approval",
+    "FDA",
+    "EMA"
+  ],
+  "valid_as_of": "2026-07-25",
+  "review_by": "2026-10-25",
+  "review_cadence": "quarterly",
+  "sources_attempted": 11,
+  "answer_key": {
+    "sub_questions": [
+      "US approval status and eligible population for each agent",
+      "EU approval status and eligible population for each agent",
+      "How the eligible populations differ, specifically on ApoE genotype",
+      "What the evidence says about ARIA risk and how it relates to that difference"
+    ],
+    "correct_answer": [
+      "Both agents hold US approval for early symptomatic AD; US indication is not genotype-excluded; ApoE testing recommended; ARIA warnings.",
+      "EU (donanemab/Kisunla): excludes ApoE \u03b54/\u03b54 homozygotes; non-carriers or heterozygotes eligible; testing mandatory for that restriction.",
+      "ARIA risk gradient highest in \u03b54/\u03b54, intermediate heterozygotes, lowest non-carriers."
+    ],
+    "required_qualifiers": [
+      "\u03b54/\u03b54 / homozygote \u2014 MUST NOT become ApoE4 carriers",
+      "Jurisdiction on every eligibility claim",
+      "marketing authorisation \u2260 guidelines"
+    ],
+    "traps": [
+      "Leading with Asia-Pacific prevalence",
+      "Double-counting same paper across PubMed and Europe PMC",
+      "Answering only one territory"
+    ]
+  },
+  "sources": {
+    "cdc": [
+      {
+        "title": "Alzheimer disease prevalence estimates across Asia-Pacific regions",
+        "year": 2022,
+        "summary": "CDC open data tables summarise dementia prevalence estimates for Asia-Pacific surveillance regions and regional burden. No European marketing authorisation criteria or ApoE genotype eligibility rules are discussed."
+      }
+    ],
+    "pubmed": [
+      {
+        "title": "Anti-Amyloid Monoclonal Antibodies: Evidence, ARIA Risk, and Precision Patient Selection",
+        "year": 2026,
+        "doi": "10.1000/pulse-eval-aria-mab-001",
+        "pmid": "41544372",
+        "summary": "Lecanemab and donanemab are among the first anti-A\u03b2 treatments to receive approval in Europe. ARIA risk is highest in ApoE \u03b54/\u03b54 homozygotes. Precision patient selection and MRI monitoring are emphasised. eg., genotype counselling before initiation."
+      },
+      {
+        "title": "US FDA labelling for lecanemab: ApoE testing without genotype exclusion",
+        "year": 2025,
+        "doi": "10.1000/pulse-eval-leqembi-us",
+        "summary": "US FDA labelling for lecanemab permits treatment of early Alzheimer's disease including ApoE \u03b54/\u03b54 homozygotes with enhanced MRI monitoring. Genotype testing is recommended to inform ARIA risk counselling but does not exclude homozygotes."
+      }
+    ],
+    "europe_pmc": [
+      {
+        "title": "Anti-Amyloid Monoclonal Antibodies: Evidence, ARIA Risk, and Precision Patient Selection",
+        "year": 2026,
+        "doi": "10.1000/pulse-eval-aria-mab-001",
+        "pmid": "41544372",
+        "summary": "Lecanemab and donanemab are among the first anti-A\u03b2 treatments to receive approval in Europe. ARIA risk is highest in ApoE \u03b54/\u03b54 homozygotes. Precision patient selection and MRI monitoring are emphasised. eg., genotype counselling before initiation."
+      },
+      {
+        "title": "EMA Kisunla (donanemab): ApoE \u03b54/\u03b54 exclusion from indicated population",
+        "year": 2025,
+        "doi": "10.1000/pulse-eval-kisunla-eu",
+        "summary": "European marketing authorisation for donanemab (Kisunla) excludes ApoE \u03b54/\u03b54 homozygotes. Heterozygotes and non-carriers remain eligible. The restriction reflects ARIA safety signals concentrated in homozygotes."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "dedup_correct",
+      "defect_id": "E1"
+    },
+    {
+      "type": "distinct_source_count_accurate",
+      "defect_id": "E1"
+    },
+    {
+      "type": "relevance_lead",
+      "lead_must_include_all_groups": [
+        [
+          "US",
+          "FDA",
+          "United States"
+        ],
+        [
+          "EU",
+          "EMA",
+          "Europe",
+          "European"
+        ]
+      ],
+      "lead_must_not_include": [
+        "Asia-Pacific",
+        "Asia Pacific",
+        "prevalence estimates",
+        "regional burden"
+      ],
+      "defect_id": "E2"
+    },
+    {
+      "type": "qualifier_preserved",
+      "term": "\u03b54/\u03b54",
+      "variants": [
+        "=e4/4",
+        "=homozygot",
+        "ApoE4 carriers",
+        "ApoE4 carrier"
+      ],
+      "scope": "all",
+      "defect_id": "E2"
+    },
+    {
+      "type": "divergence_absent",
+      "source": "cdc",
+      "reason": "CDC absence on EU marketing authorisations is not contradiction",
+      "defect_id": "E5"
+    },
+    {
+      "type": "top_source_not_irrelevant",
+      "forbidden_first": [
+        "Asia-Pacific",
+        "prevalence estimates"
+      ],
+      "defect_id": "E2"
+    },
+    {
+      "type": "key_not_stale",
+      "valid_as_of": "2026-07-25",
+      "review_by": "2026-10-25",
+      "defect_id": "STALE"
+    },
+    {
+      "type": "claim_provenance_complete",
+      "defect_id": "E9"
+    },
+    {
+      "type": "confidence_status_coherent",
+      "defect_id": "E9"
+    },
+    {
+      "type": "divergence_wellformed",
+      "defect_id": "E5"
+    },
+    {
+      "type": "no_verbatim_dump",
+      "min_words": 12,
+      "defect_id": "E3"
+    }
+  ],
+  "use_recorded_brief": false
+}
