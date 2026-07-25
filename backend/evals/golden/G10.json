@@ -1,0 +1,115 @@
+{
+  "id": "G10",
+  "defect_ids": [
+    "E2",
+    "E8"
+  ],
+  "query": "What are the FDA-labelled boxed warnings and dosing limits for methotrexate tablets, including the once-weekly versus daily medication-error risk, citing label sources?",
+  "persona": "pharmacist",
+  "personas": [
+    "pharmacist"
+  ],
+  "subject_terms": [
+    "methotrexate",
+    "boxed warning",
+    "once weekly",
+    "DailyMed"
+  ],
+  "valid_as_of": "2026-07-25",
+  "review_by": "2026-10-25",
+  "review_cadence": "quarterly",
+  "sources_attempted": 11,
+  "answer_key": {
+    "sub_questions": [
+      "Boxed warnings",
+      "Dosing frequency non-oncologic",
+      "Monitoring",
+      "Interactions"
+    ],
+    "correct_answer": [
+      "Boxed warnings include embryo-fetal toxicity, hypersensitivity, multi-organ toxicity, medication-error deaths from daily dosing.",
+      "Non-oncologic dosing ONCE WEEKLY \u2014 daily dosing errors fatal.",
+      "Monitor CBC, hepatic, renal function."
+    ],
+    "required_qualifiers": [
+      "ONCE WEEKLY",
+      "boxed warning",
+      "label-derived source"
+    ],
+    "traps": [
+      "Answer from journals only",
+      "Omit weekly-not-daily"
+    ]
+  },
+  "sources": {
+    "dailymed": [
+      {
+        "title": "METHOTREXATE tablet \u2014 FDA label",
+        "year": 2026,
+        "url": "https://dailymed.nlm.nih.gov/dailymed/drugInfo.cfm?setid=70c09984-2b36-424f-8b27-3fd0cd4e833d",
+        "summary": "BOXED WARNING: embryo-fetal toxicity, hypersensitivity, severe adverse reactions. Methotrexate tablets when inadvertently administered once daily have resulted in death. For rheumatoid arthritis the recommended starting dosage is 7.5 mg orally once weekly. For psoriasis 10 to 25 mg orally once weekly. Mistakenly taking the weekly dosage once daily has led to fatal adverse reactions. Monitor blood counts and hepatic and renal function. NSAIDs and trimethoprim-sulfamethoxazole may increase toxicity."
+      }
+    ],
+    "pubmed": [
+      {
+        "title": "Methotrexate in rheumatoid arthritis \u2014 narrative review",
+        "year": 2018,
+        "summary": "Methotrexate remains an anchor DMARD. This journal review discusses efficacy but is not the FDA label and does not replace boxed warning language."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "source_class_present",
+      "source_class": "regulatory",
+      "defect_id": "E8"
+    },
+    {
+      "type": "relevance_lead",
+      "lead_must_include": [
+        "methotrexate",
+        "weekly",
+        "boxed",
+        "warning",
+        "label"
+      ],
+      "lead_must_not_include": [],
+      "defect_id": "E2"
+    },
+    {
+      "type": "qualifier_preserved",
+      "term": "once weekly",
+      "variants": [
+        "=once-weekly",
+        "daily dosing",
+        "every day"
+      ],
+      "scope": "all",
+      "defect_id": "E2"
+    },
+    {
+      "type": "key_not_stale",
+      "valid_as_of": "2026-07-25",
+      "review_by": "2026-10-25",
+      "defect_id": "STALE"
+    },
+    {
+      "type": "claim_provenance_complete",
+      "defect_id": "E9"
+    },
+    {
+      "type": "confidence_status_coherent",
+      "defect_id": "E9"
+    },
+    {
+      "type": "divergence_wellformed",
+      "defect_id": "E5"
+    },
+    {
+      "type": "no_verbatim_dump",
+      "min_words": 12,
+      "defect_id": "E3"
+    }
+  ],
+  "use_recorded_brief": false
+}

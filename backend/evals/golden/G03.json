@@ -1,0 +1,102 @@
+{
+  "id": "G03",
+  "defect_ids": [
+    "E2",
+    "E5",
+    "E6"
+  ],
+  "query": "What is first-line pharmacologic therapy for hypertension in adults without compelling indications, according to current major guidelines?",
+  "persona": "clinician",
+  "personas": [
+    "clinician"
+  ],
+  "subject_terms": [
+    "hypertension",
+    "thiazide",
+    "ACE",
+    "ARB",
+    "calcium channel"
+  ],
+  "valid_as_of": "2026-07-25",
+  "review_by": "2026-10-25",
+  "review_cadence": "quarterly",
+  "sources_attempted": 11,
+  "answer_key": {
+    "sub_questions": [
+      "Which drug classes are first-line for uncomplicated hypertension",
+      "Which classes are not first-line absent a compelling indication",
+      "Where major guideline bodies differ, and why"
+    ],
+    "correct_answer": [
+      "First-line: thiazide/thiazide-like, ACEI, ARB, dihydropyridine CCB.",
+      "Beta-blockers not first-line under ACC/AHA absent compelling indication; ESH may differ (scope).",
+      "Do not combine ACEI+ARB."
+    ],
+    "required_qualifiers": [
+      "without compelling indications",
+      "guideline body and year"
+    ],
+    "traps": [
+      "Presenting ACC vs ESH as contradiction",
+      "BB first-line as universal"
+    ]
+  },
+  "sources": {
+    "pubmed": [
+      {
+        "title": "ACC/AHA hypertension first-line therapy summary",
+        "year": 2024,
+        "summary": "For adults with hypertension without compelling indications, first-line agents are thiazide or thiazide-like diuretics, ACE inhibitors, ARBs, and dihydropyridine calcium channel blockers. Beta-blockers are reserved for compelling indications such as heart failure or post-MI under ACC/AHA guidance."
+      }
+    ],
+    "who_iris": [
+      {
+        "title": "WHO hypertension guideline excerpt",
+        "year": 2021,
+        "summary": "WHO guidance supports thiazide-like diuretics, ACE inhibitors/ARBs, and dihydropyridine CCBs as core first-line options; initiation strategies may favour combination therapy in many adults."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "relevance_lead",
+      "lead_must_include": [
+        "hypertension",
+        "first-line",
+        "thiazide",
+        "ACE",
+        "ARB",
+        "calcium"
+      ],
+      "defect_id": "E2"
+    },
+    {
+      "type": "themes_are_clusters",
+      "defect_id": "E7"
+    },
+    {
+      "type": "key_not_stale",
+      "valid_as_of": "2026-07-25",
+      "review_by": "2026-10-25",
+      "defect_id": "STALE"
+    },
+    {
+      "type": "claim_provenance_complete",
+      "defect_id": "E9"
+    },
+    {
+      "type": "confidence_status_coherent",
+      "defect_id": "E9"
+    },
+    {
+      "type": "divergence_wellformed",
+      "defect_id": "E5"
+    },
+    {
+      "type": "no_verbatim_dump",
+      "min_words": 12,
+      "defect_id": "E3"
+    }
+  ],
+  "use_recorded_brief": false
+}

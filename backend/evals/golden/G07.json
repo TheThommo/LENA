@@ -1,0 +1,96 @@
+{
+  "id": "G07",
+  "defect_ids": [
+    "E4",
+    "E5"
+  ],
+  "query": "Does early versus delayed physiotherapy after ACL reconstruction improve functional outcomes, and what does the evidence say about timing?",
+  "persona": "physiotherapist",
+  "personas": [
+    "physiotherapist"
+  ],
+  "subject_terms": [
+    "ACL",
+    "physiotherapy",
+    "rehabilitation",
+    "early mobilisation"
+  ],
+  "valid_as_of": "2026-07-25",
+  "review_by": "2027-07-25",
+  "review_cadence": "annual",
+  "sources_attempted": 11,
+  "answer_key": {
+    "sub_questions": [
+      "Definitions of early vs delayed",
+      "Functional outcomes",
+      "Graft safety",
+      "Limits"
+    ],
+    "correct_answer": [
+      "Early ROM/weight-bearing preferred over prolonged immobilisation.",
+      "Comparable/better function without consistent graft failure increase.",
+      "Early rehab \u2260 early return-to-sport."
+    ],
+    "required_qualifiers": [
+      "graft type when specified",
+      "early rehab \u2260 early RTS"
+    ],
+    "traps": [
+      "Conflating early rehab with early RTS",
+      "Protocol heterogeneity as contradiction"
+    ]
+  },
+  "sources": {
+    "pubmed": [
+      {
+        "title": "Early versus delayed rehabilitation after ACL reconstruction",
+        "year": 2020,
+        "summary": "Early range of motion and weight-bearing as tolerated after ACL reconstruction reduce arthrofibrosis risk and show comparable graft laxity versus delayed protocols. Return-to-sport timing is criterion-based and distinct from early rehab initiation."
+      }
+    ],
+    "cochrane": [
+      {
+        "title": "Exercise-based rehabilitation after ACL reconstruction",
+        "year": 2018,
+        "summary": "Accelerated physiotherapy protocols show similar functional outcomes (IKDC/KOOS) without consistent increase in graft failure. Definitions of early vary across trials."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "relevance_lead",
+      "lead_must_include": [
+        "ACL",
+        "early",
+        "rehab",
+        "physiotherapy",
+        "functional"
+      ],
+      "defect_id": "E2"
+    },
+    {
+      "type": "key_not_stale",
+      "valid_as_of": "2026-07-25",
+      "review_by": "2027-07-25",
+      "defect_id": "STALE"
+    },
+    {
+      "type": "claim_provenance_complete",
+      "defect_id": "E9"
+    },
+    {
+      "type": "confidence_status_coherent",
+      "defect_id": "E9"
+    },
+    {
+      "type": "divergence_wellformed",
+      "defect_id": "E5"
+    },
+    {
+      "type": "no_verbatim_dump",
+      "min_words": 12,
+      "defect_id": "E3"
+    }
+  ],
+  "use_recorded_brief": false
+}

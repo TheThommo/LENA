@@ -1,0 +1,106 @@
+{
+  "id": "G09",
+  "defect_ids": [
+    "E2"
+  ],
+  "query": "How does ARIA risk under anti-amyloid monoclonal antibodies differ for ApoE \u03b54/\u03b54 homozygotes versus heterozygotes or non-carriers?",
+  "persona": "neuroscientist",
+  "personas": [
+    "neuroscientist",
+    "pharmacist"
+  ],
+  "subject_terms": [
+    "ARIA",
+    "ApoE",
+    "homozygote",
+    "lecanemab",
+    "donanemab"
+  ],
+  "valid_as_of": "2026-07-25",
+  "review_by": "2026-10-25",
+  "review_cadence": "quarterly",
+  "sources_attempted": 11,
+  "answer_key": {
+    "sub_questions": [
+      "Risk gradient",
+      "Trial support",
+      "Implications for testing/monitoring"
+    ],
+    "correct_answer": [
+      "Highest ARIA in \u03b54/\u03b54, intermediate heterozygotes, lowest non-carriers.",
+      "Gradient consistent across pivotal trials; absolute rates differ by drug.",
+      "Supports genotyping, counselling, MRI monitoring."
+    ],
+    "required_qualifiers": [
+      "three groups never collapsed",
+      "ARIA-E vs ARIA-H"
+    ],
+    "traps": [
+      "Collapsing into carriers"
+    ]
+  },
+  "sources": {
+    "pubmed": [
+      {
+        "title": "ARIA risk by ApoE genotype with lecanemab",
+        "year": 2023,
+        "summary": "ARIA-E incidence was highest in ApoE \u03b54/\u03b54 homozygotes, intermediate in \u03b54 heterozygotes, and lowest in non-carriers receiving lecanemab. Symptomatic ARIA concentrated in homozygotes."
+      }
+    ],
+    "openalex": [
+      {
+        "title": "Donanemab ARIA stratified by ApoE",
+        "year": 2024,
+        "summary": "Donanemab trials show the same genotype gradient for ARIA-H and ARIA-E though absolute rates differ from lecanemab. This is a scope difference between drugs, not a contradiction of the gradient."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "qualifier_preserved",
+      "term": "\u03b54/\u03b54",
+      "variants": [
+        "=homozygot",
+        "carriers",
+        "ApoE4 carriers"
+      ],
+      "scope": "all",
+      "defect_id": "E2"
+    },
+    {
+      "type": "relevance_lead",
+      "lead_must_include": [
+        "ARIA",
+        "ApoE",
+        "homozygot",
+        "\u03b54",
+        "e4"
+      ],
+      "defect_id": "E2"
+    },
+    {
+      "type": "key_not_stale",
+      "valid_as_of": "2026-07-25",
+      "review_by": "2026-10-25",
+      "defect_id": "STALE"
+    },
+    {
+      "type": "claim_provenance_complete",
+      "defect_id": "E9"
+    },
+    {
+      "type": "confidence_status_coherent",
+      "defect_id": "E9"
+    },
+    {
+      "type": "divergence_wellformed",
+      "defect_id": "E5"
+    },
+    {
+      "type": "no_verbatim_dump",
+      "min_words": 12,
+      "defect_id": "E3"
+    }
+  ],
+  "use_recorded_brief": false
+}

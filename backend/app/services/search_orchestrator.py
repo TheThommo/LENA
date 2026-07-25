@@ -149,6 +149,7 @@ async def _query_pubmed(query: str, max_results: int) -> list[SourceResult]:
             summary=a.abstract,
             url=a.url,
             doi=a.doi,
+            pmid=a.pmid,
             year=a.year,
             authors=list(a.authors or []),
         )
@@ -313,6 +314,7 @@ async def _query_europe_pmc(query: str, max_results: int) -> list[SourceResult]:
             summary=a.abstract,
             url=a.url,
             doi=a.doi,
+            pmid=a.pmid,
             year=a.year,
             authors=list(a.authors or []),
         )

@@ -1,0 +1,90 @@
+{
+  "id": "G14",
+  "defect_ids": [
+    "E2"
+  ],
+  "query": "How do SGLT2 inhibitors reduce hospitalisation for heart failure, and what are the key trial findings \u2014 explained for a medical student?",
+  "persona": "medical_student",
+  "personas": [
+    "medical_student"
+  ],
+  "subject_terms": [
+    "SGLT2",
+    "mechanism",
+    "heart failure",
+    "trial"
+  ],
+  "valid_as_of": "2026-07-25",
+  "review_by": "2027-01-25",
+  "review_cadence": "semi-annual",
+  "sources_attempted": 11,
+  "answer_key": {
+    "sub_questions": [
+      "Mechanism",
+      "Why HF benefit \u2260 glucose lowering alone",
+      "Key trials",
+      "Place in therapy"
+    ],
+    "correct_answer": [
+      "Inhibit proximal tubule glucose reabsorption \u2192 glucosuria.",
+      "HF benefit largely independent of glucose lowering.",
+      "CVOT then dedicated HF trials including without diabetes.",
+      "Guideline-recommended in HF regardless of diabetes status."
+    ],
+    "required_qualifiers": [
+      "regardless of diabetes status",
+      "HFrEF vs HFpEF",
+      "named trials"
+    ],
+    "traps": [
+      "Attributing HF benefit only to glucose lowering",
+      "Expert register without teaching"
+    ]
+  },
+  "sources": {
+    "pubmed": [
+      {
+        "title": "Mechanisms of SGLT2 inhibitor benefit in heart failure",
+        "year": 2021,
+        "summary": "SGLT2 inhibitors reduce renal glucose reabsorption producing glucosuria. Heart-failure benefit appears early and is largely independent of glucose lowering; proposed mechanisms include natriuresis and volume reduction. DAPA-HF and EMPEROR-Reduced showed reduced hospitalisation for heart failure in HFrEF including participants without diabetes."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "relevance_lead",
+      "lead_must_include": [
+        "SGLT",
+        "heart failure",
+        "mechanism",
+        "glucose",
+        "hospital"
+      ],
+      "defect_id": "E2"
+    },
+    {
+      "type": "key_not_stale",
+      "valid_as_of": "2026-07-25",
+      "review_by": "2027-01-25",
+      "defect_id": "STALE"
+    },
+    {
+      "type": "claim_provenance_complete",
+      "defect_id": "E9"
+    },
+    {
+      "type": "confidence_status_coherent",
+      "defect_id": "E9"
+    },
+    {
+      "type": "divergence_wellformed",
+      "defect_id": "E5"
+    },
+    {
+      "type": "no_verbatim_dump",
+      "min_words": 12,
+      "defect_id": "E3"
+    }
+  ],
+  "use_recorded_brief": false
+}

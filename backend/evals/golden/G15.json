@@ -1,0 +1,100 @@
+{
+  "id": "G15",
+  "defect_ids": [
+    "E7"
+  ],
+  "query": "What themes should a teaching summary cover on cardiac rehabilitation after myocardial infarction?",
+  "persona": "lecturer",
+  "personas": [
+    "lecturer"
+  ],
+  "subject_terms": [
+    "cardiac rehabilitation",
+    "myocardial infarction",
+    "exercise-based"
+  ],
+  "valid_as_of": "2026-07-25",
+  "review_by": "2027-01-25",
+  "review_cadence": "semi-annual",
+  "sources_attempted": 11,
+  "answer_key": {
+    "sub_questions": [
+      "Outcomes",
+      "Components",
+      "Uptake/access",
+      "Delivery models"
+    ],
+    "correct_answer": [
+      "Exercise-based CR associated with lower CV mortality and readmission.",
+      "Multi-component: exercise, risk factors, counselling, psychosocial support.",
+      "Uptake low with equity gaps.",
+      "Home/hybrid/tele comparable in lower-risk patients."
+    ],
+    "required_qualifiers": [
+      "exercise-based",
+      "CV vs all-cause mortality",
+      "post-MI"
+    ],
+    "traps": [
+      "Overstating all-cause mortality",
+      "Clinical decision brief not teaching themes"
+    ]
+  },
+  "sources": {
+    "cochrane": [
+      {
+        "title": "Exercise-based cardiac rehabilitation for coronary heart disease",
+        "year": 2021,
+        "summary": "Exercise-based cardiac rehabilitation after myocardial infarction is associated with reduced cardiovascular mortality and hospital readmission. Effects on all-cause mortality are less consistent in contemporary analyses. Programmes include exercise training, risk-factor modification, education and psychosocial support. Uptake remains low with disparities. Home-based and hybrid models show broadly comparable outcomes in lower-risk patients."
+      }
+    ],
+    "pubmed": [
+      {
+        "title": "Access and equity in cardiac rehabilitation",
+        "year": 2022,
+        "summary": "Completion of cardiac rehabilitation after MI remains below eligibility, with documented disparities by sex, age, socioeconomic status and geography."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "themes_are_clusters",
+      "defect_id": "E7"
+    },
+    {
+      "type": "relevance_lead",
+      "lead_must_include": [
+        "cardiac",
+        "rehab",
+        "myocardial",
+        "exercise",
+        "mortality"
+      ],
+      "defect_id": "E2"
+    },
+    {
+      "type": "key_not_stale",
+      "valid_as_of": "2026-07-25",
+      "review_by": "2027-01-25",
+      "defect_id": "STALE"
+    },
+    {
+      "type": "claim_provenance_complete",
+      "defect_id": "E9"
+    },
+    {
+      "type": "confidence_status_coherent",
+      "defect_id": "E9"
+    },
+    {
+      "type": "divergence_wellformed",
+      "defect_id": "E5"
+    },
+    {
+      "type": "no_verbatim_dump",
+      "min_words": 12,
+      "defect_id": "E3"
+    }
+  ],
+  "use_recorded_brief": false
+}

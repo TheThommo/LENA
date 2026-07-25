@@ -1,0 +1,104 @@
+{
+  "id": "G06",
+  "defect_ids": [
+    "E4",
+    "E9"
+  ],
+  "query": "Magnesium glycinate versus magnesium oxide for sleep or anxiety \u2014 what do clinical evidence and product-label sources actually support?",
+  "persona": "alternative_practitioner",
+  "personas": [
+    "alternative_practitioner",
+    "patient"
+  ],
+  "subject_terms": [
+    "magnesium",
+    "glycinate",
+    "oxide",
+    "sleep",
+    "anxiety"
+  ],
+  "valid_as_of": "2026-07-25",
+  "review_by": "2027-07-25",
+  "review_cadence": "annual",
+  "sources_attempted": 11,
+  "answer_key": {
+    "sub_questions": [
+      "Pharmaceutical differences",
+      "Sleep evidence",
+      "Anxiety evidence",
+      "Superiority for those outcomes"
+    ],
+    "correct_answer": [
+      "Oxide: high compound Mg, low bioavailability; glycinate better absorbed/tolerated.",
+      "Sleep/anxiety clinical evidence limited and inconsistent.",
+      "No robust superiority for sleep/anxiety outcomes."
+    ],
+    "required_qualifiers": [
+      "elemental magnesium",
+      "separate bioavailability vs outcomes"
+    ],
+    "traps": [
+      "Overstating benefit",
+      "Vendor content as evidence"
+    ]
+  },
+  "sources": {
+    "ods_dsld": [
+      {
+        "title": "Magnesium glycinate supplement label example",
+        "year": 2023,
+        "summary": "Label lists magnesium bisglycinate; no disease claims for curing anxiety."
+      }
+    ],
+    "pubmed": [
+      {
+        "title": "Magnesium supplementation and sleep: small heterogeneous trials",
+        "year": 2021,
+        "summary": "Small trials of magnesium for sleep show inconsistent effects, often in older or deficient populations. Evidence quality is low to moderate. Oxide has lower bioavailability than organic salts such as glycinate."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "source_class_present",
+      "source_class": "regulatory",
+      "defect_id": "E8"
+    },
+    {
+      "type": "relevance_lead",
+      "lead_must_include": [
+        "magnesium",
+        "glycinate",
+        "oxide",
+        "sleep",
+        "anxiety",
+        "bioavailability"
+      ],
+      "defect_id": "E2"
+    },
+    {
+      "type": "key_not_stale",
+      "valid_as_of": "2026-07-25",
+      "review_by": "2027-07-25",
+      "defect_id": "STALE"
+    },
+    {
+      "type": "claim_provenance_complete",
+      "defect_id": "E9"
+    },
+    {
+      "type": "confidence_status_coherent",
+      "defect_id": "E9"
+    },
+    {
+      "type": "divergence_wellformed",
+      "defect_id": "E5"
+    },
+    {
+      "type": "no_verbatim_dump",
+      "min_words": 12,
+      "defect_id": "E3"
+    }
+  ],
+  "use_recorded_brief": false
+}

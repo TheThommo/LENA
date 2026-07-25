@@ -1,0 +1,113 @@
+{
+  "id": "G13",
+  "defect_ids": [
+    "E1"
+  ],
+  "query": "Do SGLT2 inhibitors reduce hospitalisation for heart failure in patients with HFrEF, and what is the strength of that evidence?",
+  "persona": "researcher",
+  "personas": [
+    "researcher"
+  ],
+  "subject_terms": [
+    "SGLT2",
+    "HFrEF",
+    "hospitalisation",
+    "dapagliflozin"
+  ],
+  "valid_as_of": "2026-07-25",
+  "review_by": "2027-07-25",
+  "review_cadence": "annual",
+  "sources_attempted": 11,
+  "answer_key": {
+    "sub_questions": [
+      "Do they reduce HHF in HFrEF?",
+      "Strength of evidence?",
+      "Distinct-work counting"
+    ],
+    "correct_answer": [
+      "Yes \u2014 outcome trials show reduced HHF in HFrEF.",
+      "Large randomised HF outcome trials; high-tier evidence.",
+      "Same paper in multiple DBs counts as one distinct work."
+    ],
+    "required_qualifiers": [
+      "HFrEF",
+      "HHF vs CV death",
+      "distinct-source count"
+    ],
+    "traps": [
+      "Double-counting PubMed+Europe PMC"
+    ]
+  },
+  "sources": {
+    "pubmed": [
+      {
+        "title": "Dapagliflozin in patients with heart failure and reduced ejection fraction",
+        "year": 2019,
+        "doi": "10.1000/pulse-eval-dapa-hf",
+        "pmid": "31535829",
+        "summary": "In this randomised trial, dapagliflozin reduced the risk of worsening heart failure or cardiovascular death in patients with HFrEF. Hospitalisation for heart failure was significantly reduced versus placebo, including among participants without diabetes."
+      }
+    ],
+    "europe_pmc": [
+      {
+        "title": "Dapagliflozin in patients with heart failure and reduced ejection fraction",
+        "year": 2019,
+        "doi": "10.1000/pulse-eval-dapa-hf",
+        "pmid": "31535829",
+        "summary": "In this randomised trial, dapagliflozin reduced the risk of worsening heart failure or cardiovascular death in patients with HFrEF. Hospitalisation for heart failure was significantly reduced versus placebo, including among participants without diabetes."
+      }
+    ],
+    "openalex": [
+      {
+        "title": "EMPEROR-Reduced: empagliflozin in HFrEF",
+        "year": 2020,
+        "doi": "10.1000/pulse-eval-emperor-reduced",
+        "summary": "Empagliflozin reduced the combined risk of cardiovascular death or hospitalisation for heart failure in patients with HFrEF."
+      }
+    ]
+  },
+  "assertions": [
+    {
+      "type": "dedup_correct",
+      "defect_id": "E1"
+    },
+    {
+      "type": "distinct_source_count_accurate",
+      "defect_id": "E1"
+    },
+    {
+      "type": "relevance_lead",
+      "lead_must_include": [
+        "SGLT",
+        "heart failure",
+        "HFrEF",
+        "hospital"
+      ],
+      "defect_id": "E2"
+    },
+    {
+      "type": "key_not_stale",
+      "valid_as_of": "2026-07-25",
+      "review_by": "2027-07-25",
+      "defect_id": "STALE"
+    },
+    {
+      "type": "claim_provenance_complete",
+      "defect_id": "E9"
+    },
+    {
+      "type": "confidence_status_coherent",
+      "defect_id": "E9"
+    },
+    {
+      "type": "divergence_wellformed",
+      "defect_id": "E5"
+    },
+    {
+      "type": "no_verbatim_dump",
+      "min_words": 12,
+      "defect_id": "E3"
+    }
+  ],
+  "use_recorded_brief": false
+}

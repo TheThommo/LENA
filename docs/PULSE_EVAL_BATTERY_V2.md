@@ -1,8 +1,9 @@
 # PULSE Answer-Quality Eval — Battery & Rubric v2 (design lock)
 
-Status: **design revision for owner approval** — no pipeline code changes yet.  
-Date: 2026-07-24  
-Responds to owner critique of the Phase-0 15-case proposal.
+Status: **design locked; owner keys ingested** — see `docs/PULSE_GOLDEN_ANSWER_KEYS.md`.  
+Dates: design 2026-07-24 · keys ingested 2026-07-25  
+Responds to owner critique of the Phase-0 15-case proposal.  
+No pipeline code changes until Checkpoint 2 owner gate after baseline.
 
 ---
 
@@ -157,11 +158,11 @@ Persona-appropriateness and No-fabrication both load heavily here; Correctness =
 
 ## What is still blocked on the owner
 
-1. **Paste or attach the sixteen full answer keys** (sub-questions, 2–4 bullets, required qualifiers, traps, pass notes) with `valid_as_of` / `review_by` filled after your primary-source pass.  
-   *(Your message described the keys and the structural critique; the full key bodies were not in the message text.)*
-2. Approve this **rubric** (5 criteria + overall ≥80 + per-criterion ≥60).
-3. Approve the **pinned** G4 / G5 / G13 subject matter (or swap pins).
-4. Then Phase 2 code: implement grader + floor + golden fixtures, baseline against current pipeline, **STOP** for Checkpoint 2.
+1. ~~Paste sixteen full answer keys~~ → **done** in `docs/PULSE_GOLDEN_ANSWER_KEYS.md` (G4/G5/G13 pins filled).
+2. Approve this **rubric** (5 criteria + overall ≥80 + per-criterion ≥60) — already reflected in keys doc.
+3. **Primary-source VERIFY** for keys stamped `[VERIFY]` (especially G1, G3, G9, G10, G11, G14, G15); re-check G5 status on run day.
+4. Approve pins for G4 / G5 / G13 as filled.
+5. Then Phase 2 code: implement grader + floor + golden fixtures, baseline against current pipeline, **STOP** for Checkpoint 2.
 
 ---
 
