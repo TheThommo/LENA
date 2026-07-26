@@ -209,7 +209,8 @@ def _is_claim_sentence(sent: str) -> bool:
             r"recommend|significant|compared|versus|vs\.?|dose|label|"
             r"indicat|risk|mortality|hospitalisation|hospitalization|"
             r"supersede|declined|positive opinion|benefit|conclude[sd]?|"
-            r"support(?:s|ed|ing)?|suggest(?:s|ed)?|indicate[sd]?|reveal(?:s|ed)?|confirm(?:s|ed)?|"
+            r"support(?:s|ed|ing)?|emphasiz(?:e[sd]?|ing)|emphasise[sd]?|"
+            r"suggest(?:s|ed)?|indicate[sd]?|reveal(?:s|ed)?|confirm(?:s|ed)?|"
             r"prevalence|incidence|effective|efficacy|correlated|"
             r"adverse|side effects?|status|recruiting|endpoint|sponsor|"
             r"phase\s*[1-4]|nct\d+|"
@@ -391,7 +392,8 @@ def _polarity_conflict(a: str, b: str) -> bool:
     pos = re.compile(
         r"\b(?:reduced|reduce[sd]?|improved|improves|benefit|benefits|"
         r"effective|efficacy|approv(?:ed|al)|positive opinion|"
-        r"significantly reduced|supported|supports|permits?|allow(?:s|ed)?)\b",
+        r"significantly reduced|supported|supports|emphasiz(?:e[sd]?|ing)|"
+        r"emphasise[sd]?|permits?|allow(?:s|ed)?)\b",
         re.I,
     )
     a_neg, b_neg = bool(neg.search(a)), bool(neg.search(b))
@@ -456,7 +458,8 @@ def reconcile_claims(claims: list[AtomicClaim]) -> list[ClaimGroup]:
             supersede_lang = bool(
                 re.search(
                     r"supersede|revers(?:e|ing|ed)|replaced by|updated by|"
-                    r"recommends? against|no longer (?:recommend|support)",
+                    r"no longer (?:recommend|support)|"
+                    r"revis(?:e[sd]?|ing)\b.{0,80}\bversus\b",
                     " ".join(m.text for m in members),
                     re.I,
                 )
@@ -534,7 +537,9 @@ def reconcile_claims(claims: list[AtomicClaim]) -> list[ClaimGroup]:
             )
         )
 
-    # Global conflict pass: opposing polarity + shared proposition across ALL claims.
+    # Global conflict pass: same-proposition CONTRADICTION / TEMPORAL_SUPERSESSION
+    # across ALL claims (E5/E6). Polarity is sufficient; explicit supersession
+    # language with a year delta is also sufficient (missed-supersession hole).
     conflicted_ids: set[str] = set()
     conflict_groups: list[ClaimGroup] = []
     for i, ca in enumerate(claims):
@@ -545,8 +550,6 @@ def reconcile_claims(claims: list[AtomicClaim]) -> list[ClaimGroup]:
                 continue
             if not _same_proposition(ca.text, cb.text, min_shared=3):
                 continue
-            if not _polarity_conflict(ca.text, cb.text):
-                continue
             members = [ca, cb]
             classification, reason, superseded_by, topic = _classify_members(members)
             if classification == ReconcileClass.SCOPE_DIFFERENCE:
@@ -556,9 +559,9 @@ def reconcile_claims(claims: list[AtomicClaim]) -> list[ClaimGroup]:
                 ReconcileClass.CONTRADICTION,
                 ReconcileClass.TEMPORAL_SUPERSESSION,
             ):
-                if _qualifier_conflict(ca.qualifiers, cb.qualifiers):
-                    continue
                 if not _polarity_conflict(ca.text, cb.text):
+                    continue
+                if _qualifier_conflict(ca.qualifiers, cb.qualifiers):
                     continue
                 classification = ReconcileClass.CONTRADICTION
                 reason = "sources assert opposing outcomes on the same topic"
