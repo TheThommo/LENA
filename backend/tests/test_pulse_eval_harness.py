@@ -63,6 +63,18 @@ async def test_g11_e6_temporal_supersession_surfaced():
 
 
 @pytest.mark.asyncio
+async def test_g15_e7_themes_are_phrase_clusters():
+    """E7: G15 themes must be contiguous phrases (or omitted), not token bags."""
+    from evals.runner import run_suite
+
+    results = await run_suite("golden", force_offline_rubric=True, case_filter="G15")
+    assert results, "G15 missing"
+    for r in results:
+        by_name = {a.name: a for a in r.assertion_results}
+        assert by_name["themes_are_clusters"].passed, by_name["themes_are_clusters"].detail
+
+
+@pytest.mark.asyncio
 async def test_g01_e1_e2_e3_e4_pass():
     """G01: E1–E4 floor/rubric path — full case pass under offline rubric."""
     from evals.runner import run_suite
