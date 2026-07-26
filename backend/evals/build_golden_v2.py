@@ -804,6 +804,11 @@ CASES.append(
                 "scope": "all",
                 "defect_id": "E6",
             },
+            {
+                "type": "divergence_present",
+                "topic": "primary",
+                "defect_id": "E6",
+            },
         ],
     )
 )

@@ -209,7 +209,7 @@ def _is_claim_sentence(sent: str) -> bool:
             r"recommend|significant|compared|versus|vs\.?|dose|label|"
             r"indicat|risk|mortality|hospitalisation|hospitalization|"
             r"supersede|declined|positive opinion|benefit|conclude[sd]?|"
-            r"suggest(?:s|ed)?|indicate[sd]?|reveal(?:s|ed)?|confirm(?:s|ed)?|"
+            r"support(?:s|ed|ing)?|suggest(?:s|ed)?|indicate[sd]?|reveal(?:s|ed)?|confirm(?:s|ed)?|"
             r"prevalence|incidence|effective|efficacy|correlated|"
             r"adverse|side effects?|status|recruiting|endpoint|sponsor|"
             r"phase\s*[1-4]|nct\d+|"
@@ -350,12 +350,34 @@ def _qualifier_conflict(a: Qualifiers, b: Qualifiers) -> bool:
     return False
 
 
+def _mask_negated_outcome_phrases(text: str) -> str:
+    """
+    Neutralize outcome verbs under explicit negation so 'did not reduce'
+    does not also count as a positive 'reduce' hit (E6 polarity hygiene).
+    """
+    patterns = (
+        r"\b(?:did|does|do|was|were)\s+not\s+\w+",
+        r"\bnot\s+(?:significantly\s+)?(?:reduce[sd]?|improved?|benefit|effective)\b",
+        r"\bno\s+(?:significant\s+)?(?:mortality\s+)?benefit\b",
+        r"\bwithout\s+(?:benefit|improvement|effect|efficacy|reduction)\b",
+        r"\brecommends?\s+against\b",
+        r"\brecommend\s+against\b",
+        r"\bfailed\s+to\s+\w+",
+    )
+    out = text or ""
+    for pat in patterns:
+        out = re.sub(pat, " ", out, flags=re.I)
+    return out
+
+
 def _polarity_conflict(a: str, b: str) -> bool:
     """
     Opposing outcome detector for true contradictions.
 
     Bare "without" is NOT negation ("without graft failure" ≠ denies benefit).
     Prefer explicit did-not / no-benefit / exclude vs positive outcome language.
+    Positive lexicon is scored only after masking negated phrases so
+    "did not reduce" cannot register as both negative and positive.
     """
     neg = re.compile(
         r"\b(?:did not|does not|do not|was not|were not|"
@@ -373,11 +395,28 @@ def _polarity_conflict(a: str, b: str) -> bool:
         re.I,
     )
     a_neg, b_neg = bool(neg.search(a)), bool(neg.search(b))
-    a_pos, b_pos = bool(pos.search(a)), bool(pos.search(b))
+    a_pos = bool(pos.search(_mask_negated_outcome_phrases(a)))
+    b_pos = bool(pos.search(_mask_negated_outcome_phrases(b)))
     if not ((a_neg and b_pos) or (b_neg and a_pos)):
         return False
     # Require a shared proposition so unrelated pos/neg claims do not conflict
     return _same_proposition(a, b, min_shared=2)
+
+
+def _same_paper_claims(a: AtomicClaim, b: AtomicClaim) -> bool:
+    """
+    True when two claims are from the same paper/work — not merely the same
+    database. source_ids are often database names (e.g. 'pubmed'), so title
+    identity is required before treating them as non-independent (E6).
+    """
+    if not a.source_ids or set(a.source_ids) != set(b.source_ids):
+        return False
+    titles_a = {t.strip().lower() for t in (a.source_titles or []) if t and t.strip()}
+    titles_b = {t.strip().lower() for t in (b.source_titles or []) if t and t.strip()}
+    if titles_a and titles_b:
+        return bool(titles_a & titles_b)
+    # No titles: fall back to identical claim text / span (same extraction)
+    return bool(a.span and a.span == b.span)
 
 
 def reconcile_claims(claims: list[AtomicClaim]) -> list[ClaimGroup]:
@@ -388,6 +427,8 @@ def reconcile_claims(claims: list[AtomicClaim]) -> list[ClaimGroup]:
 
     E5: only same-proposition groups may become CONTRADICTION /
     TEMPORAL_SUPERSESSION; weak token overlap is not divergence.
+    E6: opposing polarity across years on the same proposition must surface
+    even when both papers live in the same database.
     """
     unused = list(claims)
     groups: list[ClaimGroup] = []
@@ -446,8 +487,8 @@ def reconcile_claims(claims: list[AtomicClaim]) -> list[ClaimGroup]:
             for cb in members[i + 1 :]:
                 if not _same_proposition(ca.text, cb.text):
                     continue
-                # Same database row / same paper claims are not independent conflict
-                if set(ca.source_ids) == set(cb.source_ids) and ca.source_ids:
+                # Same paper claims are not independent conflict
+                if _same_paper_claims(ca, cb):
                     continue
                 if _polarity_conflict(ca.text, cb.text) and not _qualifier_conflict(
                     ca.qualifiers, cb.qualifiers
@@ -500,7 +541,7 @@ def reconcile_claims(claims: list[AtomicClaim]) -> list[ClaimGroup]:
         for cb in claims[i + 1 :]:
             if ca.claim_id in conflicted_ids and cb.claim_id in conflicted_ids:
                 continue
-            if set(ca.source_ids) == set(cb.source_ids) and ca.source_ids:
+            if _same_paper_claims(ca, cb):
                 continue
             if not _same_proposition(ca.text, cb.text, min_shared=3):
                 continue

@@ -87,6 +87,11 @@
       "defect_id": "E6"
     },
     {
+      "type": "divergence_present",
+      "topic": "primary",
+      "defect_id": "E6"
+    },
+    {
       "type": "key_not_stale",
       "valid_as_of": "2026-07-25",
       "review_by": "2026-10-25",

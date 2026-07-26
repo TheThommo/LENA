@@ -6,7 +6,7 @@
 
 **Model (production brief fallback):** `gpt-4o-mini`, `temperature=0.3`, `max_tokens=2000`
 
-> **Important runtime note:** When the claim pipeline succeeds (`run_claim_pipeline` → `compose_brief`), production currently emits a **verbatim claim-bound brief** and may **skip** this LLM system prompt entirely. The LLM path below is the fallback (`_generate_llm_summary` → `generate_response`). Persona modifiers only affect the LLM path, not claim-pipeline composition.
+> **Important runtime note (E6+):** Production always prefers the human LLM brief (`_generate_llm_summary` → `generate_response`) grounded by claim-pipeline provenance + reconciliation edges. The claim-pipeline `compose_brief` is the offline/eval scaffold and the no-API-key fallback only. Persona modifiers apply on the LLM path.
 
 ---
 
