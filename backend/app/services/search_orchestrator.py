@@ -102,19 +102,37 @@ def plan_sources_for_query(
     return ordered
 
 
+def preferred_sources_for_query(query: str) -> set[str]:
+    """Source names in the planned class for this query type (E8)."""
+    qtype = classify_query_type(query)
+    if qtype == "regulatory":
+        return set(REGULATORY_SOURCES)
+    if qtype == "trial_registry":
+        return set(TRIAL_SOURCES)
+    if qtype == "guideline":
+        return set(GUIDELINE_SOURCES)
+    if qtype == "literature":
+        return set(LITERATURE_SOURCES)
+    return set()
+
+
 def rank_results_for_query(
     query: str,
     results: list,
     subject_terms: Optional[list[str]] = None,
 ) -> list:
     """
-    Rank papers by query fit then relevance. Prevents off-topic surveillance /
-    prevalence hits from outranking on-jurisdiction answers (D12).
+    Rank papers by planned source class (E8), then query fit, then relevance.
+
+    Label / trial-registry / guideline questions must surface that class ahead
+    of background literature even when journals match more tokens.
     """
     subjects = [t.lower() for t in (subject_terms or []) if t]
     q_tokens = set(re.findall(r"[a-z0-9]{3,}", (query or "").lower()))
     # Drop ultra-common function words already handled elsewhere
     q_tokens -= {"the", "and", "for", "how", "what", "does", "with", "from", "that", "this"}
+    preferred = preferred_sources_for_query(query)
+    qtype = classify_query_type(query)
 
     def score(r) -> tuple:
         blob = f"{getattr(r, 'title', '')} {getattr(r, 'summary', '')}".lower()
@@ -122,6 +140,16 @@ def rank_results_for_query(
         fit = hits / max(len(q_tokens), 1)
         subj = sum(1 for t in subjects if t in blob) / max(len(subjects), 1) if subjects else 0.0
         rel = float(getattr(r, "relevance_score", 0.0) or 0.0)
+        src = (getattr(r, "source_name", None) or "").lower()
+        # E8: planned class outranks other databases for this query type.
+        # Literature queries do not demote other classes (empty preference
+        # handled by treating all literature sources equally).
+        class_hit = 0.0
+        if preferred:
+            if src in preferred:
+                class_hit = 1.0
+            elif qtype in {"regulatory", "trial_registry", "guideline"}:
+                class_hit = 0.0
         # Soft-penalise clearly off-geography prevalence dumps on jurisdiction queries
         geo_penalty = 0.0
         if re.search(r"\b(?:US|EU|FDA|EMA|United States|European)\b", query or "", re.I):
@@ -131,7 +159,7 @@ def rank_results_for_query(
                 re.I,
             ) and not re.search(r"\b(?:US|EU|FDA|EMA|label|SmPC)\b", blob, re.I):
                 geo_penalty = 0.5
-        return (fit - geo_penalty, subj, rel)
+        return (class_hit, fit - geo_penalty, subj, rel)
 
     return sorted(results, key=score, reverse=True)
 

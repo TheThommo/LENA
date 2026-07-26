@@ -65,6 +65,11 @@
       "defect_id": "E8"
     },
     {
+      "type": "preferred_source_class_leads",
+      "source_class": "regulatory",
+      "defect_id": "E8"
+    },
+    {
       "type": "relevance_lead",
       "lead_must_include": [
         "methotrexate",

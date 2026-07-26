@@ -374,6 +374,57 @@ def source_class_present(
     )
 
 
+def preferred_source_class_leads(
+    ranked_source_names: list[str],
+    source_class: str,
+    defect_id: str = "E8",
+) -> AssertionResult:
+    """
+    E8: the top-ranked result must come from the planned source class
+    (label / trial registry / guideline), not background literature.
+    """
+    class_map = {
+        "regulatory": {"dailymed", "openfda", "ods_dsld"},
+        "trial_registry": {"clinical_trials"},
+        "guideline": {"who_iris", "cdc"},
+        "literature": {
+            "pubmed", "cochrane", "openalex", "semantic_scholar", "europe_pmc",
+        },
+    }
+    allowed = class_map.get(source_class.lower())
+    if not allowed:
+        return AssertionResult(
+            name="preferred_source_class_leads",
+            passed=False,
+            detail=f"unknown source class {source_class!r}",
+            defect_id=defect_id,
+        )
+    if not ranked_source_names:
+        return AssertionResult(
+            name="preferred_source_class_leads",
+            passed=False,
+            detail="no ranked sources to evaluate lead class",
+            defect_id=defect_id,
+        )
+    lead = (ranked_source_names[0] or "").lower()
+    if lead not in allowed:
+        return AssertionResult(
+            name="preferred_source_class_leads",
+            passed=False,
+            detail=(
+                f"lead source {lead!r} is not in planned class {source_class!r}; "
+                f"ranked={list(ranked_source_names)[:5]}"
+            ),
+            defect_id=defect_id,
+        )
+    return AssertionResult(
+        name="preferred_source_class_leads",
+        passed=True,
+        detail=f"lead source {lead!r} matches class {source_class!r}",
+        defect_id=defect_id,
+    )
+
+
 def themes_are_clusters(
     themes: list[str],
     defect_id: str = "D7",
@@ -880,6 +931,9 @@ ASSERTION_DISPATCH = {
     "divergence_absent": lambda args, ctx: divergence_absent(ctx.get("diverging_sources") or [], **args),
     "divergence_present": lambda args, ctx: divergence_present(ctx.get("divergence_flags") or [], **args),
     "source_class_present": lambda args, ctx: source_class_present(ctx.get("source_names") or [], **args),
+    "preferred_source_class_leads": lambda args, ctx: preferred_source_class_leads(
+        ctx.get("ranked_source_names") or [], **args
+    ),
     "themes_are_clusters": lambda args, ctx: themes_are_clusters(ctx.get("themes") or [], **args),
     "source_dates_present_in_narrative": lambda args, ctx: source_dates_present_in_narrative(ctx["brief"], **args),
     "approvals_not_called_guidelines": lambda args, ctx: approvals_not_called_guidelines(ctx["brief"], **args),
