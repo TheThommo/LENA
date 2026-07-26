@@ -199,6 +199,7 @@ async def run_case(case: dict[str, Any], *, force_offline_rubric: bool = False) 
         subject_terms=case.get("subject_terms"),
     )
     ranked_titles = [r.title for r in ranked_papers]
+    ranked_source_names = [r.source_name for r in ranked_papers]
     planned = plan_sources_for_query(case["query"], list(results_by_source.keys()))
     source_names = list(dict.fromkeys(planned + list(results_by_source.keys())))
 
@@ -212,6 +213,7 @@ async def run_case(case: dict[str, Any], *, force_offline_rubric: bool = False) 
         "source_names": source_names,
         "themes": list(pulse.consensus_keywords or []),
         "ranked_titles": ranked_titles,
+        "ranked_source_names": ranked_source_names,
         "pulse": pulse,
         "papers": papers,
         "case": case,

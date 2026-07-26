@@ -427,6 +427,11 @@ CASES.append(
         assertions=[
             {"type": "source_class_present", "source_class": "trial_registry", "defect_id": "E8"},
             {
+                "type": "preferred_source_class_leads",
+                "source_class": "trial_registry",
+                "defect_id": "E8",
+            },
+            {
                 "type": "relevance_lead",
                 "lead_must_include": ["NCT06307652", "Phase", "Recruiting", "balcinrenone", "endpoint"],
                 "defect_id": "E2",
@@ -721,6 +726,11 @@ CASES.append(
         },
         assertions=[
             {"type": "source_class_present", "source_class": "regulatory", "defect_id": "E8"},
+            {
+                "type": "preferred_source_class_leads",
+                "source_class": "regulatory",
+                "defect_id": "E8",
+            },
             {
                 "type": "relevance_lead",
                 "lead_must_include": ["methotrexate", "weekly", "boxed", "warning", "label"],
