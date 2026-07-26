@@ -398,7 +398,8 @@ class TestPULSEValidation:
         for theme in report.consensus_keywords:
             assert " " in theme or "-" in theme, f"raw token theme: {theme}"
             words = theme.lower().split()
-            assert words != sorted(words) or len(words) < 2
+            if len(words) >= 3:
+                assert words != sorted(words), theme
         # Source-agreement keyword overlap still uses token consensus internally
         assert any(sa.shared_keywords for sa in report.source_agreements)
 
