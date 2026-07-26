@@ -671,6 +671,150 @@ def _compute_overlap(keywords_a: set[str], keywords_b: set[str]) -> float:
     return len(intersection) / len(union) if union else 0.0
 
 
+_THEME_WEAK_EDGE = {
+    "less", "more", "such", "include", "includes", "including", "remain",
+    "remains", "show", "shows", "showed", "using", "used", "via", "per",
+    "within", "among", "across", "versus", "vs", "into", "onto", "able",
+    "lower", "higher", "better", "worse", "related", "regarding",
+    "programmes", "programs", "analyses", "contemporary", "broadly",
+    "models", "reduces", "reduced", "reduce", "increased", "increase",
+    "decreasing", "improved", "improves",
+}
+
+_THEME_CONNECTORS = {
+    "of", "and", "for", "with", "after", "in", "on", "to", "vs", "versus",
+    "or", "by",
+}
+
+
+def _is_alphabetised_token_join(phrase: str) -> bool:
+    """
+    True when a phrase looks like a sorted bag-of-tokens join (E7 failure mode).
+
+    Require ≥3 tokens: legitimate bigrams (e.g. 'cardiac rehabilitation')
+    are often alphabetical by chance.
+    """
+    words = [w for w in re.findall(r"[a-z0-9\-]+", (phrase or "").lower()) if w]
+    return len(words) >= 3 and words == sorted(words)
+
+
+def build_theme_clusters(
+    texts: list[str],
+    *,
+    max_themes: int = 8,
+    min_count: int = 1,
+) -> list[str]:
+    """
+    Build multi-word theme phrases from claim/paper text (E7).
+
+    Uses contiguous n-grams that appear in the source prose — never
+    alphabetised token bags from proposition topics. Returns [] (omit)
+    when no quality phrase clusters exist.
+    """
+    if not texts:
+        return []
+
+    counts: Counter = Counter()
+    doc_hits: dict[str, set[int]] = {}
+    for doc_i, text in enumerate(texts):
+        if not text:
+            continue
+        # Skip alphabetised token-bag lines (legacy topic dumps) entirely
+        if _is_alphabetised_token_join(text):
+            continue
+        words = re.findall(r"[a-z0-9][a-z0-9\-]{1,}", text.lower())
+        if len(words) < 2:
+            continue
+        # Prefer content bigrams; allow connector trigrams ("X after Y")
+        seen_in_doc: set[str] = set()
+        for n in (2, 3):
+            if len(words) < n:
+                continue
+            for i in range(len(words) - n + 1):
+                window = words[i : i + n]
+                if window[0] in STOP_WORDS or window[-1] in STOP_WORDS:
+                    continue
+                if window[0] in _THEME_WEAK_EDGE or window[-1] in _THEME_WEAK_EDGE:
+                    continue
+                if any(w in _THEME_WEAK_EDGE for w in window):
+                    continue
+                content = [
+                    w
+                    for w in window
+                    if w not in STOP_WORDS
+                    and w not in _THEME_CONNECTORS
+                    and len(w) >= MIN_KEYWORD_LENGTH
+                ]
+                if len(content) < 2:
+                    continue
+                # Every token must be content or a light connector
+                if any(w not in content and w not in _THEME_CONNECTORS for w in window):
+                    continue
+                # Trigrams must include a connector; otherwise prefer bigrams
+                if n == 3 and not any(w in _THEME_CONNECTORS for w in window):
+                    continue
+                if all(w.isdigit() or len(w) <= 2 for w in content):
+                    continue
+                phrase = " ".join(window)
+                if _is_alphabetised_token_join(phrase):
+                    continue
+                counts[phrase] += 1
+                if phrase not in seen_in_doc:
+                    doc_hits.setdefault(phrase, set()).add(doc_i)
+                    seen_in_doc.add(phrase)
+
+    if not counts:
+        return []
+
+    def _score(phrase: str) -> tuple:
+        toks = phrase.split()
+        content_n = sum(
+            1
+            for w in toks
+            if w not in STOP_WORDS
+            and w not in _THEME_CONNECTORS
+            and len(w) >= MIN_KEYWORD_LENGTH
+        )
+        docs = len(doc_hits.get(phrase, ()))
+        return (
+            -counts[phrase],
+            -docs,
+            -content_n,
+            -len(toks),
+            phrase,
+        )
+
+    ranked = [p for p, c in counts.items() if c >= min_count]
+    ranked.sort(key=_score)
+
+    selected: list[str] = []
+    selected_norm: list[str] = []
+    for phrase in ranked:
+        if _is_alphabetised_token_join(phrase):
+            continue
+        norm = phrase
+        if any(norm in kept or kept in norm for kept in selected_norm):
+            replaced = False
+            for i, kept in enumerate(list(selected_norm)):
+                if kept in norm and kept != norm and len(norm.split()) > len(kept.split()):
+                    selected[i] = phrase
+                    selected_norm[i] = norm
+                    replaced = True
+                    break
+            if replaced or any(norm in kept for kept in selected_norm):
+                continue
+        selected.append(phrase)
+        selected_norm.append(norm)
+        if len(selected) >= max_themes:
+            break
+
+    if selected and (
+        sum(1 for t in selected if _is_alphabetised_token_join(t)) / len(selected) >= 0.5
+    ):
+        return []
+    return selected
+
+
 async def run_pulse_validation(
     query: str,
     results_by_source: dict[str, list[SourceResult]],
@@ -859,18 +1003,33 @@ async def run_pulse_validation(
             if sa.source_name in conflict_sources:
                 sa.is_consensus = False
 
-        # Theme clusters from reconciled claim topics (not alphabetised raw tokens)
-        clusters: list[str] = []
-        for g in groups:
-            tokens = [t for t in (g.topic or "").split() if len(t) > 2]
-            if len(tokens) >= 2:
-                cluster = " ".join(tokens[:4])
-                if cluster not in clusters:
-                    clusters.append(cluster)
-        if clusters:
-            report.consensus_keywords = clusters[:12]
+        # E7: theme clusters = contiguous phrases from claim spans / titles.
+        # Alphabetised proposition-token bags are not themes — omit if none.
+        theme_texts: list[str] = []
+        for c in bound:
+            span = (getattr(c, "span", None) or getattr(c, "text", None) or "").strip()
+            if span:
+                theme_texts.append(span)
+            for title in getattr(c, "source_titles", None) or []:
+                if title:
+                    theme_texts.append(str(title))
+        if not theme_texts:
+            for p in all_papers:
+                if p.title:
+                    theme_texts.append(p.title)
+                if p.summary:
+                    theme_texts.append(p.summary[:500])
+        report.consensus_keywords = build_theme_clusters(theme_texts, max_themes=8)
     except Exception as e:
         logger.warning(f"Claim reconciliation skipped: {e}")
+        # Still attempt themes from paper text when reconcile fails
+        theme_texts = []
+        for p in all_papers:
+            if p.title:
+                theme_texts.append(p.title)
+            if p.summary:
+                theme_texts.append(p.summary[:500])
+        report.consensus_keywords = build_theme_clusters(theme_texts, max_themes=8)
 
     # Divergent sources for narrative = conflict participants only (D4/D5/D6)
     edge_sources = {sa.source_name for sa in report.source_agreements if not sa.is_consensus}

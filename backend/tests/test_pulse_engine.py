@@ -352,11 +352,41 @@ class TestPULSEValidation:
 
     @pytest.mark.asyncio
     async def test_pulse_consensus_keywords(self, create_test_search_result):
-        """Consensus keywords should appear in multiple sources."""
+        """E7: display themes are phrase clusters (or omitted), not raw token lists."""
         results = {
-            "pubmed": [create_test_search_result("pubmed", keywords=["heart", "failure", "cardiac"])],
-            "clinical_trials": [create_test_search_result("clinical_trials", keywords=["heart", "failure", "treatment"])],
-            "cochrane": [create_test_search_result("cochrane", keywords=["heart", "cardiac", "evidence"])],
+            "pubmed": [
+                create_test_search_result(
+                    "pubmed",
+                    title="Heart failure outcomes with cardiac resynchronisation",
+                    summary=(
+                        "Cardiac resynchronisation therapy reduced heart failure "
+                        "hospitalisation in selected patients with reduced ejection fraction."
+                    ),
+                    keywords=["heart", "failure", "cardiac"],
+                )
+            ],
+            "clinical_trials": [
+                create_test_search_result(
+                    "clinical_trials",
+                    title="Trial of heart failure treatment strategies",
+                    summary=(
+                        "This randomised trial compared heart failure treatment strategies "
+                        "and reported fewer hospitalisations with device therapy."
+                    ),
+                    keywords=["heart", "failure", "treatment"],
+                )
+            ],
+            "cochrane": [
+                create_test_search_result(
+                    "cochrane",
+                    title="Systematic review of heart failure interventions",
+                    summary=(
+                        "A systematic review of heart failure interventions found consistent "
+                        "reductions in hospitalisation across cardiac device trials."
+                    ),
+                    keywords=["heart", "cardiac", "evidence"],
+                )
+            ],
         }
 
         report = await run_pulse_validation(
@@ -364,17 +394,13 @@ class TestPULSEValidation:
             results_by_source=results,
         )
 
-        # "heart" appears in all 3 sources, should be in consensus
-        # (or at minimum, consensus keywords should exist and be non-empty)
-        assert len(report.consensus_keywords) > 0
-        # Heart appears in all 3 sources' keywords
-        heart_in_sources = all(
-            "heart" in sa.shared_keywords
-            for sa in report.source_agreements
-        )
-        # If heart is in all shared keywords, it should be consensus
-        if heart_in_sources:
-            assert "heart" in report.consensus_keywords
+        # Themes may be omitted, but when present must be multi-word phrases
+        for theme in report.consensus_keywords:
+            assert " " in theme or "-" in theme, f"raw token theme: {theme}"
+            words = theme.lower().split()
+            assert words != sorted(words) or len(words) < 2
+        # Source-agreement keyword overlap still uses token consensus internally
+        assert any(sa.shared_keywords for sa in report.source_agreements)
 
     @pytest.mark.asyncio
     async def test_pulse_conflict_penalty(self, create_test_search_result):

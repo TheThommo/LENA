@@ -379,8 +379,11 @@ def themes_are_clusters(
     defect_id: str = "D7",
 ) -> AssertionResult:
     """
-    Themes must be multi-word clusters (or empty/omitted), not alphabetised
-    raw tokens of length 1.
+    Themes must be real multi-word phrase clusters (or empty/omitted).
+
+    Fail modes (E7):
+    - alphabetised single-token keyword lists
+    - space-joined alphabetised token bags ("ace adults agents arbs")
     """
     if not themes:
         return AssertionResult(
@@ -389,10 +392,19 @@ def themes_are_clusters(
             detail="themes omitted (acceptable)",
             defect_id=defect_id,
         )
-    single_tokens = [t for t in themes if isinstance(t, str) and " " not in t.strip() and "-" not in t]
+
+    def _alpha_join(phrase: str) -> bool:
+        # ≥3 tokens: real bigrams are often alphabetical by chance
+        words = [w for w in re.findall(r"[a-z0-9\-]+", (phrase or "").lower()) if w]
+        return len(words) >= 3 and words == sorted(words)
+
+    single_tokens = [
+        t
+        for t in themes
+        if isinstance(t, str) and " " not in t.strip() and "-" not in t
+    ]
     # Fail if majority are raw single tokens (the production failure mode)
     if len(themes) >= 4 and len(single_tokens) / len(themes) >= 0.75:
-        # Also fail if they look alphabetically sorted single tokens
         lowered = [t.lower() for t in themes]
         if lowered == sorted(lowered) and all(len(t.split()) == 1 for t in themes):
             return AssertionResult(
@@ -407,6 +419,16 @@ def themes_are_clusters(
             detail=f"themes are predominantly raw tokens: {themes[:8]}",
             defect_id=defect_id,
         )
+
+    alpha_joins = [t for t in themes if isinstance(t, str) and _alpha_join(t)]
+    if len(themes) >= 2 and len(alpha_joins) / len(themes) >= 0.5:
+        return AssertionResult(
+            name="themes_are_clusters",
+            passed=False,
+            detail=f"themes look like alphabetised token-joins: {themes[:8]}",
+            defect_id=defect_id,
+        )
+
     return AssertionResult(
         name="themes_are_clusters",
         passed=True,
