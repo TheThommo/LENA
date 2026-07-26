@@ -387,6 +387,7 @@ async def _generate_llm_summary(
     sources_queried: Optional[list[str]] = None,
     profile_context: Optional[str] = None,
     attached_context: Optional[str] = None,
+    claim_context: Optional[dict] = None,
 ) -> tuple[Optional[str], Optional[dict]]:
     """
     Use OpenAI to generate an intelligent, persona-aware summary from the
@@ -395,6 +396,9 @@ async def _generate_llm_summary(
     Returns (summary, usage_dict). usage_dict has keys model, prompt_tokens,
     completion_tokens, cost_micros — or None if the call was skipped/failed
     so the caller knows there's no cost to record.
+
+    claim_context (optional): output of run_claim_pipeline — provenanced claims
+    and reconciliation edges. Grounds the human brief without replacing it.
     """
     if not settings.openai_api_key:
         logger.debug("OpenAI key not set – skipping LLM summary")
@@ -407,26 +411,82 @@ async def _generate_llm_summary(
         # Build source coverage context so the LLM can reason about evidence gaps
         sources_with_results = set()
         evidence_lines: list[str] = []
+        # Index provenanced claims by paper title (source_name alone is ambiguous
+        # when many papers share e.g. "pubmed") so [n] grounding stays accurate.
+        claims_by_title: dict[str, list[dict]] = {}
+        all_pipeline_claims: list[dict] = []
+        if claim_context:
+            for c in (
+                claim_context.get("claims")
+                or claim_context.get("composable_claims")
+                or []
+            ):
+                if not isinstance(c, dict):
+                    continue
+                all_pipeline_claims.append(c)
+                for title in c.get("source_titles") or []:
+                    key = str(title).strip().lower()
+                    if key:
+                        claims_by_title.setdefault(key, []).append(c)
 
+        def _claims_for_paper(r) -> list[dict]:
+            title_key = (getattr(r, "title", None) or "").strip().lower()
+            matched = list(claims_by_title.get(title_key) or [])
+            if matched:
+                return matched[:3]
+            # Fallback: claim span appears in this paper's summary
+            summary = (getattr(r, "summary", None) or "").lower()
+            if not summary:
+                return []
+            out: list[dict] = []
+            for c in all_pipeline_claims:
+                span = (c.get("span") or c.get("text") or "").strip().lower()
+                if span and span[:80] in summary:
+                    out.append(c)
+                if len(out) >= 3:
+                    break
+            return out
+
+        citation_index_by_title: dict[str, int] = {}
         for idx, r in enumerate(pulse_report.validated_results[:12], 1):
             sources_with_results.add(r.source_name)
+            title_key = (r.title or "").strip().lower()
+            if title_key:
+                citation_index_by_title[title_key] = idx
             line = f"[{idx}] ({r.source_name}) {r.title}"
+            if r.year:
+                line += f" ({r.year})"
             if r.summary:
                 snippet = r.summary[:400] + ("…" if len(r.summary) > 400 else "")
                 line += f"\n    {snippet}"
             if r.doi:
                 line += f"\n    DOI: {r.doi}"
+            for c in _claims_for_paper(r):
+                span = (c.get("span") or c.get("text") or "").strip()
+                if span:
+                    line += f"\n    Provenanced claim (cite [{idx}]): {span[:220]}"
             evidence_lines.append(line)
 
+        next_idx = len(pulse_report.validated_results[:12]) + 1
         if pulse_report.edge_cases:
-            evidence_lines.append("\n--- Edge Cases (single-source only) ---")
-            for idx, r in enumerate(pulse_report.edge_cases[:4], len(evidence_lines)):
+            evidence_lines.append("\n--- Single-source / lower-priority papers ---")
+            for r in pulse_report.edge_cases[:4]:
                 sources_with_results.add(r.source_name)
-                line = f"[{idx}] ({r.source_name}) {r.title}"
+                title_key = (r.title or "").strip().lower()
+                if title_key and title_key not in citation_index_by_title:
+                    citation_index_by_title[title_key] = next_idx
+                line = f"[{next_idx}] ({r.source_name}) {r.title}"
+                if r.year:
+                    line += f" ({r.year})"
                 if r.summary:
                     snippet = r.summary[:300] + ("…" if len(r.summary) > 300 else "")
                     line += f"\n    {snippet}"
+                for c in _claims_for_paper(r):
+                    span = (c.get("span") or c.get("text") or "").strip()
+                    if span:
+                        line += f"\n    Provenanced claim (cite [{next_idx}]): {span[:220]}"
                 evidence_lines.append(line)
+                next_idx += 1
 
         # Source coverage preamble — critical for the LLM to understand
         # evidence quality and acknowledge gaps honestly.
@@ -472,6 +532,53 @@ async def _generate_llm_summary(
         coverage_context = "\n".join(coverage_lines)
         evidence_context = "\n\n".join(evidence_lines)
         context = f"--- Source Coverage ---\n{coverage_context}\n\n--- Evidence ---\n{evidence_context}"
+
+        # Reconciliation edges (E6): real contradiction / temporal supersession
+        edges = []
+        if claim_context:
+            edges = list(claim_context.get("edge_cases") or [])
+        if not edges:
+            edges = list(getattr(pulse_report, "reconciliation_edge_cases", None) or [])
+        if edges:
+            conflict_lines = [
+                "--- Conflicts / supersession (MUST present both sides with years; cite [n]) ---"
+            ]
+            for e in edges[:6]:
+                if not isinstance(e, dict):
+                    continue
+                klass = e.get("classification") or e.get("divergence_type") or "CONFLICT"
+                conflict_lines.append(
+                    f"- {klass}: {e.get('reason') or ''} "
+                    f"(topic: {e.get('topic') or 'n/a'})"
+                )
+                for c in (e.get("claims") or [])[:3]:
+                    if not isinstance(c, dict):
+                        continue
+                    yr = c.get("year")
+                    ybit = f" ({yr})" if yr else ""
+                    cite_bit = ""
+                    for title in c.get("source_titles") or []:
+                        idx = citation_index_by_title.get(str(title).strip().lower())
+                        if idx:
+                            cite_bit = f" [{idx}]"
+                            break
+                    conflict_lines.append(
+                        f"  · {c.get('span') or c.get('text') or ''}{ybit}{cite_bit}"
+                    )
+            context = f"{context}\n\n" + "\n".join(conflict_lines)
+
+        context += (
+            "\n\n--- Response contract ---\n"
+            "Write for a human reader: warm, clear, and structured with ## headings "
+            "(e.g. Overview, Key Findings, Warnings and Precautions, Bottom Line as relevant).\n"
+            "Cite evidence ONLY with clickable source numbers like [1], [2] matching the "
+            "Evidence list above. Never invent studies, DOIs, or numbers.\n"
+            "Do NOT dump verbatim claim machinery (no 'Evidence notes:', no '{claim:...}', "
+            "no Sub-questions audit section). Synthesise in your own words while keeping "
+            "immutable qualifiers (doses, genotypes, jurisdictions, ages) exact.\n"
+            "If Conflicts / supersession are listed, say what changed over time — do not "
+            "present outdated guidance as current."
+        )
         if attached_context:
             context = f"{context}\n\n{attached_context}"
 
@@ -1283,12 +1390,14 @@ async def run_search(
         _tag_result_modes(r)
         _prioritize_display_keywords(r, query_subjects)
 
-    # Step 7: Claim-bound brief (extract → reconcile → compose → verify).
-    # Qualifiers are immutable; free-form LLM paraphrase must not be the sole
-    # source of Key Findings / Bottom Line (precision failure mode).
+    # Step 7: Claim pipeline for provenance + reconcile (E1–E6), then human LLM brief.
+    # User-facing answer must be human prose with ## headings and [n] citations
+    # (frontend renders [n] as clickable source chips). Claim-pipeline compose is
+    # the offline/eval scaffold and LLM fallback only — not the production voice.
     all_queried = list(raw_results_by_source.keys()) + list(errors.keys())
     llm_usage = None
     llm_summary = None
+    claim_bundle = None
     try:
         from app.core.claim_pipeline import run_claim_pipeline
 
@@ -1299,19 +1408,21 @@ async def run_search(
         pulse_report.atomic_claims = claim_bundle.get("composable_claims") or claim_bundle.get("claims") or []
         pulse_report.reconciliation_edge_cases = claim_bundle.get("edge_cases") or []
         pulse_report.claim_groups = claim_bundle.get("groups") or []
-        llm_summary = claim_bundle.get("brief")
     except Exception:
-        logger.warning("Claim pipeline failed; falling back to LLM summary", exc_info=True)
-        llm_summary = None
+        logger.warning("Claim pipeline failed; continuing with LLM summary only", exc_info=True)
+        claim_bundle = None
 
-    if not llm_summary:
-        llm_summary, llm_usage = await _generate_llm_summary(
-            query, pulse_report, persona,
-            sources_failed=errors,
-            sources_queried=all_queried,
-            profile_context=profile_context,
-            attached_context=attached_context_text or None,
-        )
+    llm_summary, llm_usage = await _generate_llm_summary(
+        query, pulse_report, persona,
+        sources_failed=errors,
+        sources_queried=all_queried,
+        profile_context=profile_context,
+        attached_context=attached_context_text or None,
+        claim_context=claim_bundle,
+    )
+    if not llm_summary and claim_bundle:
+        # Offline / no API key: structured claim brief preserves provenance
+        llm_summary = claim_bundle.get("brief")
 
     # Step 7b: Auto-verify supplement if query touches supplement keywords.
     # Runs in parallel with the LLM summary (both are post-PULSE) to add

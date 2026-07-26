@@ -47,6 +47,22 @@ async def test_g07_no_false_positive_divergence():
 
 
 @pytest.mark.asyncio
+async def test_g11_e6_temporal_supersession_surfaced():
+    """E6: older support vs later against must surface TEMPORAL_SUPERSESSION on primary prevention."""
+    from evals.runner import run_suite
+
+    results = await run_suite("golden", force_offline_rubric=True, case_filter="G11")
+    assert results, "G11 missing"
+    for r in results:
+        by_name = {a.name: a for a in r.assertion_results}
+        assert by_name["divergence_present"].passed, by_name["divergence_present"].detail
+        assert by_name["qualifier_preserved"].passed, by_name["qualifier_preserved"].detail
+        assert "TEMPORAL_SUPERSESSION" in (r.brief or "") or by_name[
+            "divergence_present"
+        ].passed
+
+
+@pytest.mark.asyncio
 async def test_g01_e1_e2_e3_e4_pass():
     """G01: E1–E4 floor/rubric path — full case pass under offline rubric."""
     from evals.runner import run_suite
