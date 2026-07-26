@@ -467,11 +467,14 @@ class PULSEReport:
         return self._compute_confidence()["ratio"]
 
     def refresh_status(self) -> ValidationStatus:
-        """Recompute status from current confidence (call after coverage inputs change)."""
-        if self.source_count == 0 and not self.validated_results and not self.edge_cases:
-            self.status = ValidationStatus.PENDING
-        else:
-            self.status = status_for_confidence(self.confidence_ratio)
+        """
+        Recompute status from current confidence (E9).
+
+        Status is a pure function of confidence_ratio via status_for_confidence.
+        Never assign VALIDATED / EDGE_CASE / PENDING independently of the ratio.
+        Empty corpus → confidence 0.0 → insufficient_validation.
+        """
+        self.status = status_for_confidence(self.confidence_ratio)
         return self.status
 
     def _compute_confidence(self) -> dict:
@@ -562,9 +565,12 @@ class PULSEReport:
     def to_dict(self) -> dict:
         """Serialise the report to a dictionary for API responses."""
         conf = self._compute_confidence()
+        # E9: never emit a status that disagrees with the confidence ratio
+        status = status_for_confidence(conf["ratio"])
+        self.status = status
         return {
             "query": self.query,
-            "status": self.status.value,
+            "status": status.value,
             "confidence_ratio": round(conf["ratio"], 2),
             "confidence_breakdown": conf,
             "source_count": self.source_count,
@@ -839,7 +845,7 @@ async def run_pulse_validation(
 
     if not results_by_source:
         report.source_count = 0
-        report.status = ValidationStatus.PENDING
+        report.refresh_status()  # E9: confidence 0 → insufficient_validation
         return report
 
     # ── Step 0: Dedup by distinct work (DOI → PMID → title) ───────────

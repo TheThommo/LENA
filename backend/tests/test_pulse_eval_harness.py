@@ -75,6 +75,23 @@ async def test_g15_e7_themes_are_phrase_clusters():
 
 
 @pytest.mark.asyncio
+async def test_g04_g12_e9_confidence_status_coherent():
+    """E9: preprint/absence cases stay insufficient and coherent with confidence."""
+    from evals.runner import run_suite
+
+    for case_id in ("G04", "G12"):
+        results = await run_suite("golden", force_offline_rubric=True, case_filter=case_id)
+        assert results, case_id
+        for r in results:
+            by_name = {a.name: a for a in r.assertion_results}
+            assert by_name["confidence_status_coherent"].passed, by_name[
+                "confidence_status_coherent"
+            ].detail
+            assert by_name["status_is"].passed, by_name["status_is"].detail
+            assert r.status == "insufficient_validation"
+
+
+@pytest.mark.asyncio
 async def test_g01_e1_e2_e3_e4_pass():
     """G01: E1–E4 floor/rubric path — full case pass under offline rubric."""
     from evals.runner import run_suite

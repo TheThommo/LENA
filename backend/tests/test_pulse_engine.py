@@ -129,12 +129,14 @@ class TestPULSEValidation:
 
     @pytest.mark.asyncio
     async def test_pulse_empty_results(self):
-        """No results should return PENDING status."""
+        """Empty corpus: confidence 0 maps to insufficient_validation (E9)."""
         report = await run_pulse_validation(
             query="heart failure",
             results_by_source={},
         )
-        assert report.status == ValidationStatus.PENDING
+        assert report.confidence_ratio == 0.0
+        assert report.status == status_for_confidence(report.confidence_ratio)
+        assert report.status == ValidationStatus.INSUFFICIENT
         assert report.source_count == 0
         assert report.agreement_count == 0
 
