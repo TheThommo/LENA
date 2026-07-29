@@ -135,9 +135,9 @@ async def grade_rubric_llm(
     persona: str,
     answer_key: dict[str, Any],
     brief: str,
-    model: str = "gpt-4o-mini",
+    model: Optional[str] = None,
 ) -> RubricResult:
-    from app.services.openai_service import get_client
+    from app.services.openai_service import complete_json
 
     user_content = (
         f"Query:\n{query}\n\n"
@@ -145,26 +145,31 @@ async def grade_rubric_llm(
         f"Human answer key:\n{format_answer_key_for_grader(answer_key)}\n\n"
         f"LENA brief:\n{brief or '(empty)'}\n"
     )
-    client = get_client()
-    response = await client.chat.completions.create(
+    raw, _usage = await complete_json(
+        system=RUBRIC_SYSTEM,
+        user=user_content,
         model=model,
-        messages=[
-            {"role": "system", "content": RUBRIC_SYSTEM},
-            {"role": "user", "content": user_content},
-        ],
-        temperature=0,
         max_tokens=1600,
-        response_format={"type": "json_object"},
     )
-    raw = response.choices[0].message.content or "{}"
     try:
         data = json.loads(raw)
     except json.JSONDecodeError:
-        return RubricResult(
-            mode="llm",
-            passed=False,
-            detail=f"grader returned non-JSON: {raw[:200]}",
-        )
+        # Anthropic sometimes wraps JSON in fences despite instructions
+        fence = re.search(r"\{[\s\S]*\}", raw or "")
+        if not fence:
+            return RubricResult(
+                mode="llm",
+                passed=False,
+                detail=f"grader returned non-JSON: {raw[:200]}",
+            )
+        try:
+            data = json.loads(fence.group(0))
+        except json.JSONDecodeError:
+            return RubricResult(
+                mode="llm",
+                passed=False,
+                detail=f"grader returned non-JSON: {raw[:200]}",
+            )
     scores_in = data.get("scores") or {}
     scores = {c: _clamp_score(scores_in.get(c, 0)) for c in CRITERIA}
     just = data.get("justifications") or {}
@@ -448,7 +453,7 @@ async def grade_rubric(
         return grade_rubric_offline(
             query=query, persona=persona, answer_key=answer_key, brief=brief
         )
-    if os.environ.get("OPENAI_API_KEY"):
+    if os.environ.get("OPENAI_API_KEY") or os.environ.get("ANTHROPIC_API_KEY"):
         try:
             return await grade_rubric_llm(
                 query=query, persona=persona, answer_key=answer_key, brief=brief
@@ -461,6 +466,23 @@ async def grade_rubric(
                 f"LLM grader failed ({exc}); fell back to offline. {offline.detail}"
             )
             return offline
+
+    # Prefer settings (Railway) when env not mirrored into os.environ
+    try:
+        from app.core.config import settings as _settings
+
+        if _settings.chat_configured:
+            return await grade_rubric_llm(
+                query=query, persona=persona, answer_key=answer_key, brief=brief
+            )
+    except Exception as exc:  # noqa: BLE001
+        offline = grade_rubric_offline(
+            query=query, persona=persona, answer_key=answer_key, brief=brief
+        )
+        offline.detail = (
+            f"LLM grader failed ({exc}); fell back to offline. {offline.detail}"
+        )
+        return offline
 
     remote = _remote_grade_url()
     if remote:

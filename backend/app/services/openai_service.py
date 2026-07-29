@@ -1,19 +1,22 @@
 """
-OpenAI Service for LENA
+LLM + embeddings service for LENA
 
-Handles all LLM interactions:
-- Query understanding and reformulation
-- Persona detection (LLM-enhanced)
-- PULSE cross-reference analysis
-- Response generation with persona-appropriate tone
-- Embedding generation for semantic search (future: pgvector)
+Chat: Anthropic Claude Sonnet 5 by default (OpenAI fallback if no Anthropic key).
+Embeddings: OpenAI text-embedding-3-small (Anthropic has no embeddings API).
 """
 
-from typing import Optional, NamedTuple
+from __future__ import annotations
+
+import base64
+import logging
+from typing import Any, Optional, NamedTuple
+
 from openai import AsyncOpenAI
 
 from app.core.config import settings
 from app.core.persona import PersonaType, get_persona_config
+
+logger = logging.getLogger("lena.llm")
 
 
 class LLMUsage(NamedTuple):
@@ -24,52 +27,62 @@ class LLMUsage(NamedTuple):
     cost_micros: int  # USD millionths (1 USD == 1_000_000 micros)
 
 
-# OpenAI public pricing, USD per 1M tokens. Update when rates change.
-# Keyed by the prefix of the actual returned model id so fine-tune suffixes
-# still match (e.g. "gpt-4o-mini-2024-07-18" -> gpt-4o-mini rates).
+# Public pricing, USD per 1M tokens. Update when rates change.
+# Anthropic Sonnet 5 intro through 2026-08-31: $2/$10; standard $3/$15.
 _MODEL_PRICING_USD_PER_M = {
+    "claude-sonnet-5": (2.00, 10.00),
+    "claude-sonnet-4": (3.00, 15.00),
+    "claude-opus-5": (5.00, 25.00),
     "gpt-4o-mini": (0.15, 0.60),
-    "gpt-4o":       (2.50, 10.00),
-    "gpt-4-turbo":  (10.00, 30.00),
-    "gpt-4":        (30.00, 60.00),
+    "gpt-4o": (2.50, 10.00),
+    "gpt-4-turbo": (10.00, 30.00),
+    "gpt-4": (30.00, 60.00),
     "gpt-3.5-turbo": (0.50, 1.50),
-    "o1-mini":      (1.10, 4.40),
-    "o1-preview":   (15.00, 60.00),
-    "o1":           (15.00, 60.00),
-    # Embeddings (input-only, no output cost)
+    "o1-mini": (1.10, 4.40),
+    "o1-preview": (15.00, 60.00),
+    "o1": (15.00, 60.00),
     "text-embedding-3-small": (0.02, 0.0),
     "text-embedding-3-large": (0.13, 0.0),
 }
 
 
 def _price_for_model(model: str) -> tuple[float, float]:
-    """Return (input $/1M, output $/1M) — falls back to gpt-4o-mini."""
+    """Return (input $/1M, output $/1M) — falls back to claude-sonnet-5."""
     m = (model or "").lower()
-    # Longest-prefix match so "gpt-4o-mini-xyz" beats "gpt-4o" etc.
     best = max(
         (k for k in _MODEL_PRICING_USD_PER_M if m.startswith(k)),
         key=len,
-        default="gpt-4o-mini",
+        default="claude-sonnet-5",
     )
     return _MODEL_PRICING_USD_PER_M[best]
 
 
 def _compute_cost_micros(model: str, prompt_tokens: int, completion_tokens: int) -> int:
-    """Cost in USD millionths. 1 USD = 1_000_000 micros, so cents = micros / 10_000."""
     in_rate, out_rate = _price_for_model(model)
     dollars = (prompt_tokens * in_rate + completion_tokens * out_rate) / 1_000_000.0
     return int(round(dollars * 1_000_000))
 
-# Will be initialized when keys are available
-_client: Optional[AsyncOpenAI] = None
+
+_openai_client: Optional[AsyncOpenAI] = None
+_anthropic_client: Any = None
 
 
 def get_client() -> AsyncOpenAI:
-    """Get or create the OpenAI async client."""
-    global _client
-    if _client is None:
-        _client = AsyncOpenAI(api_key=settings.openai_api_key)
-    return _client
+    """OpenAI client — used for embeddings and OpenAI chat fallback."""
+    global _openai_client
+    if _openai_client is None:
+        _openai_client = AsyncOpenAI(api_key=settings.openai_api_key)
+    return _openai_client
+
+
+def get_anthropic_client():
+    """Anthropic async client for Claude chat."""
+    global _anthropic_client
+    if _anthropic_client is None:
+        from anthropic import AsyncAnthropic
+
+        _anthropic_client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+    return _anthropic_client
 
 
 LENA_SYSTEM_PROMPT = """You are LENA (Literature and Evidence Navigation Agent) — a specialist clinical research assistant who helps users navigate medical and health-science literature.
@@ -149,29 +162,7 @@ These MUST be highly specific to the current query and results — never generic
 """
 
 
-async def generate_response(
-    query: str,
-    context: str,
-    persona: PersonaType = PersonaType.GENERAL,
-    model: str = "gpt-4o-mini",
-    profile_context: Optional[str] = None,
-) -> tuple[str, Optional[LLMUsage]]:
-    """
-    Generate a LENA response using OpenAI.
-
-    Returns:
-        (content, usage) — usage is None if the response didn't carry a .usage
-        block (rare, but safe). content is the generated text.
-    """
-    client = get_client()
-    persona_config = get_persona_config(persona)
-
-    system_message = (
-        f"{LENA_SYSTEM_PROMPT}\n\n"
-        f"Current user persona: {persona_config.display_name}\n"
-        f"{persona_config.system_prompt_modifier}"
-    )
-
+def _build_user_content(query: str, context: str, profile_context: Optional[str]) -> str:
     user_parts: list[str] = []
     if profile_context:
         user_parts.append(
@@ -188,19 +179,75 @@ async def generate_response(
         )
     user_parts.append(f"Based on the following evidence, answer this question: {query}")
     user_parts.append(f"Evidence:\n{context}")
+    return "\n\n".join(user_parts)
 
-    messages = [
-        {"role": "system", "content": system_message},
-        {"role": "user", "content": "\n\n".join(user_parts)},
-    ]
 
+def _anthropic_thinking_param() -> dict[str, str]:
+    mode = (settings.llm_thinking or "disabled").strip().lower()
+    if mode in ("adaptive", "enabled", "on", "1", "true"):
+        return {"type": "adaptive"}
+    return {"type": "disabled"}
+
+
+def _text_from_anthropic_message(message: Any) -> str:
+    parts: list[str] = []
+    for block in getattr(message, "content", None) or []:
+        btype = getattr(block, "type", None)
+        if btype == "text":
+            parts.append(getattr(block, "text", "") or "")
+    return "".join(parts)
+
+
+async def _generate_anthropic(
+    *,
+    system_message: str,
+    user_content: str,
+    model: str,
+    max_tokens: int = 2000,
+) -> tuple[str, Optional[LLMUsage]]:
+    client = get_anthropic_client()
+    # Sonnet 5: do NOT pass temperature/top_p/top_k (non-default → 400).
+    kwargs: dict[str, Any] = {
+        "model": model,
+        "max_tokens": max_tokens,
+        "system": system_message,
+        "messages": [{"role": "user", "content": user_content}],
+        "thinking": _anthropic_thinking_param(),
+    }
+    response = await client.messages.create(**kwargs)
+    content = _text_from_anthropic_message(response)
+    usage: Optional[LLMUsage] = None
+    raw_usage = getattr(response, "usage", None)
+    if raw_usage is not None:
+        pt = int(getattr(raw_usage, "input_tokens", 0) or 0)
+        ct = int(getattr(raw_usage, "output_tokens", 0) or 0)
+        actual_model = getattr(response, "model", None) or model
+        usage = LLMUsage(
+            model=actual_model,
+            prompt_tokens=pt,
+            completion_tokens=ct,
+            cost_micros=_compute_cost_micros(actual_model, pt, ct),
+        )
+    return content, usage
+
+
+async def _generate_openai(
+    *,
+    system_message: str,
+    user_content: str,
+    model: str,
+    max_tokens: int = 2000,
+) -> tuple[str, Optional[LLMUsage]]:
+    client = get_client()
     response = await client.chat.completions.create(
         model=model,
-        messages=messages,
-        temperature=0.3,  # Low temp for factual accuracy
-        max_tokens=2000,
+        messages=[
+            {"role": "system", "content": system_message},
+            {"role": "user", "content": user_content},
+        ],
+        temperature=0.3,
+        max_tokens=max_tokens,
     )
-
     content = response.choices[0].message.content or ""
     usage: Optional[LLMUsage] = None
     if getattr(response, "usage", None):
@@ -216,27 +263,175 @@ async def generate_response(
     return content, usage
 
 
-# ── Embeddings for PULSE claim similarity ────────────────────────────────
-# text-embedding-3-small: 1536 dims, $0.02 per 1M tokens.
-# A typical claim is ~30 tokens → embedding 100 claims ≈ $0.00006.
+async def generate_response(
+    query: str,
+    context: str,
+    persona: PersonaType = PersonaType.GENERAL,
+    model: Optional[str] = None,
+    profile_context: Optional[str] = None,
+) -> tuple[str, Optional[LLMUsage]]:
+    """
+    Generate a LENA response via the configured chat provider.
 
+    Returns:
+        (content, usage) — usage is None if the provider omitted usage accounting.
+    """
+    if not settings.chat_configured:
+        raise RuntimeError(
+            "No chat LLM API key configured (ANTHROPIC_API_KEY or OPENAI_API_KEY)"
+        )
+
+    persona_config = get_persona_config(persona)
+    system_message = (
+        f"{LENA_SYSTEM_PROMPT}\n\n"
+        f"Current user persona: {persona_config.display_name}\n"
+        f"{persona_config.system_prompt_modifier}"
+    )
+    user_content = _build_user_content(query, context, profile_context)
+    provider = settings.chat_provider
+    resolved_model = model or settings.chat_model
+
+    if provider == "anthropic":
+        if resolved_model.startswith("gpt") or resolved_model.startswith("o1"):
+            resolved_model = settings.chat_model
+        return await _generate_anthropic(
+            system_message=system_message,
+            user_content=user_content,
+            model=resolved_model,
+        )
+
+    if resolved_model.startswith("claude"):
+        resolved_model = "gpt-4o-mini"
+    return await _generate_openai(
+        system_message=system_message,
+        user_content=user_content,
+        model=resolved_model,
+    )
+
+
+async def complete_json(
+    *,
+    system: str,
+    user: str,
+    model: Optional[str] = None,
+    max_tokens: int = 1600,
+) -> tuple[str, Optional[LLMUsage]]:
+    """Low-level JSON-oriented completion for graders / structured tasks."""
+    if not settings.chat_configured:
+        raise RuntimeError("No chat LLM API key configured")
+
+    provider = settings.chat_provider
+    resolved_model = model or settings.chat_model
+    json_system = (
+        f"{system}\n\n"
+        "Return ONLY valid JSON. No markdown fences, no commentary."
+    )
+
+    if provider == "anthropic":
+        if resolved_model.startswith("gpt") or resolved_model.startswith("o1"):
+            resolved_model = settings.chat_model
+        return await _generate_anthropic(
+            system_message=json_system,
+            user_content=user,
+            model=resolved_model,
+            max_tokens=max_tokens,
+        )
+
+    client = get_client()
+    if resolved_model.startswith("claude"):
+        resolved_model = "gpt-4o-mini"
+    response = await client.chat.completions.create(
+        model=resolved_model,
+        messages=[
+            {"role": "system", "content": json_system},
+            {"role": "user", "content": user},
+        ],
+        temperature=0,
+        max_tokens=max_tokens,
+        response_format={"type": "json_object"},
+    )
+    content = response.choices[0].message.content or "{}"
+    usage = None
+    if getattr(response, "usage", None):
+        pt = int(response.usage.prompt_tokens or 0)
+        ct = int(response.usage.completion_tokens or 0)
+        actual_model = getattr(response, "model", None) or resolved_model
+        usage = LLMUsage(
+            model=actual_model,
+            prompt_tokens=pt,
+            completion_tokens=ct,
+            cost_micros=_compute_cost_micros(actual_model, pt, ct),
+        )
+    return content, usage
+
+
+async def extract_image_text(data: bytes, mime: str, prompt: str) -> str:
+    """Vision OCR / label extract via the configured chat provider."""
+    if not settings.chat_configured:
+        return ""
+    provider = settings.chat_provider
+    b64 = base64.b64encode(data).decode("ascii")
+
+    if provider == "anthropic":
+        client = get_anthropic_client()
+        media = (
+            mime
+            if mime in ("image/jpeg", "image/png", "image/gif", "image/webp")
+            else "image/png"
+        )
+        response = await client.messages.create(
+            model=settings.chat_model,
+            max_tokens=2000,
+            thinking=_anthropic_thinking_param(),
+            messages=[{
+                "role": "user",
+                "content": [
+                    {
+                        "type": "image",
+                        "source": {
+                            "type": "base64",
+                            "media_type": media,
+                            "data": b64,
+                        },
+                    },
+                    {"type": "text", "text": prompt},
+                ],
+            }],
+        )
+        return _text_from_anthropic_message(response).strip()
+
+    if not settings.openai_api_key:
+        return ""
+    client = get_client()
+    response = await client.chat.completions.create(
+        model="gpt-4o-mini",
+        messages=[{
+            "role": "user",
+            "content": [
+                {"type": "text", "text": prompt},
+                {"type": "image_url", "image_url": {"url": f"data:{mime};base64,{b64}"}},
+            ],
+        }],
+        max_tokens=2000,
+        temperature=0,
+    )
+    return (response.choices[0].message.content or "").strip()
+
+
+# ── Embeddings for PULSE claim similarity ────────────────────────────────
 EMBEDDING_MODEL = "text-embedding-3-small"
 EMBEDDING_DIMS = 1536
-
-# Cache embeddings within a single search request so we don't re-embed
-# the same claim across multiple pair comparisons.
 _embedding_cache: dict[str, list[float]] = {}
 
 
 async def get_embeddings(texts: list[str]) -> list[list[float]]:
     """
-    Batch-embed a list of texts. Returns one 1536-dim vector per text.
-    Uses in-memory cache to avoid re-embedding duplicates within a search.
-    Cost: ~$0.02 per 1M tokens (~$0.00006 per 100 claims).
+    Batch-embed via OpenAI. Anthropic has no embeddings API — OpenAI key still required.
     """
+    if not settings.openai_api_key:
+        raise RuntimeError("OPENAI_API_KEY required for embeddings")
     client = get_client()
 
-    # Split into cached and uncached
     uncached_indices = []
     uncached_texts = []
     results: list[Optional[list[float]]] = [None] * len(texts)
@@ -263,7 +458,6 @@ async def get_embeddings(texts: list[str]) -> list[list[float]]:
 
 
 def cosine_similarity(a: list[float], b: list[float]) -> float:
-    """Cosine similarity between two embedding vectors."""
     dot = sum(x * y for x, y in zip(a, b))
     norm_a = sum(x * x for x in a) ** 0.5
     norm_b = sum(x * x for x in b) ** 0.5
@@ -273,31 +467,53 @@ def cosine_similarity(a: list[float], b: list[float]) -> float:
 
 
 def clear_embedding_cache():
-    """Clear the per-request embedding cache. Call after each search completes."""
     _embedding_cache.clear()
 
 
 async def test_connection() -> dict:
-    """Test the OpenAI API connection."""
+    """Test the configured chat LLM connection."""
+    provider = settings.chat_provider
+    model = settings.chat_model
     try:
-        client = get_client()
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{"role": "user", "content": "Say 'LENA connected' in exactly two words."}],
-            max_tokens=10,
-        )
-        reply = response.choices[0].message.content or ""
+        if not settings.chat_configured:
+            return {
+                "source": provider,
+                "status": "error",
+                "error": "No ANTHROPIC_API_KEY or OPENAI_API_KEY configured",
+                "api_key_configured": False,
+            }
+        if provider == "anthropic":
+            content, _ = await _generate_anthropic(
+                system_message="Reply with exactly two words.",
+                user_content="Say 'LENA connected' in exactly two words.",
+                model=model,
+                max_tokens=32,
+            )
+        else:
+            content, _ = await _generate_openai(
+                system_message="Reply with exactly two words.",
+                user_content="Say 'LENA connected' in exactly two words.",
+                model=model,
+                max_tokens=32,
+            )
         return {
-            "source": "OpenAI",
+            "source": "Anthropic" if provider == "anthropic" else "OpenAI",
             "status": "connected",
-            "model_tested": "gpt-4o-mini",
-            "response": reply.strip(),
-            "api_key_configured": bool(settings.openai_api_key),
+            "model_tested": model,
+            "provider": provider,
+            "response": (content or "").strip(),
+            "api_key_configured": True,
+            "anthropic_configured": bool(settings.anthropic_api_key),
+            "openai_configured": bool(settings.openai_api_key),
         }
     except Exception as e:
         return {
-            "source": "OpenAI",
+            "source": "Anthropic" if provider == "anthropic" else "OpenAI",
             "status": "error",
             "error": str(e),
-            "api_key_configured": bool(settings.openai_api_key),
+            "model_tested": model,
+            "provider": provider,
+            "api_key_configured": settings.chat_configured,
+            "anthropic_configured": bool(settings.anthropic_api_key),
+            "openai_configured": bool(settings.openai_api_key),
         }

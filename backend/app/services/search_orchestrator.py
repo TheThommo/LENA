@@ -428,8 +428,8 @@ async def _generate_llm_summary(
     claim_context (optional): output of run_claim_pipeline — provenanced claims
     and reconciliation edges. Grounds the human brief without replacing it.
     """
-    if not settings.openai_api_key:
-        logger.debug("OpenAI key not set – skipping LLM summary")
+    if not settings.chat_configured:
+        logger.debug("No chat LLM key set – skipping LLM summary")
         return None, None
 
     try:
@@ -620,7 +620,6 @@ async def _generate_llm_summary(
             query=query,
             context=context,
             persona=persona_enum,
-            model="gpt-4o-mini",
             profile_context=profile_context,
         )
         usage_dict = None
