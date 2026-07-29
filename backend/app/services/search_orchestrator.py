@@ -1294,8 +1294,9 @@ async def run_search(
         logger.info("Guardrails bypassed for tester user")
     else:
         guardrail_type, guardrail_msg = run_all_guardrails(query)
-    if guardrail_type and guardrail_type != "medical_advice":
-        # Hard block — no search runs, show the guardrail message only
+    if guardrail_type:
+        # Hard block — including personal medical-advice (G16): warm redirect
+        # only, no evidence brief / PULSE report.
         logger.info(f"Guardrail BLOCK ({guardrail_type}): '{query[:80]}'")
         return {
             "guardrail_triggered": True,
@@ -1305,9 +1306,6 @@ async def run_search(
             "pulse_report": None,
             "response_time_ms": (time.time() - start_time) * 1000,
         }
-    # Medical-advice guardrail: search still runs, but the message is
-    # prepended to the LLM summary so the user sees the redirect context.
-    advice_preamble = guardrail_msg if guardrail_type == "medical_advice" else None
 
     # Step 1b: Ingest URLs embedded in the query + any uploaded attachment text.
     from app.services.content_ingest import (
@@ -1497,7 +1495,7 @@ async def run_search(
         "modes": modes,
         "pulse_report": pulse_report.to_dict(),
         "supplement_verification": supplement_verification,
-        "llm_summary": (advice_preamble + "\n\n" + llm_summary) if advice_preamble and llm_summary else llm_summary,
+        "llm_summary": llm_summary,
         "llm_usage": llm_usage,  # {model, prompt_tokens, completion_tokens, cost_micros} | None
         "attached_content": [b.to_dict() for b in attached_blocks if b.text or b.error],
         "response_time_ms": response_time_ms,

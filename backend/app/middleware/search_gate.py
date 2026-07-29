@@ -193,7 +193,9 @@ class SearchGateMiddleware(BaseHTTPMiddleware):
         if query_param:
             from app.core.guardrails import run_all_guardrails
             guardrail_type, guardrail_msg = run_all_guardrails(query_param)
-            if guardrail_type and guardrail_type != "medical_advice":
+            if guardrail_type:
+                # All content guardrails are hard blocks (including personal
+                # medical-advice warm redirects — no evidence brief).
                 return _guardrail_response(guardrail_type, guardrail_msg, query_param)
 
         # ── Authenticated (JWT) path ──
