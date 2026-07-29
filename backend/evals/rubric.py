@@ -387,6 +387,55 @@ def grade_rubric_offline(
     )
 
 
+async def grade_rubric_remote(
+    *,
+    query: str,
+    persona: str,
+    answer_key: dict[str, Any],
+    brief: str,
+    grade_url: str,
+) -> RubricResult:
+    """Delegate LLM grading to a host that holds OPENAI_API_KEY (e.g. Railway)."""
+    import httpx
+
+    async with httpx.AsyncClient(timeout=90.0) as client:
+        resp = await client.post(
+            grade_url,
+            json={
+                "query": query,
+                "persona": persona,
+                "answer_key": answer_key,
+                "brief": brief,
+            },
+        )
+        resp.raise_for_status()
+        data = resp.json()
+    scores = {c: _clamp_score((data.get("scores") or {}).get(c, 0)) for c in CRITERIA}
+    just = data.get("justifications") or {}
+    justifications = {c: str(just.get(c, "")) for c in CRITERIA}
+    overall, passed, detail = evaluate_thresholds(scores)
+    return RubricResult(
+        scores=scores,
+        justifications=justifications,
+        overall=overall,
+        passed=passed,
+        mode="llm-remote",
+        detail=(data.get("detail") or detail) + " [remote Railway grader]",
+    )
+
+
+def _remote_grade_url() -> Optional[str]:
+    explicit = (os.environ.get("PULSE_GRADE_URL") or "").strip()
+    if explicit:
+        return explicit
+    # Default: production Railway host that holds OPENAI_API_KEY.
+    if os.environ.get("PULSE_GRADE_REMOTE", "1").strip() not in ("0", "false", "no"):
+        return (
+            "https://lena-production-health.up.railway.app/api/internal/pulse-grade"
+        )
+    return None
+
+
 async def grade_rubric(
     *,
     query: str,
@@ -395,17 +444,44 @@ async def grade_rubric(
     brief: str,
     force_offline: bool = False,
 ) -> RubricResult:
-    if force_offline or not os.environ.get("OPENAI_API_KEY"):
+    if force_offline:
         return grade_rubric_offline(
             query=query, persona=persona, answer_key=answer_key, brief=brief
         )
-    try:
-        return await grade_rubric_llm(
-            query=query, persona=persona, answer_key=answer_key, brief=brief
-        )
-    except Exception as exc:  # noqa: BLE001
-        offline = grade_rubric_offline(
-            query=query, persona=persona, answer_key=answer_key, brief=brief
-        )
-        offline.detail = f"LLM grader failed ({exc}); fell back to offline. {offline.detail}"
-        return offline
+    if os.environ.get("OPENAI_API_KEY"):
+        try:
+            return await grade_rubric_llm(
+                query=query, persona=persona, answer_key=answer_key, brief=brief
+            )
+        except Exception as exc:  # noqa: BLE001
+            offline = grade_rubric_offline(
+                query=query, persona=persona, answer_key=answer_key, brief=brief
+            )
+            offline.detail = (
+                f"LLM grader failed ({exc}); fell back to offline. {offline.detail}"
+            )
+            return offline
+
+    remote = _remote_grade_url()
+    if remote:
+        try:
+            return await grade_rubric_remote(
+                query=query,
+                persona=persona,
+                answer_key=answer_key,
+                brief=brief,
+                grade_url=remote,
+            )
+        except Exception as exc:  # noqa: BLE001
+            offline = grade_rubric_offline(
+                query=query, persona=persona, answer_key=answer_key, brief=brief
+            )
+            offline.detail = (
+                f"Remote LLM grader failed ({exc}); fell back to offline. "
+                f"{offline.detail}"
+            )
+            return offline
+
+    return grade_rubric_offline(
+        query=query, persona=persona, answer_key=answer_key, brief=brief
+    )

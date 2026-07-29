@@ -18,8 +18,9 @@ RUN pip install --no-cache-dir -r requirements.txt
 # Create non-root user for security
 RUN useradd -m -u 1000 appuser && chown -R appuser:appuser /app
 
-# Copy application code
+# Copy application code + PULSE eval fixtures (used by /api/internal/pulse-eval)
 COPY --chown=appuser:appuser app/ ./app/
+COPY --chown=appuser:appuser evals/ ./evals/
 
 # Switch to non-root user
 USER appuser
