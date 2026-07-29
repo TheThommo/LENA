@@ -1035,6 +1035,21 @@ def assign_claims_to_parts(
     """
     Greedy one-claim-per-part assignment. Uncovered parts get (part, None, 0).
     """
+
+    def _asks_approval_vs_guideline(text: str) -> bool:
+        t = (text or "").lower()
+        return bool(re.search(r"\bapprov", t) and re.search(r"\bguidelines?\b", t))
+
+    def _distinction_bonus(claim: AtomicClaim) -> float:
+        blob = f"{claim.text} {claim.span}".lower()
+        if re.search(
+            r"\b(?:advisor(?:y|ily)|distinct|separat(?:e|ely)|"
+            r"different from|versus|legal(?:ly)?\s+binding)\b",
+            blob,
+        ):
+            return 0.40
+        return 0.0
+
     remaining = list(claims)
     assigned: list[tuple[str, Optional[AtomicClaim], float]] = []
     for part in parts:
@@ -1042,6 +1057,8 @@ def assign_claims_to_parts(
         best_sc = -1.0
         for c in remaining:
             sc = score_part_claim_coverage(part, c)
+            if _asks_approval_vs_guideline(part):
+                sc += _distinction_bonus(c)
             if sc > best_sc:
                 best, best_sc = c, sc
         if best is not None and best_sc >= min_score:
@@ -1053,6 +1070,8 @@ def assign_claims_to_parts(
             reuse_sc = -1.0
             for c in claims:
                 sc = score_part_claim_coverage(part, c)
+                if _asks_approval_vs_guideline(part):
+                    sc += _distinction_bonus(c)
                 if sc > reuse_sc:
                     reuse_best, reuse_sc = c, sc
             if reuse_best is not None and reuse_sc >= min_score:
@@ -1081,6 +1100,10 @@ def format_subquestion_coverage_section(
             label = f"Clinical management ({label})" if "clinical" not in pl else label
         elif "inr" in pl or (pl.endswith("effect") and "expected" in pl):
             label = f"Direction/magnitude on anticoagulation ({label})"
+        elif re.search(r"\bapprov", pl) and re.search(r"\bguidelines?\b", pl):
+            # Keep approval-vs-guideline contrasts readable without echoing a
+            # long interrogative that can look like conflation in one clause.
+            label = "Approval vs guideline"
         if claim is None:
             lines.append(
                 f"- {label}: No claim-level evidence addressed for this part."
