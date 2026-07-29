@@ -1294,7 +1294,15 @@ def compose_brief(
     is rendered as structured prose that preserves freeze-token qualifiers
     without long verbatim dumps (E3). Each decomposed query part is answered
     or explicitly marked absent (E4).
+
+    Personal medical-advice queries (GUARD): return the warm redirect only —
+    never a standard evidence brief.
     """
+    from app.core.guardrails import check_for_advice_request, get_warm_redirect
+
+    if check_for_advice_request(query or ""):
+        return get_warm_redirect(query or "")
+
     claims = claims_for_composition(groups, query=query)
     edges = surfaceable_edge_cases(groups)
     parts = decompose_query(query)

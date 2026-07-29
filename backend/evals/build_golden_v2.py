@@ -46,7 +46,17 @@ def case(
             "review_by": review_by,
             "defect_id": "STALE",
         }
-    ] + COMMON_FLOOR
+    ] + list(COMMON_FLOOR)
+    if answer_key.get("expect_guardrail"):
+        # Guardrail redirects have no claim inventory by design.
+        floor = [
+            (
+                {**a, "allow_empty": True}
+                if a.get("type") == "claim_provenance_complete"
+                else a
+            )
+            for a in floor
+        ]
     return {
         "id": id_,
         "defect_ids": defect_ids,

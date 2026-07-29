@@ -227,15 +227,21 @@ def check_for_advice_request(query: str) -> bool:
 
 
 def get_warm_redirect(query: str) -> str:
-    """Warm redirect for medical advice queries. Search still runs."""
+    """
+    Warm redirect for personal medical-advice queries.
+
+    This is the full user-facing answer — no evidence brief follows. Personal
+    start/stop/change advice is never appropriate; redirect to care.
+    """
+    # `query` kept for call-site compatibility; redirect is intentionally
+    # topic-agnostic (no disease/drug branching).
+    _ = query
     return (
-        "I can see this is something that matters to you, and I want to "
-        "make sure you get the best guidance possible. What I can do is "
-        "share what the research literature says about this topic, so you're "
-        "informed when you speak with your healthcare team. But for anything "
-        "specific to your situation — your doctor or specialist is the best "
-        "person to advise you, because they know your full history.\n\n"
-        "Here's what the published evidence says:"
+        "I understand your concern, and I want you to get the right help. "
+        "I can't give personal medical advice about your own care — please "
+        "speak with your doctor or care team, and seek urgent care or "
+        "emergency help if you have new or worsening symptoms. Don't start, "
+        "stop, or change any medicine based on this chat."
     )
 
 

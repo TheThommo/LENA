@@ -72,6 +72,7 @@
     },
     {
       "type": "claim_provenance_complete",
+      "allow_empty": true,
       "defect_id": "E9"
     },
     {

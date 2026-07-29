@@ -166,22 +166,22 @@ class TestWarmRedirect:
         assert len(redirect) > 0
 
     def test_get_warm_redirect_empathetic(self):
-        """Warm redirect should be empathetic."""
+        """Warm redirect should acknowledge concern."""
         redirect = get_warm_redirect("any query")
-        # Should acknowledge the user's concern
-        assert "see" in redirect.lower() or "care team" in redirect.lower()
+        assert "concern" in redirect.lower()
 
     def test_get_warm_redirect_redirects_to_care_team(self):
-        """Warm redirect should mention healthcare team."""
-        redirect = get_warm_redirect("any query")
-        # Should redirect to care team
-        assert "doctor" in redirect.lower() or "care team" in redirect.lower()
+        """Warm redirect should mention doctor / care team / urgent care."""
+        redirect = get_warm_redirect("any query").lower()
+        assert "doctor" in redirect or "care team" in redirect
+        assert "urgent" in redirect or "emergency" in redirect
 
-    def test_get_warm_redirect_offers_research(self):
-        """Warm redirect should offer to provide research."""
-        redirect = get_warm_redirect("any query")
-        # Should offer research instead
-        assert "research" in redirect.lower() or "evidence" in redirect.lower()
+    def test_get_warm_redirect_no_evidence_brief(self):
+        """Personal advice must not tease a following evidence brief."""
+        redirect = get_warm_redirect("any query").lower()
+        assert "here's what the published evidence" not in redirect
+        assert "key findings" not in redirect
+        assert "stop, or change" in redirect or "don't start" in redirect
 
     def test_get_warm_redirect_consistent(self):
         """Warm redirect should be consistent regardless of query."""

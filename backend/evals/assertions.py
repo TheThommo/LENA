@@ -193,8 +193,16 @@ def internal_consistency(brief: str, defect_id: str = "D2") -> AssertionResult:
 def claim_provenance_complete(
     claims: list[dict[str, Any]],
     defect_id: str = "D11",
+    allow_empty: bool = False,
 ) -> AssertionResult:
     if not claims:
+        if allow_empty:
+            return AssertionResult(
+                name="claim_provenance_complete",
+                passed=True,
+                detail="vacuous: no claims (allow_empty)",
+                defect_id=defect_id,
+            )
         return AssertionResult(
             name="claim_provenance_complete",
             passed=False,
