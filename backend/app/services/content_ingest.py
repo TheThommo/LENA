@@ -153,36 +153,18 @@ async def ingest_upload(filename: str, content_type: str, data: bytes) -> Ingest
 
 
 async def _extract_image_text(data: bytes, mime: str) -> str:
-    if not settings.openai_api_key:
-        return ""
     try:
-        from app.services.openai_service import get_client
+        from app.services.openai_service import extract_image_text
 
-        b64 = base64.b64encode(data).decode("ascii")
-        client = get_client()
-        response = await client.chat.completions.create(
-            model="gpt-4o-mini",
-            messages=[{
-                "role": "user",
-                "content": [
-                    {
-                        "type": "text",
-                        "text": (
-                            "Extract ALL readable text from this medicine label, supplement label, "
-                            "or health product document. Include product name, active ingredients, "
-                            "dosages, warnings, and manufacturer. Return plain text only."
-                        ),
-                    },
-                    {
-                        "type": "image_url",
-                        "image_url": {"url": f"data:{mime};base64,{b64}"},
-                    },
-                ],
-            }],
-            max_tokens=2000,
-            temperature=0,
+        return await extract_image_text(
+            data,
+            mime,
+            (
+                "Extract ALL readable text from this medicine label, supplement label, "
+                "or health product document. Include product name, active ingredients, "
+                "dosages, warnings, and manufacturer. Return plain text only."
+            ),
         )
-        return (response.choices[0].message.content or "").strip()
     except Exception as exc:
         logger.warning("Vision extract failed: %s", exc)
         return ""

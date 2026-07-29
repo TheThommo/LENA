@@ -1,5 +1,5 @@
 """
-Internal PULSE eval endpoints — use the server's OPENAI_API_KEY (Railway).
+Internal PULSE eval endpoints — use the server's chat LLM key (Railway).
 
 Rate-limited so a public caller cannot freely burn credits. Intended for
 cloud-agent / CI verification when the agent env has no local key.
@@ -9,6 +9,7 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import os
 import time
 from typing import Any, Literal, Optional
 
@@ -44,6 +45,16 @@ def _allow(hits: list[float], limit: int) -> bool:
     return True
 
 
+def _mirror_llm_env() -> None:
+    """Ensure evals.rubric / SDKs see keys from Settings."""
+    if settings.openai_api_key:
+        os.environ.setdefault("OPENAI_API_KEY", settings.openai_api_key)
+    if settings.anthropic_api_key:
+        os.environ.setdefault("ANTHROPIC_API_KEY", settings.anthropic_api_key)
+    os.environ.setdefault("LLM_PROVIDER", settings.llm_provider or "anthropic")
+    os.environ.setdefault("LLM_MODEL", settings.llm_model or "claude-sonnet-5")
+
+
 class GradeRequest(BaseModel):
     query: str
     persona: str = "general"
@@ -53,17 +64,16 @@ class GradeRequest(BaseModel):
 
 @router.post("/pulse-grade")
 async def pulse_grade(body: GradeRequest):
-    """Grade one brief with the server OpenAI key (LLM rubric)."""
-    if not settings.openai_api_key:
-        raise HTTPException(status_code=503, detail="OPENAI_API_KEY not configured")
+    """Grade one brief with the server chat LLM key."""
+    if not settings.chat_configured:
+        raise HTTPException(
+            status_code=503,
+            detail="No chat LLM key configured (ANTHROPIC_API_KEY or OPENAI_API_KEY)",
+        )
     if not _allow(_grade_hits, _MAX_GRADE_PER_HOUR):
         raise HTTPException(status_code=429, detail="pulse-grade rate limit exceeded")
 
-    # Ensure env var is visible to evals.rubric which checks os.environ
-    import os
-
-    os.environ.setdefault("OPENAI_API_KEY", settings.openai_api_key)
-
+    _mirror_llm_env()
     from evals.rubric import grade_rubric_llm
 
     result = await grade_rubric_llm(
@@ -72,7 +82,10 @@ async def pulse_grade(body: GradeRequest):
         answer_key=body.answer_key,
         brief=body.brief,
     )
-    return result.to_dict()
+    out = result.to_dict()
+    out["provider"] = settings.chat_provider
+    out["model"] = settings.chat_model
+    return out
 
 
 @router.post("/pulse-eval")
@@ -83,11 +96,14 @@ async def pulse_eval(
     force: bool = Query(False, description="Bypass cache and re-run"),
 ):
     """
-    Run a PULSE suite on this host (uses Railway OPENAI_API_KEY for LLM rubric).
+    Run a PULSE suite on this host (uses Railway chat LLM for rubric grading).
     Cached per suite(+case) for one hour unless force=1.
     """
-    if not settings.openai_api_key:
-        raise HTTPException(status_code=503, detail="OPENAI_API_KEY not configured")
+    if not settings.chat_configured:
+        raise HTTPException(
+            status_code=503,
+            detail="No chat LLM key configured (ANTHROPIC_API_KEY or OPENAI_API_KEY)",
+        )
 
     cache_key = f"{suite}:{case or '*'}"
     if not force and cache_key in _suite_cache:
@@ -99,11 +115,10 @@ async def pulse_eval(
         raise HTTPException(status_code=429, detail="pulse-eval rate limit exceeded")
 
     async with _suite_lock:
-        import os
         import sys
         from pathlib import Path
 
-        os.environ.setdefault("OPENAI_API_KEY", settings.openai_api_key)
+        _mirror_llm_env()
         # Avoid recursive remote-grade when the suite runs on Railway itself.
         os.environ["PULSE_GRADE_REMOTE"] = "0"
 
@@ -133,7 +148,10 @@ async def pulse_eval(
             "floors_ok": floors_ok,
             "rubric_avg": round(avg, 1),
             "rubric_modes": modes,
-            "openai_configured": True,
+            "provider": settings.chat_provider,
+            "model": settings.chat_model,
+            "openai_configured": bool(settings.openai_api_key),
+            "anthropic_configured": bool(settings.anthropic_api_key),
             "report": report,
             "cases": [
                 {
@@ -151,7 +169,11 @@ async def pulse_eval(
                         and all(a.passed for a in r.assertion_results)
                     ),
                     "floor_fails": [
-                        {"name": a.name, "detail": a.detail, "defect_id": a.defect_id}
+                        {
+                            "name": a.name,
+                            "detail": a.detail,
+                            "defect_id": a.defect_id,
+                        }
                         for a in (r.assertion_results or [])
                         if not a.passed
                     ],
@@ -164,12 +186,13 @@ async def pulse_eval(
         }
         _suite_cache[cache_key] = {"ts": time.time(), "payload": payload}
         logger.info(
-            "pulse-eval suite=%s pass=%s/%s floors=%s rubric_avg=%.1f modes=%s",
+            "pulse-eval suite=%s provider=%s model=%s pass=%s/%s floors=%s rubric_avg=%.1f",
             suite,
+            settings.chat_provider,
+            settings.chat_model,
             n_pass,
             len(results),
             floors_ok,
             avg,
-            modes,
         )
         return {**payload, "cached": False}

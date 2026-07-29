@@ -31,8 +31,17 @@ class Settings(BaseSettings):
     cors_origins: str = "http://localhost:3000,https://lena-app.up.railway.app,https://www.lenamd.com,https://lenamd.com"
     railway_environment: Optional[str] = None
 
-    # OpenAI
+    # OpenAI (embeddings + optional chat fallback)
     openai_api_key: Optional[str] = None
+
+    # Anthropic (default chat LLM — Claude Sonnet 5)
+    anthropic_api_key: Optional[str] = None
+    # "anthropic" | "openai" — preferred chat provider when its key is set
+    llm_provider: str = "anthropic"
+    llm_model: str = "claude-sonnet-5"
+    # Sonnet 5 defaults to adaptive thinking; disable for predictable latency/cost
+    # on search briefs. Set LLM_THINKING=adaptive to enable.
+    llm_thinking: str = "disabled"
 
     # Supabase
     supabase_url: Optional[str] = None
@@ -93,7 +102,7 @@ class Settings(BaseSettings):
     rate_limit_per_minute: int = 60
 
     @field_validator(
-        "openai_api_key", "supabase_url", "supabase_anon_key",
+        "openai_api_key", "anthropic_api_key", "supabase_url", "supabase_anon_key",
         "supabase_service_role_key", "ncbi_api_key", "ncbi_email", "resend_api_key",
         "rapidapi_key",
         "stripe_secret_key", "stripe_publishable_key", "stripe_webhook_secret",
@@ -103,6 +112,38 @@ class Settings(BaseSettings):
     @classmethod
     def strip_placeholders(cls, v):
         return _clean_placeholder(v)
+
+    @property
+    def chat_provider(self) -> str:
+        """
+        Resolved chat LLM provider.
+        Prefer configured llm_provider when its API key is present; otherwise
+        fall back to whichever key is available.
+        """
+        pref = (self.llm_provider or "anthropic").strip().lower()
+        if pref == "anthropic" and self.anthropic_api_key:
+            return "anthropic"
+        if pref == "openai" and self.openai_api_key:
+            return "openai"
+        if self.anthropic_api_key:
+            return "anthropic"
+        if self.openai_api_key:
+            return "openai"
+        return pref
+
+    @property
+    def chat_configured(self) -> bool:
+        return bool(self.anthropic_api_key or self.openai_api_key)
+
+    @property
+    def chat_model(self) -> str:
+        if self.chat_provider == "anthropic":
+            return (self.llm_model or "claude-sonnet-5").strip()
+        # OpenAI fallback default
+        model = (self.llm_model or "").strip()
+        if model.startswith("claude"):
+            return "gpt-4o-mini"
+        return model or "gpt-4o-mini"
 
     @property
     def bypass_user_id_set(self) -> set[str]:
