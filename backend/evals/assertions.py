@@ -518,6 +518,7 @@ def approvals_not_called_guidelines(
     Fail if marketing authorisation / FDA approval is labelled as a 'guideline'
     in the same clause (advisory vs legal force).
     Distinguishing language (advisory / distinct / separate) is allowed.
+    Interrogative contrasts ("approval or a guideline?") are not conflation.
     """
     text = brief or ""
     for m in re.finditer(
@@ -534,7 +535,12 @@ def approvals_not_called_guidelines(
             continue
         if re.search(
             r"(?:advisor(?:y|ily)|distinct|different from|not (?:themselves|the same)|"
-            r"separat(?:e|ely)|legal(?:ly)? binding|do not (?:themselves )?confer)",
+            r"separat(?:e|ely)|legal(?:ly)? binding|do not (?:themselves )?confer|"
+            r"approv(?:al|ed)\s+or\s+(?:an?\s+)?guidelines?|"
+            r"guidelines?\s+or\s+(?:an?\s+)?approv|"
+            r"approv(?:al|ed)\s+versus\s+guidelines?|"
+            r"guidelines?\s+versus\s+approv|"
+            r"is that an?\s+approv)",
             window,
             re.I,
         ):
