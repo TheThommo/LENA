@@ -106,8 +106,9 @@ warn_check "Landing mentions 3 free searches" "curl -sf '$FRONTEND/' | grep -qi 
 
 echo
 echo "[6b] Chat app demo surface"
-check "Chat page exposes Pharma mode" "curl -sf '$FRONTEND/chat' | grep -qi 'Pharma'"
-check "Chat page exposes PULSE copy" "curl -sf '$FRONTEND/chat' | grep -qi 'PULSE\\|cross-validat'"
+# /chat is client-rendered — assert the page shell + JS bundle, not SSR HTML.
+check "Chat page meta mentions PULSE" "curl -sf '$FRONTEND/chat' | grep -qi 'PULSE'"
+check "Chat JS bundle includes Pharma mode" "chat_html=\$(curl -sf '$FRONTEND/chat'); echo \"\$chat_html\" | grep -qoE '/_next/static/[^\" ]+\\.js' | head -1 >/dev/null; echo \"\$chat_html\" | grep -oE '/_next/static/[^\" ]+\\.js' | while read -r u; do curl -sf \"\$FRONTEND\$u\" | grep -q 'Pharma' && exit 0; done; exit 1"
 
 echo
 echo "[7] TLS certificate"
