@@ -106,9 +106,8 @@ warn_check "Landing mentions 3 free searches" "curl -sf '$FRONTEND/' | grep -qi 
 
 echo
 echo "[6b] Chat app demo surface"
-# /chat is client-rendered — assert meta description + JS bundle, not SSR body.
-check "Chat page meta mentions PULSE" "curl -sf '$FRONTEND/chat' | grep -qi 'pulse'"
-pharma_bundle_ok() {
+# /chat is client-rendered — assert page shell + JS bundle (not SSR body copy).
+chat_demo_surface_ok() {
   local html chunk
   html="$(curl -sf "$FRONTEND/chat")" || return 1
   echo "$html" | grep -qi 'pulse' || return 1
@@ -120,11 +119,11 @@ pharma_bundle_ok() {
   done < <(echo "$html" | grep -oE '/_next/static/[^" ]+\.js' | head -20)
   return 1
 }
-if pharma_bundle_ok; then
-  echo "  ✓ Chat JS bundle includes Pharma mode"
+if chat_demo_surface_ok; then
+  echo "  ✓ Chat shell mentions PULSE and JS bundle includes Pharma"
   pass=$((pass + 1))
 else
-  echo "  ✗ Chat JS bundle includes Pharma mode"
+  echo "  ✗ Chat shell mentions PULSE and JS bundle includes Pharma"
   fail=$((fail + 1))
 fi
 
