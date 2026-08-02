@@ -735,10 +735,30 @@ _OUTLIER_THERAPEUTICS: set[str] = {
     "ivermectin", "hydroxychloroquine",
 }
 
-VALID_MODES = {"all", "supplements", "herbal", "alternatives", "outlier"}
+# PHARMA — prescription / OTC drugs, labels, trials, PK/PD, dosing.
+_PHARMA_KEYWORDS: set[str] = {
+    "drug", "drugs", "medication", "medications", "pharmaceutical",
+    "pharmacology", "pharmacokinetic", "pharmacokinetics", "pharmacodynamic",
+    "pharmacodynamics", "posology", "dosage", "dose", "dosing",
+    "contraindication", "contraindications", "blackbox", "boxed",
+    "smPC", "smpc", "prescribing", "prescription", "formulary",
+    "tablet", "capsule", "injectable", "infusion", "bioequivalence",
+    "adverse", "side-effect", "sideeffect",
+}
+
+_PHARMA_PHRASES: tuple[str, ...] = (
+    "drug label", "product label", "prescribing information",
+    "summary of product characteristics", "package insert",
+    "boxed warning", "black box", "marketing authorisation",
+    "marketing authorization", "fda approved", "ema approved",
+    "once weekly", "twice daily", "mg/day", "mg twice",
+)
+
+VALID_MODES = {"all", "pharma", "supplements", "herbal", "alternatives", "outlier"}
 
 # Map mode name -> (keyword_set, phrase_tuple)
 _MODE_RULES: dict[str, tuple[set[str], tuple[str, ...]]] = {
+    "pharma": (_PHARMA_KEYWORDS, _PHARMA_PHRASES),
     "supplements": (_SUPPLEMENTS_KEYWORDS, _SUPPLEMENTS_PHRASES),
     "herbal": (_HERBAL_KEYWORDS, _HERBAL_PHRASES),
     "alternatives": (_ALTERNATIVES_KEYWORDS, _ALTERNATIVES_PHRASES),
@@ -748,7 +768,9 @@ _MODE_RULES: dict[str, tuple[set[str], tuple[str, ...]]] = {
 # auto-tagged regardless of content (they ARE the category).
 _SOURCE_DEFAULT_MODES: dict[str, str] = {
     "ods_dsld": "supplements",
-    "openfda": "supplements",
+    "openfda": "pharma",  # also drug labels / adverse events
+    "dailymed": "pharma",
+    "clinical_trials": "pharma",
 }
 
 
@@ -1142,18 +1164,20 @@ def _tag_result_modes(result: SourceResult) -> None:
     """Populate result.matched_modes with every mode this result qualifies for.
 
     'all' is always included so a result is never invisible when no filter
-    is active. 'supplements' / 'herbal' / 'alternatives' / 'outlier' are set
-    based on content (and source-default for the category-native sources).
+    is active. Mode tags are set from content and source-native defaults.
     """
     tags = ["all"]
 
     text_tokens = set((result.keywords or []))
     blob = f"{result.title or ''} {result.summary or ''}".lower()
 
-    # Source-native tagging: ODS DSLD & openFDA ARE supplement data by definition.
+    # Source-native tagging (labels / trials / DSLD are category-defining).
     source_default = _SOURCE_DEFAULT_MODES.get(result.source_name or "")
     if source_default:
         tags.append(source_default)
+    # openFDA also surfaces supplement products — keep dual-tag.
+    if (result.source_name or "") == "openfda" and "supplements" not in tags:
+        tags.append("supplements")
 
     # Content-based tagging: check each mode's keyword set + phrase tuple.
     # Multi-word phrases ("vitamin c", "fish oil") never survive PULSE's alpha-
@@ -1385,19 +1409,20 @@ async def run_search(
     post_scope = sum(len(r) for r in scoped_results_by_source.values())
     logger.debug(f"Mode scope {modes}: {pre_scope} -> {post_scope} results")
 
-    # Step 6: Run PULSE validation on the scoped corpus only
-    # Tell PULSE how many sources were ATTEMPTED (including failures)
-    # so confidence_ratio penalizes low coverage honestly.
+    # Step 6: Run PULSE validation on the scoped corpus only.
+    # Confidence scores the *responding* universe for the active lens.
+    # Infra errors are tracked separately and do not dilute the score.
     total_sources_attempted = len(scoped_results_by_source) + len(errors)
 
     pulse_report = await run_pulse_validation(
         query=query,
         results_by_source=scoped_results_by_source,
         subject_terms=query_subjects,
+        modes=modes,
     )
-    # Inject the total-attempted count for confidence calculation, then
-    # refresh status so the label stays a pure function of confidence.
     pulse_report._sources_attempted = total_sources_attempted
+    pulse_report._sources_errored = len(errors)
+    pulse_report._active_modes = list(modes or ["all"])
     pulse_report.refresh_status()
 
     _post_filter_by_query_fit(pulse_report, subjects, primary_terms=primary_terms)
