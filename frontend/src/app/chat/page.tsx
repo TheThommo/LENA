@@ -623,12 +623,30 @@ export default function Home() {
   }, [isAuthenticated, authToken, router, session.sessionId]);
 
   // Handle inline disclaimer acceptance: POST accept, drop the card
-  // message, then replay the pending query.
+  // message + the original user bubble, then replay the pending query
+  // (handleSend re-adds a single user message — avoids the duplicate
+  // bubble that confused first-time prospect demos).
   const handleAcceptDisclaimer = useCallback(async () => {
     await acceptDisclaimer();
     const pending = pendingQueryRef.current;
     pendingQueryRef.current = null;
-    setMessages(prev => prev.filter(m => m.response?.guardrail_type !== 'disclaimer_required'));
+    setMessages(prev => {
+      const withoutCard = prev.filter(m => m.response?.guardrail_type !== 'disclaimer_required');
+      if (!pending) return withoutCard;
+      // Drop the trailing user bubble that matches the pending query so
+      // handleSend does not render it twice.
+      let removed = false;
+      const cleaned: Message[] = [];
+      for (let i = withoutCard.length - 1; i >= 0; i -= 1) {
+        const m = withoutCard[i];
+        if (!removed && m.type === 'user' && m.content === pending) {
+          removed = true;
+          continue;
+        }
+        cleaned.push(m);
+      }
+      return cleaned.reverse();
+    });
     if (pending) {
       await handleSend(pending);
     }

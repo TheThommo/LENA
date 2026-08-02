@@ -744,6 +744,12 @@ _PHARMA_KEYWORDS: set[str] = {
     "smPC", "smpc", "prescribing", "prescription", "formulary",
     "tablet", "capsule", "injectable", "infusion", "bioequivalence",
     "adverse", "side-effect", "sideeffect",
+    # Biologics / comparator lexicon — required so Pharma mode keeps INN papers
+    # that never say the word "drug" in the title. Avoid short tokens (inn/mab
+    # /nda) — tagging uses substring match and those false-positive widely.
+    "biosimilar", "biosimilars", "biologic", "biologics",
+    "monoclonal", "antibody", "antibodies",
+    "originator", "comparator", "comparators",
 }
 
 _PHARMA_PHRASES: tuple[str, ...] = (
@@ -752,6 +758,8 @@ _PHARMA_PHRASES: tuple[str, ...] = (
     "boxed warning", "black box", "marketing authorisation",
     "marketing authorization", "fda approved", "ema approved",
     "once weekly", "twice daily", "mg/day", "mg twice",
+    "reference product", "reference medicine", "reference listed",
+    "active comparator", "biosimilar trastuzumab", "head-to-head",
 )
 
 VALID_MODES = {"all", "pharma", "supplements", "herbal", "alternatives", "outlier"}
@@ -997,10 +1005,12 @@ def _subject_terms(query: str, max_terms: int | None = None, min_len: int = 3) -
 
     Medical conditions and supplement/herbal keywords are prioritised so
     long personal-health prompts still retrieve relevant literature.
+    Drug/INN names must also survive the cap — a floor of 8 terms keeps
+    molecules like trastuzumab alongside disease context.
     """
     import re
     if max_terms is None:
-        max_terms = min(10, 4 + len(query) // 250)
+        max_terms = min(12, max(8, 4 + len(query) // 200))
 
     ql = query.lower()
     phrase_hits = [p for p in _MEDICAL_CONDITION_PHRASES if p in ql]
@@ -1032,15 +1042,30 @@ def _subject_terms(query: str, max_terms: int | None = None, min_len: int = 3) -
 
 
 def _build_source_query(query: str, subjects: list[str]) -> str:
-    """Build a PubMed-friendly query from extracted subject terms."""
+    """Build a PubMed-friendly query from extracted subject terms.
+
+    Never drop distinctive entity tokens (drug/INN names, product names)
+    when a medical-condition keyword is also present. Preferring only
+    "cancer" for a trastuzumab biosimilar question previously wiped PubMed
+    recall and produced empty Pharma demos.
+    """
     ql = query.lower()
     phrase_hits = [p for p in _MEDICAL_CONDITION_PHRASES if p in ql][:2]
     _academic_vocab = _SUPPLEMENTS_KEYWORDS | _HERBAL_KEYWORDS | _ALTERNATIVES_KEYWORDS
+    _pharma_vocab = _PHARMA_KEYWORDS
     condition_terms = [t for t in subjects if t in _MEDICAL_CONDITION_KEYWORDS]
     academic_terms = [t for t in subjects if t.lower() in _academic_vocab]
+    pharma_terms = [t for t in subjects if t.lower() in _pharma_vocab]
+    # Remaining subjects are typically INNs / brand-ish / molecule tokens.
+    entity_terms = [
+        t for t in subjects
+        if t not in condition_terms
+        and t.lower() not in _academic_vocab
+    ]
 
     parts: list[str] = []
-    for item in phrase_hits + condition_terms + academic_terms:
+    # Entities + pharma lexicon first (recall), then disease phrases/context.
+    for item in entity_terms + pharma_terms + phrase_hits + condition_terms + academic_terms:
         if item not in parts:
             parts.append(item)
     if not parts:

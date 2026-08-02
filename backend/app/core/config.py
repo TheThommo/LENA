@@ -74,6 +74,11 @@ class Settings(BaseSettings):
     # Comma-separated emails with full access (owner + named QA testers only).
     bypass_user_emails: str = "mark.e.s.thompson@gmail.com,lauren@capitalfive.co.za"
 
+    # Comma-separated email domains granted full access when the user is
+    # registered (e.g. "clientpharma.com"). Used for prospect evaluation
+    # rides without burning freemium quotas. Empty by default.
+    prospect_access_domains: str = ""
+
     # Email (Resend)
     resend_api_key: Optional[str] = None
     admin_email: str = "mark.e.s.thompson@gmail.com"
@@ -163,6 +168,21 @@ class Settings(BaseSettings):
         }
         emails.add(self.admin_email.lower().strip())
         return emails
+
+    @property
+    def prospect_access_domain_set(self) -> set[str]:
+        return {
+            d.strip().lower().lstrip("@")
+            for d in (self.prospect_access_domains or "").split(",")
+            if d.strip()
+        }
+
+    def is_prospect_access_email(self, email: Optional[str]) -> bool:
+        """True when email's domain is on the prospect evaluation allowlist."""
+        if not email or "@" not in email:
+            return False
+        domain = email.lower().strip().rsplit("@", 1)[-1]
+        return domain in self.prospect_access_domain_set
 
     def is_bypass_user(self, user_id: Optional[str]) -> bool:
         if not user_id:

@@ -105,6 +105,29 @@ check "Landing links to /chat" "curl -sf '$FRONTEND/' | grep -q '/chat'"
 warn_check "Landing mentions 3 free searches" "curl -sf '$FRONTEND/' | grep -qi '3 search'"
 
 echo
+echo "[6b] Chat app demo surface"
+# /chat is client-rendered — assert page shell + JS bundle (not SSR body copy).
+chat_demo_surface_ok() {
+  local html chunk
+  html="$(curl -sf "$FRONTEND/chat")" || return 1
+  echo "$html" | grep -qi 'pulse' || return 1
+  while IFS= read -r chunk; do
+    [ -n "$chunk" ] || continue
+    if curl -sf "${FRONTEND}${chunk}" | grep -q 'Pharma'; then
+      return 0
+    fi
+  done < <(echo "$html" | grep -oE '/_next/static/[^" ]+\.js' | head -20)
+  return 1
+}
+if chat_demo_surface_ok; then
+  echo "  ✓ Chat shell mentions PULSE and JS bundle includes Pharma"
+  pass=$((pass + 1))
+else
+  echo "  ✗ Chat shell mentions PULSE and JS bundle includes Pharma"
+  fail=$((fail + 1))
+fi
+
+echo
 echo "[7] TLS certificate"
 warn_check "TLS cert valid for www.lenamd.com" "echo | openssl s_client -connect www.lenamd.com:443 -servername www.lenamd.com 2>/dev/null | openssl x509 -noout -subject 2>/dev/null | grep -q 'www.lenamd.com'"
 
