@@ -10,12 +10,13 @@ abstract, cross-matches them against claims from papers in OTHER sources,
 and weights by evidence hierarchy (systematic review > RCT > cohort >
 case study > expert opinion).
 
-The confidence score reflects genuine cross-validation:
-- Multiple independent papers from different databases finding the same
-  thing = high confidence.
-- One database returning results while others have nothing = low
-  confidence (acknowledged honestly).
-- Papers contradicting each other = flagged with both positions.
+Confidence (v2) scores agreement inside the *responding* evidence universe
+for the active research lens — not "how many of every database answered":
+- Claim corroboration across independent works/classes raises confidence.
+- Source-class diversity (literature / trial / label / guideline) matters.
+- Empty specialty databases are expected and do not punish the score.
+- Below a minimum evidence gate, PULSE reports insufficient rather than a
+  misleadingly low percentage.
 """
 
 import re
@@ -39,11 +40,36 @@ class ValidationStatus(str, Enum):
 
 # Status is a pure function of confidence against these published thresholds.
 # Keep in sync with evals.assertions.CONFIDENCE_STATUS_THRESHOLDS and UI explainer.
+# Bands (UI copy): ≥80 Strong · 60–79 Solid · 40–59 Emerging · <40 / gate fail Insufficient
 CONFIDENCE_STATUS_THRESHOLDS: tuple[tuple[float, ValidationStatus], ...] = (
-    (0.70, ValidationStatus.VALIDATED),
+    (0.80, ValidationStatus.VALIDATED),
     (0.40, ValidationStatus.EDGE_CASE),
     (0.0, ValidationStatus.INSUFFICIENT),
 )
+
+# Database → independent evidence class (mode-agnostic identity).
+SOURCE_CLASS_MAP: dict[str, str] = {
+    "pubmed": "literature",
+    "europe_pmc": "literature",
+    "openalex": "literature",
+    "semantic_scholar": "literature",
+    "cochrane": "literature",
+    "who_iris": "literature",
+    "cdc": "literature",
+    "clinical_trials": "trial_registry",
+    "dailymed": "label",
+    "openfda": "label",
+    "ods_dsld": "label",
+}
+
+# Minimum evidence gate before a confidence % is shown.
+PULSE_GATE_MIN_WORKS = 3
+PULSE_GATE_MIN_CLASSES = 2
+PULSE_GATE_MIN_WORKS_WITH_CLASSES = 2
+
+
+def source_class_for(source_name: str) -> str:
+    return SOURCE_CLASS_MAP.get((source_name or "").lower(), "literature")
 
 
 def status_for_confidence(confidence: float) -> ValidationStatus:
@@ -456,11 +482,21 @@ class PULSEReport:
 
     @property
     def sources_queried_count(self) -> int:
-        return getattr(self, '_sources_attempted', self.source_count) or self.source_count
+        """Responding databases in the scored universe (not all planned DBs)."""
+        return self.source_count
+
+    @property
+    def sources_attempted_count(self) -> int:
+        return getattr(self, "_sources_attempted", self.source_count) or self.source_count
 
     @property
     def sources_failed_count(self) -> int:
-        return max(0, self.sources_queried_count - self.source_count)
+        """Hard infra failures only when orchestrator set _sources_errored."""
+        errored = getattr(self, "_sources_errored", None)
+        if errored is not None:
+            return int(errored)
+        # Legacy fallback — do not invent failures from dedup collapse.
+        return 0
 
     @property
     def confidence_ratio(self) -> float:
@@ -472,88 +508,228 @@ class PULSEReport:
 
         Status is a pure function of confidence_ratio via status_for_confidence.
         Never assign VALIDATED / EDGE_CASE / PENDING independently of the ratio.
-        Empty corpus → confidence 0.0 → insufficient_validation.
+        Empty corpus / gate fail → confidence 0.0 → insufficient_validation.
         """
         self.status = status_for_confidence(self.confidence_ratio)
         return self.status
 
+    def _responding_source_names(self) -> list[str]:
+        names = {sa.source_name for sa in self.source_agreements if sa.source_name}
+        for r in self.validated_results + self.edge_cases:
+            if r.source_name:
+                names.add(r.source_name)
+            for loc in r.database_locations or []:
+                if loc:
+                    names.add(loc)
+        return sorted(names)
+
+    def _source_classes(self) -> list[str]:
+        classes = {source_class_for(n) for n in self._responding_source_names()}
+        return sorted(classes)
+
+    def _active_lens(self) -> str:
+        modes = getattr(self, "_active_modes", None) or ["all"]
+        cleaned = [m for m in modes if m and m != "all"]
+        if not cleaned:
+            return "all"
+        if len(cleaned) == 1:
+            return cleaned[0]
+        return "+".join(cleaned)
+
+    def _evaluate_gate(self, *, distinct_works: int, source_classes: list[str]) -> dict:
+        n_classes = len(source_classes)
+        passed = distinct_works >= PULSE_GATE_MIN_WORKS or (
+            n_classes >= PULSE_GATE_MIN_CLASSES
+            and distinct_works >= PULSE_GATE_MIN_WORKS_WITH_CLASSES
+        )
+        if passed:
+            reason = (
+                f"Gate passed: {distinct_works} distinct works across "
+                f"{n_classes} source class(es)."
+            )
+        elif distinct_works == 0:
+            reason = "No relevant papers returned in this research lens."
+        else:
+            reason = (
+                f"Need ≥{PULSE_GATE_MIN_WORKS} distinct works, or ≥"
+                f"{PULSE_GATE_MIN_CLASSES} independent source classes with ≥"
+                f"{PULSE_GATE_MIN_WORKS_WITH_CLASSES} works "
+                f"(have {distinct_works} works, {n_classes} classes)."
+            )
+        return {
+            "passed": passed,
+            "reason": reason,
+            "distinct_works": distinct_works,
+            "source_classes": source_classes,
+            "required_works": PULSE_GATE_MIN_WORKS,
+            "required_classes": PULSE_GATE_MIN_CLASSES,
+        }
+
     def _compute_confidence(self) -> dict:
         """
-        Dynamic confidence based on ACTUAL cross-validation of findings.
-        Returns ratio plus transparent breakdown for the UI.
+        Mode-aware confidence over the *responding* evidence universe.
+
+        PULSE =
+          0.55 × claim corroboration
+        + 0.25 × source-class diversity
+        + 0.20 × theme agreement
+        − contradiction discount (capped)
+
+        Empty non-responding databases are excluded from the denominator.
         """
-        if self.source_count == 0:
-            return {
-                "ratio": 0.0,
-                "cross_validation_density": 0.0,
-                "source_coverage": 0.0,
-                "source_agreement": 0.0,
-                "coverage_factor": 1.0,
-                "edge_case_penalty": 0.0,
-                "contradiction_penalty": 0.0,
-            }
+        empty = {
+            "ratio": 0.0,
+            "claim_corroboration": 0.0,
+            "source_class_diversity": 0.0,
+            "theme_agreement": 0.0,
+            # Legacy aliases kept for older UI clients during rollout
+            "cross_validation_density": 0.0,
+            "source_coverage": 0.0,
+            "source_agreement": 0.0,
+            "coverage_factor": 1.0,
+            "edge_case_penalty": 0.0,
+            "contradiction_penalty": 0.0,
+            "gate": {
+                "passed": False,
+                "reason": "No relevant papers returned in this research lens.",
+                "distinct_works": 0,
+                "source_classes": [],
+                "required_works": PULSE_GATE_MIN_WORKS,
+                "required_classes": PULSE_GATE_MIN_CLASSES,
+            },
+            "justification": [
+                "Insufficient for PULSE — no relevant papers in this research lens."
+            ],
+            "lens": self._active_lens(),
+            "weights": {
+                "claim_corroboration": 0.55,
+                "source_class_diversity": 0.25,
+                "theme_agreement": 0.20,
+            },
+            "evidence_tier_weights": dict(EVIDENCE_WEIGHTS),
+            "status_thresholds": [
+                {"min_confidence": t, "status": s.value}
+                for t, s in CONFIDENCE_STATUS_THRESHOLDS
+            ],
+        }
 
-        total_queried = self.sources_queried_count
-        coverage = self.source_count / max(total_queried, 1)
+        papers = self.validated_results + self.edge_cases
+        total_papers = len(papers)
+        if self.source_count == 0 or total_papers == 0:
+            return empty
 
-        total_papers = len(self.validated_results) + len(self.edge_cases)
-        if total_papers > 0:
-            papers_with_xval = sum(
-                1 for r in self.validated_results + self.edge_cases
-                if r.cross_validations > 0
-            )
-            xval_density = papers_with_xval / total_papers
-        else:
-            xval_density = 0.0
-
-        agreement_ratio = self.agreement_count / total_queried if total_queried > 0 else 0.0
-
-        raw_confidence = (
-            xval_density * 0.45 +
-            coverage * 0.30 +
-            agreement_ratio * 0.25
+        responding = self._responding_source_names()
+        classes = self._source_classes()
+        distinct_works = int(
+            getattr(self, "_distinct_work_count", total_papers) or total_papers
+        )
+        gate = self._evaluate_gate(
+            distinct_works=distinct_works, source_classes=classes
         )
 
-        coverage_factor = 1.0
-        if total_queried > 1:
-            coverage_factor = 0.4 + (0.6 * math.sqrt(coverage))
-            raw_confidence *= coverage_factor
+        if not gate["passed"]:
+            out = dict(empty)
+            out["gate"] = gate
+            out["justification"] = [
+                "Insufficient for PULSE — " + gate["reason"],
+                f"Research lens: {self._active_lens()}.",
+            ]
+            out["lens"] = self._active_lens()
+            out["source_coverage"] = 1.0  # responding universe is complete by definition
+            return out
 
-        edge_penalty = 0.0
-        if self.edge_cases:
-            edge_penalty = len(self.edge_cases) / max(1, total_papers)
-            raw_confidence *= (1.0 - (edge_penalty * 0.20))
+        papers_with_xval = sum(1 for r in papers if r.cross_validations > 0)
+        claim_corroboration = papers_with_xval / total_papers
+
+        # Full credit at 3 independent classes (literature / trial / label…)
+        source_class_diversity = min(1.0, len(classes) / 3.0)
+
+        responding_n = max(len(responding), 1)
+        theme_agreement = min(1.0, self.agreement_count / responding_n)
+
+        raw = (
+            claim_corroboration * 0.55
+            + source_class_diversity * 0.25
+            + theme_agreement * 0.20
+        )
 
         contradiction_penalty = 0.0
-        if self.total_contradictions > 0 and self.total_cross_validations > 0:
-            contradiction_penalty = self.total_contradictions / (
-                self.total_cross_validations + self.total_contradictions
+        if self.total_contradictions > 0:
+            denom = max(1, self.total_cross_validations + self.total_contradictions)
+            contradiction_penalty = min(
+                0.45, self.total_contradictions / denom
             )
-            raw_confidence *= (1.0 - (contradiction_penalty * 0.30))
+            raw *= 1.0 - (contradiction_penalty * 0.35)
 
-        ratio = min(max(raw_confidence, 0.0), 0.95)
+        ratio = min(max(raw, 0.0), 0.95)
 
-        # Evidence-present floor: multi-source retrieval with papers should
-        # never display as 0% PULSE when cross-validation hasn't run yet.
-        if total_papers > 0 and ratio < 0.08:
+        # Soft floor once the gate has passed — never show ~0% for a valid corpus.
+        if ratio < 0.40:
             baseline = min(
-                0.28,
-                0.035 * self.source_count + 0.008 * min(total_papers, 30),
+                0.48,
+                0.32
+                + 0.04 * min(len(classes), 3)
+                + 0.01 * min(papers_with_xval, 8),
             )
             ratio = max(ratio, baseline)
 
+        justification: list[str] = []
+        justification.append(
+            f"Scored within the {self._active_lens()} lens using "
+            f"{len(responding)} responding database"
+            f"{'' if len(responding) == 1 else 's'} "
+            f"({', '.join(classes) or 'literature'})."
+        )
+        if papers_with_xval:
+            justification.append(
+                f"{papers_with_xval} of {total_papers} papers had claims "
+                f"corroborated across independent works."
+            )
+        else:
+            justification.append(
+                "Findings were not yet corroborated across independent works."
+            )
+        justification.append(
+            f"Source-class diversity: {len(classes)} class"
+            f"{'' if len(classes) == 1 else 'es'} "
+            f"({', '.join(classes)})."
+        )
+        if self.agreement_count:
+            justification.append(
+                f"{self.agreement_count} responding source"
+                f"{'' if self.agreement_count == 1 else 's'} shared consensus themes."
+            )
+        if contradiction_penalty > 0:
+            justification.append(
+                f"Discounted for {self.total_contradictions} opposing / "
+                f"superseding claim group(s)."
+            )
+
         return {
             "ratio": ratio,
-            "cross_validation_density": round(xval_density, 2),
-            "source_coverage": round(coverage, 2),
-            "source_agreement": round(agreement_ratio, 2),
-            "coverage_factor": round(coverage_factor, 2),
-            "edge_case_penalty": round(edge_penalty, 2),
+            "claim_corroboration": round(claim_corroboration, 2),
+            "source_class_diversity": round(source_class_diversity, 2),
+            "theme_agreement": round(theme_agreement, 2),
+            # Legacy aliases (mapped to v2 components for older UI)
+            "cross_validation_density": round(claim_corroboration, 2),
+            "source_coverage": 1.0,
+            "source_agreement": round(theme_agreement, 2),
+            "coverage_factor": 1.0,
+            "edge_case_penalty": 0.0,
             "contradiction_penalty": round(contradiction_penalty, 2),
+            "gate": gate,
+            "justification": justification,
+            "lens": self._active_lens(),
+            "responding_sources": responding,
+            "source_classes": classes,
             "weights": {
-                "cross_validation_density": 0.45,
-                "source_coverage": 0.30,
-                "source_agreement": 0.25,
+                "claim_corroboration": 0.55,
+                "source_class_diversity": 0.25,
+                "theme_agreement": 0.20,
+                # legacy keys for older clients
+                "cross_validation_density": 0.55,
+                "source_coverage": 0.25,
+                "source_agreement": 0.20,
             },
             "evidence_tier_weights": dict(EVIDENCE_WEIGHTS),
             "status_thresholds": [
@@ -574,8 +750,13 @@ class PULSEReport:
             "confidence_ratio": round(conf["ratio"], 2),
             "confidence_breakdown": conf,
             "source_count": self.source_count,
-            "sources_attempted": self.sources_queried_count,
+            "sources_attempted": self.sources_attempted_count,
             "sources_failed": self.sources_failed_count,
+            "responding_sources": conf.get("responding_sources") or self._responding_source_names(),
+            "source_classes": conf.get("source_classes") or self._source_classes(),
+            "pulse_lens": conf.get("lens") or self._active_lens(),
+            "pulse_gate": conf.get("gate"),
+            "pulse_justification": conf.get("justification") or [],
             "agreement_count": self.agreement_count,
             "consensus_keywords": self.consensus_keywords[:20],
             "validated_count": len(self.validated_results),
@@ -826,6 +1007,7 @@ async def run_pulse_validation(
     results_by_source: dict[str, list[SourceResult]],
     edge_case_threshold: float = 0.15,
     subject_terms: Optional[list[str]] = None,
+    modes: Optional[list[str]] = None,
 ) -> PULSEReport:
     """
     Cross-reference results from multiple sources using BOTH keyword overlap
@@ -838,9 +1020,10 @@ async def run_pulse_validation(
     4. Cross-match claims between papers from DIFFERENT sources
     5. Score each paper based on cross-validation count + evidence weight
     6. Build source-level agreement from both keyword overlap and claim matches
-    7. Determine overall validation status
+    7. Determine overall validation status (pure function of confidence)
     """
     report = PULSEReport(query=query)
+    report._active_modes = list(modes or ["all"])
     query_terms = [t.lower() for t in (subject_terms or []) if t]
 
     if not results_by_source:

@@ -26,11 +26,11 @@ def test_status_for_confidence_thresholds():
     assert status_for_confidence(0.0) == ValidationStatus.INSUFFICIENT
     assert status_for_confidence(0.39) == ValidationStatus.INSUFFICIENT
     assert status_for_confidence(0.40) == ValidationStatus.EDGE_CASE
-    assert status_for_confidence(0.69) == ValidationStatus.EDGE_CASE
-    assert status_for_confidence(0.70) == ValidationStatus.VALIDATED
+    assert status_for_confidence(0.79) == ValidationStatus.EDGE_CASE
+    assert status_for_confidence(0.80) == ValidationStatus.VALIDATED
     assert status_for_confidence(1.0) == ValidationStatus.VALIDATED
-    # Threshold table is the published contract
-    assert CONFIDENCE_STATUS_THRESHOLDS[0][0] == 0.70
+    # Threshold table is the published contract (v2 bands)
+    assert CONFIDENCE_STATUS_THRESHOLDS[0][0] == 0.80
     assert CONFIDENCE_STATUS_THRESHOLDS[1][0] == 0.40
 
 

@@ -35,7 +35,13 @@ export interface PersonaInfo {
   depth: string;
 }
 
-export type ResultMode = 'all' | 'supplements' | 'herbal' | 'alternatives' | 'outlier';
+export type ResultMode =
+  | 'all'
+  | 'pharma'
+  | 'supplements'
+  | 'herbal'
+  | 'alternatives'
+  | 'outlier';
 
 export interface ValidatedResult {
   source: string;
@@ -71,18 +77,38 @@ export interface PulseCrossValidation {
   weight: number;
 }
 
+export interface PulseGate {
+  passed: boolean;
+  reason: string;
+  distinct_works: number;
+  source_classes: string[];
+  required_works: number;
+  required_classes: number;
+}
+
 export interface PulseConfidenceBreakdown {
   ratio: number;
+  claim_corroboration?: number;
+  source_class_diversity?: number;
+  theme_agreement?: number;
   cross_validation_density: number;
   source_coverage: number;
   source_agreement: number;
   coverage_factor: number;
   edge_case_penalty: number;
   contradiction_penalty: number;
+  gate?: PulseGate;
+  justification?: string[];
+  lens?: string;
+  responding_sources?: string[];
+  source_classes?: string[];
   weights?: {
-    cross_validation_density: number;
-    source_coverage: number;
-    source_agreement: number;
+    claim_corroboration?: number;
+    source_class_diversity?: number;
+    theme_agreement?: number;
+    cross_validation_density?: number;
+    source_coverage?: number;
+    source_agreement?: number;
   };
   evidence_tier_weights?: Record<string, number>;
   status_thresholds?: { min_confidence: number; status: string }[];
@@ -118,6 +144,11 @@ export interface PulseReport {
   source_count: number;
   sources_attempted?: number;
   sources_failed?: number;
+  responding_sources?: string[];
+  source_classes?: string[];
+  pulse_lens?: string;
+  pulse_gate?: PulseGate;
+  pulse_justification?: string[];
   agreement_count: number;
   consensus_keywords: string[];
   consensus_summary: string;

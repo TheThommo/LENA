@@ -53,12 +53,12 @@ const FAQ_ITEMS: FaqItem[] = [
   {
     question: 'What is PULSE?',
     answer:
-      'PULSE (Published Literature Source Evaluation) reads claims from paper abstracts, then checks whether independent databases report the same finding. It is not keyword matching — each corroborated claim across PubMed, Cochrane, OpenAlex, and others increases confidence, weighted by evidence type (systematic reviews rank highest).\n\nTap any PULSE score in Chat or the Research Panel to see the full breakdown: sources responded, cross-validated claims, the confidence formula (45% corroboration · 30% coverage · 25% theme agreement), and why the score is not higher when applicable.',
+      'PULSE (Published Literature Source Evaluation) scores how strongly independent findings agree inside the evidence that actually returned for your selected research lens (All, Pharma, Supplements, Herbal, Alt., Outlier). Empty specialty databases do not lower the score.\n\nFormula: 55% claim corroboration · 25% source-class diversity · 20% theme agreement, with an explicit discount for contradictions or supersession. Tap any PULSE card to see the justification for that score.',
   },
   {
     question: 'What do confidence levels mean?',
     answer:
-      'PULSE scores are transparent percentages, not black-box ratings. 70%+ (green): strong cross-database corroboration. 45–69%: moderate agreement with some gaps. 25–44%: limited validation — review sources directly. Below 25%: sparse or contested evidence. The expanded PULSE card always shows exactly which databases responded and which claims matched.',
+      '80%+ Strong agreement · 60–79% Solid agreement · 40–59% Emerging agreement. Below the evidence gate (too few independent works/classes), PULSE reports “Insufficient for PULSE” instead of a misleading low percentage. The card always explains why the score is what it is.',
   },
   {
     question: 'Where does LENA get its data?',

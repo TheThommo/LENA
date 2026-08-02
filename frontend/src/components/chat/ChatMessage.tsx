@@ -383,6 +383,11 @@ function SourceCard({ result, isEdgeCase, index, query }: { result: ValidatedRes
                 Edge
               </span>
             )}
+            {result.matched_modes?.includes('pharma') && (
+              <span className="px-1.5 py-0.5 text-[9px] font-semibold rounded-full bg-indigo-50 text-indigo-700 flex-shrink-0" title="Drug label, trial, or pharmaceutical evidence">
+                Pharma
+              </span>
+            )}
             {result.matched_modes?.includes('supplements') && (
               <span className="px-1.5 py-0.5 text-[9px] font-semibold rounded-full bg-teal-50 text-teal-700 flex-shrink-0" title="Vitamin, mineral, probiotic or nutraceutical supplement">
                 Supplement

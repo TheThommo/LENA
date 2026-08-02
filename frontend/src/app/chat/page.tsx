@@ -43,6 +43,7 @@ import { useMediaQuery, useVisualViewportBottomInset } from '@/hooks/useMediaQue
 
 const RESULT_MODE_OPTIONS = [
   { id: 'all' as ResultMode, label: 'All', shortLabel: 'All' },
+  { id: 'pharma' as ResultMode, label: 'Pharma', shortLabel: 'Pharma' },
   { id: 'supplements' as ResultMode, label: 'Supplements', shortLabel: 'Supp.' },
   { id: 'herbal' as ResultMode, label: 'Herbal', shortLabel: 'Herbal' },
   { id: 'alternatives' as ResultMode, label: 'Alt.', shortLabel: 'Alt.' },
