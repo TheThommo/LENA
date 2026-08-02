@@ -64,12 +64,21 @@ async def search_dsld(query: str, max_results: int = 10) -> list[DSLDProduct]:
 
         ingredient_lines: list[str] = []
         ingredients = src.get("ingredientRows") or src.get("ingredients") or []
+        if not isinstance(ingredients, list):
+            ingredients = []
         for ing in ingredients[:15]:
+            # DSLD payloads sometimes return plain strings or nested lists.
+            if isinstance(ing, str):
+                if ing.strip():
+                    ingredient_lines.append(ing.strip())
+                continue
+            if not isinstance(ing, dict):
+                continue
             name = ing.get("name") or ing.get("ingredientName") or ""
             quantity = ing.get("quantity") or ing.get("amount") or ""
             unit = ing.get("unit") or ""
             if name:
-                bits = [name]
+                bits = [str(name)]
                 if quantity:
                     bits.append(f"{quantity}{unit}".strip())
                 ingredient_lines.append(" ".join(bits))

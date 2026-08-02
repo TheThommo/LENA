@@ -5,10 +5,13 @@ import pytest
 from app.core.pulse_engine import SourceResult
 from app.services.content_ingest import IngestedContent, extract_search_terms_from_context
 from app.services.search_orchestrator import (
+    _build_source_query,
     _filter_relevant,
     _post_filter_by_query_fit,
     _prioritize_display_keywords,
     _query_fit_score,
+    _subject_terms,
+    _tag_result_modes,
 )
 from app.core.pulse_engine import PULSEReport, run_pulse_validation
 
@@ -132,3 +135,27 @@ def test_query_fit_score():
     blob = "aspirin and paracetamol combination therapy"
     score = _query_fit_score(blob, ["aspirin", "paracetamol", "caffeine"])
     assert score >= 0.66
+
+
+def test_source_query_keeps_drug_name_with_disease_context():
+    """Regression: condition keywords must not erase INN/drug tokens."""
+    q = (
+        "Is there trial and guideline evidence comparing biosimilar "
+        "trastuzumab to originator in HER2-positive breast cancer?"
+    )
+    subjects = _subject_terms(q)
+    assert "trastuzumab" in subjects
+    source_q = _build_source_query(q, subjects)
+    assert "trastuzumab" in source_q.lower()
+    assert "biosimilar" in source_q.lower()
+
+
+def test_pharma_mode_tags_biosimilar_paper_without_word_drug():
+    paper = SourceResult(
+        source_name="pubmed",
+        title="Biosimilar trastuzumab versus originator in HER2-positive breast cancer",
+        summary="A randomised trial of trastuzumab biosimilar versus originator.",
+        keywords=["trastuzumab", "biosimilar", "her2"],
+    )
+    _tag_result_modes(paper)
+    assert "pharma" in paper.matched_modes

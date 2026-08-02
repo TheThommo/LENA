@@ -45,17 +45,23 @@ def is_bypass_email(email: Optional[str]) -> bool:
     return email.lower().strip() in settings.bypass_user_email_set
 
 
+def is_prospect_email(email: Optional[str]) -> bool:
+    """True for registered users on a prospect evaluation domain allowlist."""
+    return settings.is_prospect_access_email(email)
+
+
 async def user_has_full_access(client, user_id: Optional[str]) -> bool:
     """
     Full access = skip project caps, search quotas, and content guardrails.
-    Used for owner (Mark), named QA emails in BYPASS_USER_EMAILS, and bypass UUIDs.
+    Used for owner (Mark), named QA emails in BYPASS_USER_EMAILS, bypass UUIDs,
+    and registered users on PROSPECT_ACCESS_DOMAINS (e.g. clientpharma.com).
     """
     if not user_id:
         return False
     if settings.is_bypass_user(user_id):
         return True
     email = await lookup_user_email(client, user_id)
-    return is_bypass_email(email)
+    return is_bypass_email(email) or is_prospect_email(email)
 
 
 def project_limit_upgrade_message(active_project_name: Optional[str] = None) -> str:

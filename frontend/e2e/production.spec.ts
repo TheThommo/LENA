@@ -80,6 +80,36 @@ test.describe('Anonymous search flow', () => {
     const hasResults = page.getByText(/PULSE|Sources \(|confidence/i).first();
     await expect(hasResults).toBeVisible({ timeout: 90_000 });
   });
+
+  test('Pharma mode keeps drug-name results for a biosimilar query', async ({ page, request, baseURL }) => {
+    test.skip(PRE_DEPLOY, 'Requires live search backends');
+    test.setTimeout(150_000);
+
+    expect(await healthOk(request, baseURL!)).toBeTruthy();
+
+    await page.goto('/chat');
+    await expect(page.getByPlaceholder(CHAT_INPUT)).toBeVisible({ timeout: 15_000 });
+
+    await page.getByRole('tab', { name: /^Pharma$/i }).click();
+    await expect(page.getByRole('tab', { name: /^Pharma$/i })).toHaveAttribute('aria-selected', 'true');
+
+    const query =
+      'Is there trial evidence comparing biosimilar trastuzumab to originator in HER2-positive breast cancer?';
+    await page.getByPlaceholder(CHAT_INPUT).fill(query);
+    await page.getByPlaceholder(CHAT_INPUT).press('Enter');
+
+    const disclaimerAccept = page.getByRole('button', { name: /accept/i });
+    if (await disclaimerAccept.isVisible({ timeout: 8_000 }).catch(() => false)) {
+      // After accept, the user bubble for this query must appear only once.
+      await disclaimerAccept.click();
+      await expect(page.getByText(query)).toHaveCount(1, { timeout: 15_000 });
+    }
+
+    await expect(page.getByText(/something didn't work on our side/i)).not.toBeVisible({ timeout: 120_000 });
+    await expect(page.getByText(/PULSE/i).first()).toBeVisible({ timeout: 120_000 });
+    // Drug token must appear in the answer or sources — not a generic cancer dump.
+    await expect(page.getByText(/trastuzumab/i).first()).toBeVisible({ timeout: 30_000 });
+  });
 });
 
 test.describe('Security', () => {

@@ -67,7 +67,9 @@ APP_URL=https://www.lenamd.com
 BILLING_SUCCESS_URL=https://www.lenamd.com/chat?billing=success
 BILLING_CANCEL_URL=https://www.lenamd.com/chat?billing=cancelled
 FREE_SEARCH_LIMIT_ANON=3
-SUPABASE_* / OPENAI_API_KEY / RESEND_API_KEY / STRIPE_* (live keys)
+# Prospect evaluation (registered users on these domains get full access)
+PROSPECT_ACCESS_DOMAINS=clientpharma.com
+SUPABASE_* / OPENAI_API_KEY / ANTHROPIC_API_KEY / RESEND_API_KEY / STRIPE_* (live keys)
 ```
 
 ### Frontend
