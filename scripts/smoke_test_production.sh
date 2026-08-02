@@ -105,6 +105,11 @@ check "Landing links to /chat" "curl -sf '$FRONTEND/' | grep -q '/chat'"
 warn_check "Landing mentions 3 free searches" "curl -sf '$FRONTEND/' | grep -qi '3 search'"
 
 echo
+echo "[6b] Chat app demo surface"
+check "Chat page exposes Pharma mode" "curl -sf '$FRONTEND/chat' | grep -qi 'Pharma'"
+check "Chat page exposes PULSE copy" "curl -sf '$FRONTEND/chat' | grep -qi 'PULSE\\|cross-validat'"
+
+echo
 echo "[7] TLS certificate"
 warn_check "TLS cert valid for www.lenamd.com" "echo | openssl s_client -connect www.lenamd.com:443 -servername www.lenamd.com 2>/dev/null | openssl x509 -noout -subject 2>/dev/null | grep -q 'www.lenamd.com'"
 
