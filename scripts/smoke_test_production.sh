@@ -106,9 +106,27 @@ warn_check "Landing mentions 3 free searches" "curl -sf '$FRONTEND/' | grep -qi 
 
 echo
 echo "[6b] Chat app demo surface"
-# /chat is client-rendered — assert the page shell + JS bundle, not SSR HTML.
-check "Chat page meta mentions PULSE" "curl -sf '$FRONTEND/chat' | grep -qi 'PULSE'"
-check "Chat JS bundle includes Pharma mode" "chat_html=\$(curl -sf '$FRONTEND/chat'); echo \"\$chat_html\" | grep -qoE '/_next/static/[^\" ]+\\.js' | head -1 >/dev/null; echo \"\$chat_html\" | grep -oE '/_next/static/[^\" ]+\\.js' | while read -r u; do curl -sf \"\$FRONTEND\$u\" | grep -q 'Pharma' && exit 0; done; exit 1"
+# /chat is client-rendered — assert meta description + JS bundle, not SSR body.
+check "Chat page meta mentions PULSE" "curl -sf '$FRONTEND/chat' | grep -qi 'pulse'"
+pharma_bundle_ok() {
+  local html chunk
+  html="$(curl -sf "$FRONTEND/chat")" || return 1
+  echo "$html" | grep -qi 'pulse' || return 1
+  while IFS= read -r chunk; do
+    [ -n "$chunk" ] || continue
+    if curl -sf "${FRONTEND}${chunk}" | grep -q 'Pharma'; then
+      return 0
+    fi
+  done < <(echo "$html" | grep -oE '/_next/static/[^" ]+\.js' | head -20)
+  return 1
+}
+if pharma_bundle_ok; then
+  echo "  ✓ Chat JS bundle includes Pharma mode"
+  pass=$((pass + 1))
+else
+  echo "  ✗ Chat JS bundle includes Pharma mode"
+  fail=$((fail + 1))
+fi
 
 echo
 echo "[7] TLS certificate"
